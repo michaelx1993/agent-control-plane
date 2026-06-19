@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getRunDetail } from "@/lib/control-plane-service";
 import { type HealthSignal, type RunStatus } from "@/lib/mock-data";
+import { RunFeedbackForm } from "./RunFeedbackForm";
 
 const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
   attention: "statusAttention",
@@ -139,6 +140,7 @@ export default async function RunDetailPage({ params }: PageProps) {
                 </article>
               ))
             )}
+            <RunFeedbackForm runId={run.id} />
           </div>
         </section>
 

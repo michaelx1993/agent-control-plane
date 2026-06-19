@@ -507,12 +507,39 @@ dd {
   padding: 14px;
 }
 
-.promptForm label {
+.feedbackForm {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.feedbackFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.promptForm label,
+.feedbackForm label {
   display: grid;
   gap: 5px;
 }
 
-.promptForm label span {
+.checkboxLabel {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.checkboxLabel input {
+  width: 16px;
+  height: 16px;
+}
+
+.promptForm label span,
+.feedbackForm label span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 750;
@@ -521,7 +548,10 @@ dd {
 
 .promptForm input,
 .promptForm select,
-.promptForm textarea {
+.promptForm textarea,
+.feedbackForm input,
+.feedbackForm select,
+.feedbackForm textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -541,6 +571,14 @@ dd {
   border-radius: 8px;
   background: var(--bad-bg);
   color: var(--bad);
+  padding: 8px 10px;
+}
+
+.formSuccess {
+  border: 1px solid var(--good);
+  border-radius: 8px;
+  background: var(--good-bg);
+  color: var(--good);
   padding: 8px 10px;
 }
 
