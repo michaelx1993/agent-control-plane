@@ -51,6 +51,9 @@ describe("control plane mock service", () => {
       model: "gpt-5.5 medium",
       promptPreview: expect.any(String),
       traceId: expect.any(String),
+      workspacePath: expect.any(String),
+      workspaceStatus: expect.any(String),
+      workspaceStrategy: expect.any(String),
     });
     expect(run?.maxAttempts).toBeGreaterThanOrEqual(run?.attempt ?? 0);
     expect(run?.events.length).toBeGreaterThan(0);

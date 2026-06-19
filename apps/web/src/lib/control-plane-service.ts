@@ -1561,6 +1561,7 @@ async function getRunDetailFromDb(runId: string): Promise<RunDetail | null> {
         },
         take: 1,
       },
+      workspace: true,
     },
   });
 
@@ -1569,6 +1570,7 @@ async function getRunDetailFromDb(runId: string): Promise<RunDetail | null> {
   }
 
   const trace = run.traceRefs[0];
+  const workspace = run.workspace;
   const baseRun = runToApiRun({
     id: run.id,
     taskIdentifier: run.task.identifier,
@@ -1600,6 +1602,9 @@ async function getRunDetailFromDb(runId: string): Promise<RunDetail | null> {
     nextState: run.nextState ? dbTaskStateToPlaneState(run.nextState) : "",
     promptHash: `sha256:${run.promptRelease.contentHash.slice(0, 12)}`,
     promptPreview: run.promptRelease.renderedContent,
+    workspacePath: workspace?.path ?? "",
+    workspaceStatus: workspace?.status ?? "",
+    workspaceStrategy: workspace?.strategy ?? "",
     conversationId: run.conversationRef?.conversationId ?? "",
     eventCursor: run.conversationRef?.eventCursor ?? "",
     traceId: trace?.traceId ?? "",

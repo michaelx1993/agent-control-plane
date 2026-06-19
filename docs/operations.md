@@ -126,6 +126,8 @@ Operational rule:
 Each DB-backed run creates one Control Plane `workspace` record before OpenHands execution starts.
 The first implementation records the workspace path and marks it `ready`; OpenHands remains
 responsible for the actual checkout/sandbox lifecycle.
+Run Detail exposes the workspace path, strategy, and status so operators can confirm which local
+directory or future sandbox belongs to a run.
 
 Path rule:
 
@@ -443,6 +445,13 @@ pnpm live:dispatch-once
 ```
 
 The script refuses to run unless `WORKER_MODE=live`, runs `pnpm live:preflight`, then dispatches one
-eligible task. The JSON output includes `taskId`, `runId`, `runStatus`, `conversationId`,
-`langfuseTraceId`, `nextState`, and `summary`; use those ids to verify Run Detail, OpenHands, and
-Langfuse links before enabling a long-running worker.
+eligible task. The JSON output is the smoke-test evidence bundle:
+
+- `task`: Control Plane task id, Plane task id, title, team/project/repo, and post-dispatch state.
+- `run`: run id, status, role, attempt, prompt release id, OpenHands conversation id/url,
+  Langfuse trace id/url, next state, summary, and error if present.
+- `verification`: `/runs/<run_id>`, Plane task id, OpenHands evidence, Langfuse evidence, and the
+  expected next state.
+
+Verify the Run Detail workspace metadata, OpenHands conversation, Langfuse trace, and Plane status
+comment before enabling a long-running worker.

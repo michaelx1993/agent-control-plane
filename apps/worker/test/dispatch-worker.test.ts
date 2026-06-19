@@ -11,6 +11,7 @@ import {
   createOpenHandsAdapter,
   createTraceRecorder,
   createMockTask,
+  formatLiveDispatchResult,
   loadConfig,
   normalizedPlaneTaskToDbInput,
   planeStateNameToDbTaskState,
@@ -48,6 +49,70 @@ describe("DispatchWorker", () => {
     expect(runs.map((run) => run.status)).toEqual(["succeeded"]);
     expect(runs[0].statusHistory).toEqual(["queued", "claimed", "running", "succeeded"]);
     expect(runs[0].promptSnapshot).toContain("Role: Development Agent");
+  });
+
+  it("formats live dispatch evidence for operator verification", () => {
+    const task = createMockTask({
+      id: "task-1",
+      planeId: "plane-1",
+      title: "Implement live smoke",
+      state: "Code Review",
+    });
+
+    expect(
+      formatLiveDispatchResult({
+        task,
+        prompt: "redacted prompt",
+        run: {
+          id: "run-1",
+          taskId: task.id,
+          status: "succeeded",
+          role: "Development Agent",
+          attempt: 2,
+          promptReleaseId: "prompt-release-1",
+          conversationId: "conversation-1",
+          conversationUrl: "https://openhands.test/conversations/conversation-1",
+          langfuseTraceId: "trace-1",
+          langfuseTraceUrl: "https://langfuse.test/trace-1",
+          summary: "Implemented and tested.",
+          nextState: "Code Review",
+          statusHistory: ["queued", "claimed", "running", "succeeded"],
+          createdAt: new Date("2026-06-18T00:00:00.000Z"),
+          updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+        },
+      }),
+    ).toEqual({
+      task: {
+        id: "task-1",
+        planeId: "plane-1",
+        title: "Implement live smoke",
+        team: "token-team",
+        project: "token",
+        repo: "crs-src",
+        state: "Code Review",
+      },
+      run: {
+        id: "run-1",
+        status: "succeeded",
+        role: "Development Agent",
+        attempt: 2,
+        promptReleaseId: "prompt-release-1",
+        conversationId: "conversation-1",
+        conversationUrl: "https://openhands.test/conversations/conversation-1",
+        langfuseTraceId: "trace-1",
+        langfuseTraceUrl: "https://langfuse.test/trace-1",
+        nextState: "Code Review",
+        summary: "Implemented and tested.",
+        error: null,
+      },
+      verification: {
+        runDetailPath: "/runs/run-1",
+        planeEvidence: "plane-1",
+        openHandsEvidence: "https://openhands.test/conversations/conversation-1",
+        langfuseEvidence: "https://langfuse.test/trace-1",
+        expectedNextState: "Code Review",
+      },
+    });
   });
 
   it("redacts runtime secrets before prompt release and tracing", async () => {

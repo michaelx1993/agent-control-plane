@@ -127,6 +127,8 @@ describe("new mock API routes", () => {
       events: expect.any(Array),
       openHandsUrl: expect.stringContaining("/conversations/"),
       traceId: expect.any(String),
+      workspacePath: expect.any(String),
+      workspaceStatus: expect.any(String),
     });
     expect(payload.run.events[0]).toMatchObject({
       payload: expect.any(Object),

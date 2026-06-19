@@ -120,7 +120,9 @@ export interface Run {
   promptReleaseId?: string;
   promptSnapshot?: string;
   conversationId?: string;
+  conversationUrl?: string;
   langfuseTraceId?: string;
+  langfuseTraceUrl?: string;
   summary?: string;
   nextState?: TaskState;
   error?: string;
@@ -665,7 +667,9 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     run.status = "succeeded";
     run.statusHistory.push("succeeded");
     run.conversationId = result.conversationId;
+    run.conversationUrl = result.conversationUrl;
     run.langfuseTraceId = traceRef.traceId;
+    run.langfuseTraceUrl = traceRef.url;
     run.summary = result.summary;
     run.nextState = nextState;
     run.leaseExpiresAt = undefined;
@@ -687,6 +691,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     run.statusHistory.push("failed");
     run.error = error.message;
     run.conversationId = result?.conversationId;
+    run.conversationUrl = result?.conversationUrl;
     run.summary = result?.summary ?? error.message;
     run.leaseExpiresAt = undefined;
     run.updatedAt = new Date();
@@ -985,7 +990,9 @@ export class DbControlPlaneStore implements ControlPlaneStore {
     return {
       ...this.toWorkerRun(run),
       conversationId: result.conversationId,
+      conversationUrl: result.conversationUrl,
       langfuseTraceId: traceRef.traceId,
+      langfuseTraceUrl: traceRef.url,
       summary: result.summary,
       nextState,
     };
@@ -1029,6 +1036,7 @@ export class DbControlPlaneStore implements ControlPlaneStore {
     return {
       ...this.toWorkerRun(run),
       conversationId: result?.conversationId,
+      conversationUrl: result?.conversationUrl,
       summary: result?.summary,
       error: error.message,
     };
@@ -1837,22 +1845,42 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log(
-    JSON.stringify(
-      {
-        taskId: result.task.id,
-        taskState: result.task.state,
-        runId: result.run.id,
-        runStatus: result.run.status,
-        conversationId: result.run.conversationId,
-        langfuseTraceId: result.run.langfuseTraceId,
-        nextState: result.run.nextState,
-        summary: result.run.summary,
-      },
-      null,
-      2,
-    ),
-  );
+  console.log(JSON.stringify(formatLiveDispatchResult(result), null, 2));
+}
+
+export function formatLiveDispatchResult(result: DispatchResult) {
+  return {
+    task: {
+      id: result.task.id,
+      planeId: result.task.planeId,
+      title: result.task.title,
+      team: result.task.team,
+      project: result.task.project,
+      repo: result.task.repo ?? null,
+      state: result.task.state,
+    },
+    run: {
+      id: result.run.id,
+      status: result.run.status,
+      role: result.run.role,
+      attempt: result.run.attempt,
+      promptReleaseId: result.run.promptReleaseId ?? null,
+      conversationId: result.run.conversationId ?? null,
+      conversationUrl: result.run.conversationUrl ?? null,
+      langfuseTraceId: result.run.langfuseTraceId ?? null,
+      langfuseTraceUrl: result.run.langfuseTraceUrl ?? null,
+      nextState: result.run.nextState ?? null,
+      summary: result.run.summary ?? null,
+      error: result.run.error ?? null,
+    },
+    verification: {
+      runDetailPath: `/runs/${result.run.id}`,
+      planeEvidence: result.task.planeId,
+      openHandsEvidence: result.run.conversationUrl ?? result.run.conversationId ?? null,
+      langfuseEvidence: result.run.langfuseTraceUrl ?? result.run.langfuseTraceId ?? null,
+      expectedNextState: result.run.nextState ?? null,
+    },
+  };
 }
 
 const isCli = process.argv[1] === fileURLToPath(import.meta.url);

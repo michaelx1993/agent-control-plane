@@ -115,5 +115,10 @@ Use one-shot live dispatch for the first real Development task:
 WORKER_MODE="live" pnpm live:dispatch-once
 ```
 
-It runs live preflight before dispatching and prints the task/run/conversation/trace ids needed for
-Run Detail, OpenHands, and Langfuse verification.
+It runs live preflight before dispatching and prints a JSON evidence bundle:
+
+- `task`: Control Plane task id, Plane task id, team/project/repo, and post-dispatch state.
+- `run`: run id, status, role, attempt, prompt release id, OpenHands conversation id/url,
+  Langfuse trace id/url, next state, summary, and error if present.
+- `verification`: direct evidence handles for the operator: `/runs/<run_id>`, Plane task id,
+  OpenHands evidence, Langfuse evidence, and expected next state.

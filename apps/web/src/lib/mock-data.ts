@@ -83,6 +83,9 @@ export type RunDetail = Run & {
   nextState: PlaneState | "";
   promptHash: string;
   promptPreview: string;
+  workspacePath: string;
+  workspaceStatus: string;
+  workspaceStrategy: string;
   conversationId: string;
   eventCursor: string;
   traceId: string;
@@ -340,6 +343,9 @@ export const runDetails: RunDetail[] = runs.map((run) => ({
   promptHash: "sha256:7bd01a93",
   promptPreview:
     "global + team + project + repo + role prompt assembled with task context, active comments, workpad, and runtime constraints.",
+  workspacePath: `/workspaces/${run.repo}/runs/${run.id}`,
+  workspaceStatus: run.status === "failed" ? "dirty" : "ready",
+  workspaceStrategy: "clone",
   conversationId: run.openHandsUrl.split("/").at(-1) ?? "",
   eventCursor: run.id === "run-7728" ? "event-91" : "event-128",
   traceId: run.langfuseUrl.split("/").at(-1) ?? "",

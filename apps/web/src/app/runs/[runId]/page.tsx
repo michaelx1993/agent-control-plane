@@ -63,6 +63,15 @@ export default async function RunDetailPage({ params }: PageProps) {
               <KeyValue label="Attempt" value={`${run.attempt}/${run.maxAttempts}`} />
               <KeyValue label="Next State" value={run.nextState || "none"} />
               <KeyValue label="Prompt" value={run.promptReleaseId} />
+              <KeyValue label="Workspace" value={run.workspacePath || "none"} />
+              <KeyValue
+                label="Workspace Status"
+                value={
+                  run.workspaceStrategy || run.workspaceStatus
+                    ? `${run.workspaceStrategy || "unknown"} · ${run.workspaceStatus || "unknown"}`
+                    : "none"
+                }
+              />
             </dl>
 
             <div className="linkGrid" aria-label="External run links">
