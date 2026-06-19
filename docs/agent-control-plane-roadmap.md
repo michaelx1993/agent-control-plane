@@ -4,6 +4,7 @@
 
 - 先跑通闭环，再扩大自动化范围。
 - Plane 只做人类任务面板，不承载高频 agent runtime。
+- Plane 必须 self-host，并以未来二次开发为前提。
 - Control Plane 持有调度状态、lease、run、prompt release 关联。
 - OpenHands 持有执行过程、conversation、event log。
 - Langfuse 持有 prompt registry、LLM trace、token/cost、eval。
@@ -13,6 +14,7 @@
 
 ```text
 P0 方案固化
+-> P0.5 Plane Self-host Spike
 -> P1 Plane 任务层接入
 -> P2 Control Plane Runtime
 -> P3 Prompt 平台化
@@ -49,9 +51,51 @@ P0 方案固化
 - 明确 prompt 装配顺序。
 - 明确哪些状态自动执行，哪些状态人工判定。
 
+## P0.5 Plane Self-host Spike
+
+目标：验证 Plane self-host、API、webhook、字段扩展和二开入口，不在假设上启动 P1。
+
+模块：
+
+- Plane self-host deployment
+- Plane API exploration
+- Plane webhook exploration
+- Repo 字段验证
+- Work item 状态映射验证
+- Plane fork 策略验证
+
+关键能力：
+
+- 本地或服务器启动 Plane self-host。
+- 创建 team/project/work item。
+- 验证 work item API 读写。
+- 验证 webhook 是否能覆盖 create/update/comment/state change。
+- 验证 repo 字段：优先 custom field 或二开字段，label `repo:<name>` 只做兜底。
+- fork `makeplane/plane` 到 `michaelx1993`，确认后续二开路径。
+
+交付物：
+
+- Plane self-host runbook。
+- Plane API/webhook capability matrix。
+- Repo 字段方案结论。
+- Plane fork 仓库。
+
+验收标准：
+
+- Plane 可 self-host 启动并登录。
+- Control Plane 能通过 API 拉取 project/task。
+- Plane task 状态和 repo 字段能被读取。
+- Plane webhook 能触发本地 receiver，或明确需要 polling fallback。
+- 明确第一阶段是否需要改 Plane 源码。
+
+风险：
+
+- Plane 原生 custom field 能力不足，需要尽早二开。
+- webhook 不完整时，P1 必须保留 polling fallback。
+
 ## P1 Plane 任务层接入
 
-目标：用 Plane 替代 Linear 作为任务和人工 review 面板。
+目标：用 self-host Plane 替代 Linear 作为任务和人工 review 面板。
 
 模块：
 
@@ -67,7 +111,7 @@ P0 方案固化
 - 从 Plane 拉取 project/task。
 - 接收 Plane task create/update webhook。
 - 将 Plane task 映射成本地 `tasks`。
-- 解析 repo：优先结构化字段，其次 label，例如 `repo:crs-src`。
+- 解析 repo：优先 Plane 结构化字段，其次 label，例如 `repo:crs-src`。
 - 同步状态变更回 Plane。
 
 交付物：
@@ -87,7 +131,7 @@ P0 方案固化
 风险：
 
 - Plane API/webhook 能力需要实测。
-- 如果 Plane 不支持自定义字段，repo 先用 label 承载。
+- 如果 Plane 原生自定义字段不足，先用 label 承载，再进入 Plane fork 二开。
 
 ## P2 Control Plane Runtime
 
@@ -117,6 +161,7 @@ P0 方案固化
 交付物：
 
 - `teams/projects/repositories/tasks/runs/run_events` 表。
+- `workspaces/feedback_items/users/audit_events` 最小表。
 - `dispatch_loop`
 - `lease_manager`
 - `run_state_machine`
@@ -137,6 +182,8 @@ P0 方案固化
 ## P3 Prompt 平台化
 
 目标：prompt 从 GitHub 文件迁移到平台管理。
+
+Prompt 主库放在 Control Plane；Langfuse 只记录 prompt release 的 trace/eval 结果。
 
 模块：
 
@@ -267,7 +314,7 @@ global
 
 风险：
 
-- trace 可能包含源码、密钥、业务数据，必须做脱敏策略。
+- trace 默认完整保存，调试便利优先；只做最低限度 secret 防护。
 - Langfuse 与 OpenHands 的 callback/instrumentation 方式需要实测。
 
 ## P6 状态机闭环
@@ -460,9 +507,23 @@ Done              -> Terminal
 
 ## 当前待决策
 
-- Plane repo 字段用自定义字段还是 label。
 - Control Plane 技术栈。
 - 数据库选 PostgreSQL 还是 SQLite 起步。
 - OpenHands workspace 用本机目录、Docker 还是远程 runtime。
-- Langfuse trace 是否保存完整 prompt payload，还是只保存 hash/reference。
 - 是否保留 Symphony 名字，还是新建独立 Control Plane。
+
+## 已定决策
+
+- Plane 使用 self-host，后续一定可二开。
+- repo 字段正式方案不长期依赖 label；label 只作为 MVP 兜底。
+- Prompt 主库放 Control Plane，Langfuse 做 trace/eval。
+- Langfuse 默认保存完整 trace。
+- Control Plane 与 Plane 职责分离：Plane 管人类任务，Control Plane 管 agent runtime。
+
+## 仍需讨论
+
+- 技术栈：Next.js 全栈、FastAPI + Next.js、Go + Next.js 哪个更适合长期维护。
+- 数据库：PostgreSQL 直接起步，还是 SQLite 原型后迁移。
+- OpenHands workspace：本机目录、Docker sandbox、远程 runtime 哪种作为第一版。
+- Plane 二开深度：只改字段/UI，还是后续把 agent run 状态嵌入 work item 页面。
+- Symphony 名字是否保留：作为兼容层、模块名，还是新项目彻底命名为 Agent Control Plane。

@@ -27,6 +27,15 @@ Langfuse
   prompt registry、prompt version、LLM trace、token/cost、eval
 ```
 
+## 已定决策
+
+- Plane 必须 self-host，因为后续一定会二次开发。
+- Plane 是人类任务平台，Control Plane 是 agent 调度平台。
+- Prompt 主库优先放在 Control Plane，Langfuse 负责 trace、eval 和效果分析。
+- Trace 不按多租户隐私产品设计，默认完整记录，方便个人调试。
+- token project 下不再拆 crs/sub2/traffic 多个 project，统一用 repo 字段路由。
+- repo 字段短期可用 label 兜底，正式设计应使用 Plane 自定义字段或二开字段。
+
 ## 产品目标
 
 1. 用 Plane 替代 Linear 承载任务和人工流程。
@@ -37,11 +46,34 @@ Langfuse
 
 ## 非目标
 
-- 第一阶段不重写 Plane。
+- 第一阶段不重写 Plane 核心业务，只做必要 self-host、API/webhook 验证和小范围二开。
 - 第一阶段不重写 OpenHands。
 - 第一阶段不把 Plane 当高频 heartbeat/log 存储。
 - 第一阶段不做完整 CI/CD 发布平台，只记录 release/deploy gate 和执行结果。
-- 第一阶段不做多租户计费系统，但数据模型保留 workspace/team 边界。
+- 第一阶段不做多租户计费和强隐私隔离，按个人/小团队内部系统设计。
+
+## Plane 与 Control Plane 边界
+
+Plane 面向人，负责“要做什么、做到哪一步、谁来 review”：
+
+- project / work item
+- state / comment / attachment
+- repo 字段展示
+- human review gate
+- agent run 链接展示
+- OpenHands / Langfuse 跳转入口
+
+Control Plane 面向 agent runtime，负责“哪个 agent 什么时候接单、怎么跑、跑成什么样”：
+
+- task mirror
+- repo routing
+- run / lease / heartbeat / retry
+- prompt component / binding / release
+- OpenHands conversation ref
+- Langfuse trace ref
+- state transition validation
+
+Plane 可以展示 agent 状态，但不承载高频 heartbeat、retry、token、conversation event log 和 prompt release 事实源。
 
 ## 用户角色
 
@@ -150,7 +182,7 @@ project = token
 repo = crs-src | sub3 | traffic
 ```
 
-未来所有 token project 任务不再拆成多个 Linear/Plane project，而是在同一个 project 下通过 repo 字段或 label 路由。
+未来所有 token project 任务不再拆成多个 Linear/Plane project，而是在同一个 project 下通过 repo 字段路由。MVP 允许 `repo:<name>` label 兜底，但正式方案应二开 Plane 字段。
 
 ## Prompt 装配
 
@@ -222,6 +254,12 @@ Langfuse 负责：
 - model
 - repo
 - role
+
+Trace 策略：
+
+- Langfuse 默认保存完整 prompt、response、tool call、token、cost、latency。
+- Control Plane 默认保存最终 prompt 快照、trace 引用和 token/cost 摘要。
+- 不做复杂脱敏管线，只做最小 secret 防护：不主动把 `.env`、API key、SSH key 写进 prompt 或 trace。
 
 ## 页面需求
 
@@ -295,6 +333,6 @@ Langfuse 负责：
 
 - Plane API/webhook 能力需要验证，不足时要补 adapter 或退回 polling。
 - OpenHands SDK 与现有 Codex 能力边界不同，需要验证模型、工具、权限和 workspace 隔离。
-- Langfuse trace 可能记录敏感上下文，需要做脱敏和访问控制。
+- Langfuse trace 会默认记录完整上下文，调试便利优先；只做最低限度 secret 防护。
 - Prompt 平台化后必须有发布流程，否则线上 agent 行为会被随意改坏。
 - 多 repo 任务如果 repo 字段缺失，必须拒绝接单，不能猜。

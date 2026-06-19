@@ -11,6 +11,8 @@
 - OpenHands 是 conversation/event log 事实源。
 - Langfuse 是 prompt/LLM trace 事实源。
 - 本系统保存跨系统关联 id，保证一次 run 可从任务追到代码执行和 LLM trace。
+- Plane 按 self-host 和可二开前提设计；Control Plane 不直接读写 Plane 数据库，优先 API/webhook 集成。
+- Trace 默认完整记录，便于个人调试；Control Plane 仍保存必要快照和引用。
 
 ## 核心关系图
 
@@ -21,11 +23,13 @@ erDiagram
   PROJECT ||--o{ TASK : groups
   REPOSITORY ||--o{ TASK : routes
   TASK ||--o{ RUN : executes
+  RUN ||--o| WORKSPACE : uses
   AGENT_DEFINITION ||--o{ RUN : used_by
   ROLE ||--o{ RUN : runs_as
   RUN ||--o| CONVERSATION_REF : opens
   RUN ||--o{ TRACE_REF : records
   RUN ||--o{ RUN_EVENT : summarizes
+  TASK ||--o{ FEEDBACK_ITEM : receives
   PROMPT_RELEASE ||--o{ RUN : injected_into
   PROMPT_COMPONENT ||--o{ PROMPT_RELEASE_COMPONENT : included
   PROMPT_RELEASE ||--o{ PROMPT_RELEASE_COMPONENT : composed_from
@@ -34,6 +38,7 @@ erDiagram
   PROJECT ||--o{ PROMPT_BINDING : scopes
   REPOSITORY ||--o{ PROMPT_BINDING : scopes
   ROLE ||--o{ PROMPT_BINDING : scopes
+  USER ||--o{ AUDIT_EVENT : performs
 ```
 
 ## 表定义
@@ -109,7 +114,7 @@ erDiagram
 | --- | --- | --- |
 | id | uuid | 主键 |
 | project_id | uuid | 关联 projects |
-| repository_id | uuid | 关联 repositories，必填 |
+| repository_id | uuid | 关联 repositories，可为空 |
 | external_task_id | text | Plane work item id |
 | identifier | text | 人类可读编号 |
 | title | text | 标题 |
@@ -130,7 +135,8 @@ erDiagram
 
 关键约束：
 
-- `repository_id` 不允许为空。没有 repo 的任务不能派发 agent。
+- `repository_id` 允许为空，保证 Plane 新任务可以先同步入库。
+- 派发查询必须要求 `repository_id is not null`。没有 repo 的任务不能派发 agent。
 
 ### roles
 
@@ -222,7 +228,7 @@ Prompt 片段。
 | langfuse_prompt_id | text | Langfuse prompt id |
 | langfuse_prompt_version | text | Langfuse prompt version/label |
 | content_hash | text | 最终 prompt hash |
-| rendered_content | text | 最终装配结果，可按安全策略加密或只存 hash |
+| rendered_content | text | 最终装配结果，默认落库，便于追溯 |
 | created_at | timestamptz | 创建时间 |
 
 ### prompt_release_components
@@ -253,7 +259,7 @@ Prompt 片段。
 | role_id | uuid | 关联 roles |
 | agent_definition_id | uuid | 关联 agent_definitions |
 | prompt_release_id | uuid | 关联 prompt_releases |
-| status | text | queued / claimed / running / blocked / completed / failed / canceled |
+| status | text | queued / claimed / running / succeeded / blocked / failed / canceled |
 | lease_owner | text | 当前执行者 |
 | lease_expires_at | timestamptz | lease 到期时间 |
 | heartbeat_at | timestamptz | 最近 heartbeat |
@@ -275,6 +281,29 @@ Prompt 片段。
 - `(task_id, created_at desc)`
 - `(status, lease_expires_at)`
 - `(repository_id, status)`
+
+### workspaces
+
+一次 run 使用的代码工作区。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | uuid | 主键 |
+| run_id | uuid | 关联 runs |
+| repository_id | uuid | 关联 repositories |
+| strategy | text | clone / worktree / existing |
+| path | text | 本地 workspace 路径 |
+| base_ref | text | 基准分支或 commit |
+| head_ref | text | 工作分支或 commit |
+| status | text | preparing / ready / dirty / archived / cleaned |
+| created_at | timestamptz | 创建时间 |
+| cleaned_at | timestamptz | 清理时间 |
+
+唯一约束：
+
+- `run_id`
+
+第一版建议每个 run 独立 workspace，避免多 agent 并发污染同一个 checkout。稳定后再引入 `git worktree` 优化磁盘和 clone 成本。
 
 ### conversation_refs
 
@@ -341,6 +370,61 @@ Control Plane 自己的轻量事件，不替代 OpenHands event log。
 - `(run_id, created_at)`
 - `(event_type, created_at)`
 
+### feedback_items
+
+来自 reviewer、人类、PR comment 或 agent 自检的返工反馈。Development agent 下一次启动前必须读取 unresolved feedback。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | uuid | 主键 |
+| task_id | uuid | 关联 tasks |
+| run_id | uuid | 关联发现问题的 runs，可为空 |
+| source | text | human / code_review / pr_review / agent / plane_comment |
+| severity | text | info / minor / major / blocker |
+| body | text | 反馈内容 |
+| external_url | text | Plane comment、PR comment 或 check URL |
+| resolved_at | timestamptz | 解决时间 |
+| created_at | timestamptz | 创建时间 |
+
+索引：
+
+- `(task_id, resolved_at)`
+- `(source, created_at)`
+
+### users
+
+第一版按个人/小团队内部系统设计，但仍保留最小用户模型用于审计。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | uuid | 主键 |
+| external_provider | text | github / plane / local |
+| external_user_id | text | 外部用户 id |
+| name | text | 展示名 |
+| email | text | 邮箱 |
+| created_at | timestamptz | 创建时间 |
+| updated_at | timestamptz | 更新时间 |
+
+### audit_events
+
+记录 prompt 发布、状态强改、destructive action 等关键动作。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | uuid | 主键 |
+| actor_user_id | uuid | 操作用户，可为空 |
+| action | text | 操作名 |
+| entity_type | text | 实体类型 |
+| entity_id | uuid | 实体 id |
+| message | text | 摘要 |
+| payload | jsonb | 结构化详情 |
+| created_at | timestamptz | 创建时间 |
+
+索引：
+
+- `(entity_type, entity_id, created_at)`
+- `(action, created_at)`
+
 ## 关键查询
 
 ### 查询可派发任务
@@ -350,6 +434,7 @@ select t.*
 from tasks t
 join repositories r on r.id = t.repository_id
 where t.state in ('Todo', 'Development', 'Code Review', 'In Merge', 'Release Version', 'Deployment')
+  and t.repository_id is not null
   and r.status = 'active'
   and not exists (
     select 1
@@ -397,7 +482,6 @@ group by pr.langfuse_prompt_id, pr.langfuse_prompt_version;
 
 - Plane 完整评论历史。
 - OpenHands 完整 event log。
-- Langfuse 完整 prompt/response payload。
 - repo 源码内容。
 
 需要保存引用：
@@ -407,10 +491,19 @@ group by pr.langfuse_prompt_id, pr.langfuse_prompt_version;
 - Langfuse trace id/generation id。
 - prompt release id/hash。
 
+默认保存：
+
+- 最终装配后的 `rendered_content`。
+- token/cost/latency 摘要。
+- run result summary。
+- unresolved feedback。
+
 ## 安全要求
 
-- `rendered_content` 可配置为不落库，只保存 hash 和 Langfuse prompt reference。
-- trace 中可能包含密钥、源码和用户数据，默认只保存 Langfuse URL，不在本系统复制 payload。
+- `rendered_content` 默认落库，方便追溯；后续如接入敏感项目，可改为只存 hash/reference。
+- Langfuse 默认保存完整 trace，方便调试。
+- 不做复杂脱敏管线，只做最小 secret 防护：避免主动采集 `.env`、API key、SSH key。
 - repository local path 不应暴露给普通用户。
 - 任何 destructive action 必须记录 run_event。
+- prompt publish、prompt rollback、状态强改必须记录 audit_event。
 - prompt release 一旦被 run 引用，不允许修改，只能创建新版本。
