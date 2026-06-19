@@ -16,6 +16,9 @@ export type DbClient = Pick<
   | "agentDefinition"
   | "conversationRef"
   | "project"
+  | "promptBinding"
+  | "promptComponent"
+  | "promptReleaseComponent"
   | "promptRelease"
   | "repository"
   | "role"
@@ -288,6 +291,11 @@ export interface MarkRunRunningInput {
   leaseOwner: string;
   renderedPrompt: string;
   leaseSeconds?: number;
+  components?: Array<{
+    promptComponentId: string;
+    orderIndex: number;
+    contentHash: string;
+  }>;
 }
 
 export async function markRunRunning(db: DbClient, input: MarkRunRunningInput) {
@@ -314,6 +322,23 @@ export async function markRunRunning(db: DbClient, input: MarkRunRunningInput) {
         contentHash: hashPrompt(input.renderedPrompt),
       },
     });
+    if (input.components !== undefined) {
+      await tx.promptReleaseComponent.deleteMany({
+        where: {
+          promptReleaseId: existingRun.promptReleaseId,
+        },
+      });
+      if (input.components.length > 0) {
+        await tx.promptReleaseComponent.createMany({
+          data: input.components.map((component) => ({
+            promptReleaseId: existingRun.promptReleaseId,
+            promptComponentId: component.promptComponentId,
+            orderIndex: component.orderIndex,
+            contentHash: component.contentHash,
+          })),
+        });
+      }
+    }
 
     const run = await tx.run.update({
       where: {

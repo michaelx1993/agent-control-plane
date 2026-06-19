@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isDispatchableTaskCandidate,
   markExpiredLeasesFailed,
+  markRunRunning,
   recordRunObservabilityRefs,
 } from "./query.js";
 import type { DbClient } from "./query.js";
@@ -176,6 +177,107 @@ describe("isDispatchableTaskCandidate", () => {
           runId: "run-1",
           eventType: "state_sync",
           message: "Recorded OpenHands conversation and Langfuse trace refs",
+        }),
+      }),
+    );
+  });
+
+  it("stores prompt release component composition when a run starts running", async () => {
+    const promptReleaseUpdate = viLike();
+    const componentDeleteMany = viLike();
+    const componentCreateMany = viLike();
+    const runUpdate = viLike();
+    const eventCreate = viLike();
+    const db = {
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+        return callback({
+          run: {
+            findUnique: async () => ({
+              id: "run-1",
+              promptReleaseId: "prompt-release-1",
+            }),
+            update: async (input: unknown) => {
+              runUpdate(input);
+              return {
+                id: "run-1",
+                promptReleaseId: "prompt-release-1",
+              };
+            },
+          },
+          promptRelease: {
+            update: async (input: unknown) => {
+              promptReleaseUpdate(input);
+              return {};
+            },
+          },
+          promptReleaseComponent: {
+            deleteMany: async (input: unknown) => {
+              componentDeleteMany(input);
+              return {};
+            },
+            createMany: async (input: unknown) => {
+              componentCreateMany(input);
+              return {};
+            },
+          },
+          runEvent: {
+            create: async (input: unknown) => {
+              eventCreate(input);
+              return {};
+            },
+          },
+        });
+      },
+    } as unknown as DbClient;
+
+    await markRunRunning(db, {
+      runId: "run-1",
+      leaseOwner: "worker-1",
+      renderedPrompt: "rendered prompt",
+      components: [
+        {
+          promptComponentId: "component-1",
+          orderIndex: 0,
+          contentHash: "hash-1",
+        },
+      ],
+    });
+
+    expect(promptReleaseUpdate.calls[0]).toEqual(
+      expect.objectContaining({
+        where: { id: "prompt-release-1" },
+        data: expect.objectContaining({
+          renderedContent: "rendered prompt",
+        }),
+      }),
+    );
+    expect(componentDeleteMany.calls[0]).toEqual({
+      where: { promptReleaseId: "prompt-release-1" },
+    });
+    expect(componentCreateMany.calls[0]).toEqual({
+      data: [
+        {
+          promptReleaseId: "prompt-release-1",
+          promptComponentId: "component-1",
+          orderIndex: 0,
+          contentHash: "hash-1",
+        },
+      ],
+    });
+    expect(runUpdate.calls[0]).toEqual(
+      expect.objectContaining({
+        where: {
+          id: "run-1",
+          leaseOwner: "worker-1",
+          status: { in: ["claimed", "running"] },
+        },
+      }),
+    );
+    expect(eventCreate.calls[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          runId: "run-1",
+          eventType: "heartbeat",
         }),
       }),
     );

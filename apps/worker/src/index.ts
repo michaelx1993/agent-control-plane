@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import {
   completeRun as dbCompleteRun,
@@ -116,11 +116,28 @@ export interface DispatchResult {
   prompt: string;
 }
 
+export interface PromptAssemblyComponent {
+  promptComponentId: string;
+  orderIndex: number;
+  contentHash: string;
+}
+
+export interface PromptAssembly {
+  content: string;
+  components: PromptAssemblyComponent[];
+}
+
 export interface ControlPlaneStore {
   syncFromPlane(): Promise<void>;
   findDispatchableTasks(config: WorkerConfig): Promise<Task[]>;
   claimRun(taskId: string, workerId: string, leaseMs: number): Promise<Run>;
-  markRunRunning(runId: string, promptReleaseId: string, prompt: string): Promise<Run>;
+  assemblePrompt(task: Task, run: Run, fallbackPrompt: string): Promise<PromptAssembly>;
+  markRunRunning(
+    runId: string,
+    promptReleaseId: string,
+    prompt: string,
+    components?: PromptAssemblyComponent[],
+  ): Promise<Run>;
   completeRun(
     runId: string,
     result: OpenHandsRunResult,
@@ -226,6 +243,8 @@ const dbStateByWorkerState: Partial<Record<TaskState, DbTaskState>> = {
   Canceled: "Canceled",
 };
 
+const promptScopeOrder = ["global", "team", "project", "repo", "role", "agent"] as const;
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
   const enabledTeams = (env.WORKER_ENABLED_TEAMS ?? "token-team")
     .split(",")
@@ -279,18 +298,20 @@ export class DispatchWorker {
       this.config.workerId,
       this.config.leaseMs,
     );
-    const prompt = this.assemblePrompt(task, claimedRun);
+    const fallbackPrompt = this.assemblePrompt(task, claimedRun);
+    const promptAssembly = await this.store.assemblePrompt(task, claimedRun, fallbackPrompt);
     const runningRun = await this.store.markRunRunning(
       claimedRun.id,
       this.createPromptReleaseId(task),
-      prompt,
+      promptAssembly.content,
+      promptAssembly.components,
     );
 
     try {
       const openHandsResult = await this.openHands.run({
         task,
         run: runningRun,
-        prompt,
+        prompt: promptAssembly.content,
         workspaceRepo: task.repo ?? "",
       });
 
@@ -321,7 +342,7 @@ export class DispatchWorker {
       return {
         task: (await this.store.getTask(task.id)) ?? task,
         run: completedRun,
-        prompt,
+        prompt: promptAssembly.content,
       };
     } catch (error) {
       await this.store.failRun(
@@ -416,6 +437,13 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return;
   }
 
+  async assemblePrompt(_task: Task, _run: Run, fallbackPrompt: string): Promise<PromptAssembly> {
+    return {
+      content: fallbackPrompt,
+      components: [],
+    };
+  }
+
   async findDispatchableTasks(config: WorkerConfig): Promise<Task[]> {
     const now = Date.now();
     return [...this.tasks.values()].filter((task) => {
@@ -472,7 +500,12 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return { ...run };
   }
 
-  async markRunRunning(runId: string, promptReleaseId: string, prompt: string): Promise<Run> {
+  async markRunRunning(
+    runId: string,
+    promptReleaseId: string,
+    prompt: string,
+    _components: PromptAssemblyComponent[] = [],
+  ): Promise<Run> {
     const run = this.requireRun(runId);
     run.status = "running";
     run.statusHistory.push("running");
@@ -614,7 +647,53 @@ export class DbControlPlaneStore implements ControlPlaneStore {
     return this.toWorkerRun(run);
   }
 
-  async markRunRunning(runId: string, _promptReleaseId: string, prompt: string): Promise<Run> {
+  async assemblePrompt(_task: Task, run: Run, fallbackPrompt: string): Promise<PromptAssembly> {
+    const context = await this.loadDbPromptContext(run.id);
+    if (!context) {
+      return {
+        content: fallbackPrompt,
+        components: [],
+      };
+    }
+
+    const promptComponents = await this.loadPromptComponentsForRun(context);
+    if (promptComponents.length === 0) {
+      return {
+        content: fallbackPrompt,
+        components: [],
+      };
+    }
+
+    const renderedComponents = promptComponents.map((component, index) => ({
+      promptComponentId: component.id,
+      orderIndex: index,
+      contentHash: sha256Hex(component.content),
+      heading: `<!-- prompt:${component.scopeType}/${component.name}@v${component.version} -->`,
+      content: component.content.trim(),
+    }));
+
+    return {
+      content: [
+        "# Agent Control Plane Dispatch",
+        "## Platform Prompt",
+        ...renderedComponents.map((component) => [component.heading, component.content].join("\n")),
+        "## Task Context",
+        fallbackPrompt,
+      ].join("\n\n"),
+      components: renderedComponents.map((component) => ({
+        promptComponentId: component.promptComponentId,
+        orderIndex: component.orderIndex,
+        contentHash: component.contentHash,
+      })),
+    };
+  }
+
+  async markRunRunning(
+    runId: string,
+    _promptReleaseId: string,
+    prompt: string,
+    components: PromptAssemblyComponent[] = [],
+  ): Promise<Run> {
     const leaseOwner = this.leaseOwners.get(runId);
     if (!leaseOwner) {
       throw new Error(`Run ${runId} has no lease owner in this worker`);
@@ -624,6 +703,7 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       runId,
       leaseOwner,
       renderedPrompt: prompt,
+      components,
     });
 
     return this.toWorkerRun(run);
@@ -787,6 +867,68 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       role: run.role.name,
       costSpent: Number(run.costUsd ?? 0),
     }));
+  }
+
+  private async loadDbPromptContext(runId: string) {
+    return this.db.run.findUnique({
+      where: {
+        id: runId,
+      },
+      include: {
+        agentDefinition: true,
+        repository: {
+          include: {
+            project: {
+              include: {
+                team: true,
+              },
+            },
+          },
+        },
+        role: true,
+      },
+    });
+  }
+
+  private async loadPromptComponentsForRun(
+    context: NonNullable<Awaited<ReturnType<DbControlPlaneStore["loadDbPromptContext"]>>>,
+  ) {
+    const bindings = await this.db.promptBinding.findMany({
+      where: {
+        status: "active",
+        environment: "dev",
+        OR: [
+          { scopeType: "team", scopeId: context.repository.project.team.id },
+          { scopeType: "project", scopeId: context.repository.project.id },
+          { scopeType: "repo", scopeId: context.repository.id },
+          { scopeType: "role", scopeId: context.roleId },
+          { scopeType: "agent", scopeId: context.agentDefinitionId },
+        ],
+      },
+      include: {
+        promptComponent: true,
+      },
+      orderBy: [{ orderIndex: "asc" }, { updatedAt: "desc" }],
+    });
+    const globalComponents = await this.db.promptComponent.findMany({
+      where: {
+        scopeType: "global",
+        status: "active",
+      },
+      orderBy: [{ name: "asc" }, { version: "desc" }],
+    });
+    const componentById = new Map(
+      [...globalComponents, ...bindings.map((binding) => binding.promptComponent)]
+        .filter((component) => component.status === "active")
+        .map((component) => [component.id, component]),
+    );
+
+    return [...componentById.values()].sort((left, right) => {
+      const leftScope = promptScopeOrder.indexOf(left.scopeType);
+      const rightScope = promptScopeOrder.indexOf(right.scopeType);
+      if (leftScope !== rightScope) return leftScope - rightScope;
+      return left.name.localeCompare(right.name);
+    });
   }
 }
 
@@ -1188,6 +1330,10 @@ function normalizeStateName(stateName?: string): string {
     .toLowerCase()
     .replace(/[\s_-]+/g, "")
     .trim();
+}
+
+function sha256Hex(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 async function main(): Promise<void> {

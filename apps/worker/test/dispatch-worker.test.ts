@@ -331,6 +331,86 @@ describe("DispatchWorker", () => {
     expect(tasks.map((task) => task.id)).toEqual(["task-traffic"]);
   });
 
+  it("assembles DB-backed prompt components in platform order", async () => {
+    const db = {
+      run: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "run-1",
+          roleId: "role-1",
+          agentDefinitionId: "agent-1",
+          repository: {
+            id: "repo-1",
+            project: {
+              id: "project-1",
+              team: {
+                id: "team-1",
+              },
+            },
+          },
+        }),
+      },
+      promptBinding: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            promptComponent: {
+              id: "component-repo",
+              scopeType: "repo",
+              name: "repo-rules",
+              version: 2,
+              status: "active",
+              content: "Use repository-specific constraints.",
+            },
+          },
+        ]),
+      },
+      promptComponent: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "component-global",
+            scopeType: "global",
+            name: "global-base",
+            version: 1,
+            status: "active",
+            content: "Use Chinese for user-facing summaries.",
+          },
+        ]),
+      },
+    } as unknown as DbClient;
+    const store = new DbControlPlaneStore(db);
+
+    const assembly = await store.assemblePrompt(
+      createMockTask(),
+      {
+        id: "run-1",
+        taskId: "task-dev-1",
+        status: "claimed",
+        role: "Development",
+        statusHistory: ["claimed"],
+        createdAt: new Date("2026-06-18T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+      },
+      "fallback prompt",
+    );
+
+    expect(assembly.content).toContain("<!-- prompt:global/global-base@v1 -->");
+    expect(assembly.content).toContain("<!-- prompt:repo/repo-rules@v2 -->");
+    expect(assembly.content.indexOf("global-base")).toBeLessThan(
+      assembly.content.indexOf("repo-rules"),
+    );
+    expect(assembly.components).toEqual([
+      expect.objectContaining({
+        promptComponentId: "component-global",
+        orderIndex: 0,
+        contentHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+      expect.objectContaining({
+        promptComponentId: "component-repo",
+        orderIndex: 1,
+        contentHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    ]);
+  });
+
   it("maps Plane state and repo labels into DB task input", () => {
     expect(planeStateNameToDbTaskState("Code Review")).toBe("CodeReview");
     expect(planeStateNameToDbTaskState("In Merge")).toBe("InMerge");
