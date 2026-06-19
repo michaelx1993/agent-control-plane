@@ -195,6 +195,64 @@ describe("new mock API routes", () => {
     });
   });
 
+  it("rejects Plane webhook payloads when a configured shared secret is missing", async () => {
+    const previousSecret = process.env.PLANE_WEBHOOK_SECRET;
+    process.env.PLANE_WEBHOOK_SECRET = "secret-1";
+    try {
+      const response = await postPlaneWebhookRoute(
+        new Request("http://localhost/api/plane/webhook", {
+          method: "POST",
+          body: JSON.stringify({
+            action: "ping",
+            model: "workspace",
+          }),
+        }),
+      );
+      const payload = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(payload.error).toContain("Unauthorized");
+    } finally {
+      if (previousSecret === undefined) {
+        delete process.env.PLANE_WEBHOOK_SECRET;
+      } else {
+        process.env.PLANE_WEBHOOK_SECRET = previousSecret;
+      }
+    }
+  });
+
+  it("accepts Plane webhook payloads with the configured shared secret", async () => {
+    const previousSecret = process.env.PLANE_WEBHOOK_SECRET;
+    process.env.PLANE_WEBHOOK_SECRET = "secret-1";
+    try {
+      const response = await postPlaneWebhookRoute(
+        new Request("http://localhost/api/plane/webhook", {
+          method: "POST",
+          headers: {
+            "x-plane-webhook-secret": "secret-1",
+          },
+          body: JSON.stringify({
+            action: "ping",
+            model: "workspace",
+          }),
+        }),
+      );
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload).toEqual({
+        eventType: "unknown",
+        action: "ignored",
+      });
+    } finally {
+      if (previousSecret === undefined) {
+        delete process.env.PLANE_WEBHOOK_SECRET;
+      } else {
+        process.env.PLANE_WEBHOOK_SECRET = previousSecret;
+      }
+    }
+  });
+
   it("requires DATABASE_URL before syncing Plane task webhooks", async () => {
     const response = await postPlaneWebhookRoute(
       new Request("http://localhost/api/plane/webhook", {

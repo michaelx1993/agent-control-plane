@@ -116,6 +116,7 @@ properties or requires a small Plane schema/UI patch.
 Before using the worker against live systems:
 
 - Plane self-host URL and API token are configured.
+- `PLANE_WEBHOOK_SECRET` is configured when exposing `/api/plane/webhook` beyond localhost.
 - `PLANE_WORKSPACE_SLUG` and `PLANE_PROJECT_ID` are known.
 - OpenHands adapter endpoint is verified.
 - Langfuse keys are configured.
