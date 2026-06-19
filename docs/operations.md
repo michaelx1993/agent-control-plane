@@ -202,6 +202,7 @@ Before using the worker against live systems:
 
 - Plane self-host URL and API token are configured.
 - `PLANE_WEBHOOK_SECRET` is configured when exposing `/api/plane/webhook` beyond localhost.
+  The receiver verifies Plane `X-Plane-Signature` as HMAC-SHA256 over the raw request body.
 - `PLANE_WORKSPACE_SLUG` and `PLANE_PROJECT_ID` are known.
 - OpenHands adapter endpoint is verified.
 - Langfuse keys are configured.

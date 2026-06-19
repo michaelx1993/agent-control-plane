@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createHmac } from "node:crypto";
 
 import {
   GET as getPromptBindingsRoute,
@@ -396,6 +397,68 @@ describe("new mock API routes", () => {
     }
   });
 
+  it("accepts Plane webhook payloads with a valid HMAC signature", async () => {
+    const previousSecret = process.env.PLANE_WEBHOOK_SECRET;
+    process.env.PLANE_WEBHOOK_SECRET = "secret-1";
+    const body = JSON.stringify({
+      action: "ping",
+      model: "workspace",
+    });
+    try {
+      const response = await postPlaneWebhookRoute(
+        new Request("http://localhost/api/plane/webhook", {
+          method: "POST",
+          headers: {
+            "x-plane-signature": hmacSha256(body, "secret-1"),
+          },
+          body,
+        }),
+      );
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload).toEqual({
+        eventType: "unknown",
+        action: "ignored",
+      });
+    } finally {
+      if (previousSecret === undefined) {
+        delete process.env.PLANE_WEBHOOK_SECRET;
+      } else {
+        process.env.PLANE_WEBHOOK_SECRET = previousSecret;
+      }
+    }
+  });
+
+  it("rejects Plane webhook payloads with an invalid HMAC signature", async () => {
+    const previousSecret = process.env.PLANE_WEBHOOK_SECRET;
+    process.env.PLANE_WEBHOOK_SECRET = "secret-1";
+    try {
+      const response = await postPlaneWebhookRoute(
+        new Request("http://localhost/api/plane/webhook", {
+          method: "POST",
+          headers: {
+            "x-plane-signature": hmacSha256("different body", "secret-1"),
+          },
+          body: JSON.stringify({
+            action: "ping",
+            model: "workspace",
+          }),
+        }),
+      );
+      const payload = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(payload.error).toContain("Unauthorized");
+    } finally {
+      if (previousSecret === undefined) {
+        delete process.env.PLANE_WEBHOOK_SECRET;
+      } else {
+        process.env.PLANE_WEBHOOK_SECRET = previousSecret;
+      }
+    }
+  });
+
   it("requires DATABASE_URL before syncing Plane task webhooks", async () => {
     const response = await postPlaneWebhookRoute(
       new Request("http://localhost/api/plane/webhook", {
@@ -417,3 +480,7 @@ describe("new mock API routes", () => {
     expect(payload.error).toContain("DATABASE_URL");
   });
 });
+
+function hmacSha256(body: string, secret: string): string {
+  return createHmac("sha256", secret).update(body).digest("hex");
+}

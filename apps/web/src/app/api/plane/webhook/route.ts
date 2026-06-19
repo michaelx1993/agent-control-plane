@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
-import { timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { syncPlaneWebhookPayload } from "../../../../lib/control-plane-service";
 
 export async function POST(request: Request) {
-  if (!isAuthorizedWebhook(request)) {
+  const rawBody = await request.text();
+
+  if (!isAuthorizedWebhook(request, rawBody)) {
     return NextResponse.json({ error: "Unauthorized webhook request" }, { status: 401 });
   }
 
   let body: unknown;
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -25,10 +27,15 @@ export async function POST(request: Request) {
   }
 }
 
-function isAuthorizedWebhook(request: Request): boolean {
+function isAuthorizedWebhook(request: Request, rawBody: string): boolean {
   const secret = process.env.PLANE_WEBHOOK_SECRET;
   if (!secret) {
     return true;
+  }
+
+  const signature = request.headers.get("x-plane-signature");
+  if (signature) {
+    return verifyPlaneSignature(rawBody, signature, secret);
   }
 
   const candidate =
@@ -44,6 +51,15 @@ function bearerToken(value: string | null): string | undefined {
     return undefined;
   }
   return value.slice("Bearer ".length).trim();
+}
+
+function verifyPlaneSignature(rawBody: string, signature: string, secret: string): boolean {
+  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+  const candidate = signature.trim().startsWith("sha256=")
+    ? signature.trim().slice("sha256=".length)
+    : signature.trim();
+
+  return constantTimeEqual(candidate, expected);
 }
 
 function constantTimeEqual(left: string, right: string): boolean {

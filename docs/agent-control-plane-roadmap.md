@@ -159,6 +159,7 @@ P0 方案固化
 - 修改 Plane 状态后，本地 task 状态能更新。
 - 本地 run 完成后，能把状态和摘要写回 Plane。
 - webhook 可选 `PLANE_WEBHOOK_SECRET`，对外暴露时必须配置。
+- receiver 支持 Plane `X-Plane-Signature` HMAC-SHA256 raw body 验签。
 
 风险：
 
