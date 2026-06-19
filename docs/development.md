@@ -103,6 +103,10 @@ deployment exposes different API routes.
 
 Run `pnpm live:preflight` before enabling live mode. It performs non-mutating probes:
 
+- `pnpm live:doctor` is the local setup gate before preflight. It loads `.env`, redacts secrets,
+  reports missing required variables, and shows local Plane container/UI hints without authenticated
+  API calls.
+
 - `SELECT 1` and Control Plane seed baseline checks against PostgreSQL.
 - `Plane listTasks({ perPage: 1 })` against the configured workspace/project.
 - HTTP health probe against `OPENHANDS_BASE_URL + OPENHANDS_HEALTH_PATH` where the default path is

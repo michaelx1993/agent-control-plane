@@ -17,6 +17,7 @@
     "health": "scripts/health-check.sh",
     "lint": "pnpm -r --if-present lint",
     "linear:migration-plan": "pnpm --filter @agent-control-plane/worker exec tsx ../../scripts/linear-to-plane-import.ts",
+    "live:doctor": "scripts/live-env-doctor.sh",
     "live:preflight": "pnpm --filter @agent-control-plane/worker live-preflight",
     "live:dispatch-once": "scripts/live-dispatch-once.sh",
     "live:verify-once": "scripts/live-verify-once.sh",

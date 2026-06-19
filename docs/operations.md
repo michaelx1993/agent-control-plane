@@ -489,6 +489,16 @@ Before using the worker against live systems:
 The live preflight is a non-mutating integration check for the next milestone. It does not create
 Plane work items, OpenHands conversations, or Langfuse traces.
 
+Run the local environment doctor first when preparing a new machine:
+
+```bash
+pnpm live:doctor
+```
+
+The doctor loads `.env` when present, redacts secret values, reports missing live variables, and
+prints local Plane container/UI hints. It intentionally avoids authenticated API calls and does not
+replace `pnpm live:preflight`.
+
 ```bash
 DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" \
 PLANE_BASE_URL="https://plane.example" \

@@ -119,6 +119,13 @@ secret patterns and is part of `pnpm release:check`.
 Before turning on `WORKER_MODE=live`, run the non-mutating live preflight:
 
 ```bash
+pnpm live:doctor
+```
+
+`live:doctor` loads `.env` when present, redacts secrets, reports missing live variables, and shows
+local Plane container/UI hints. It does not call authenticated APIs or mutate external systems.
+
+```bash
 DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" \
 PLANE_BASE_URL="https://plane.example" \
 PLANE_WORKSPACE_SLUG="workspace" \
