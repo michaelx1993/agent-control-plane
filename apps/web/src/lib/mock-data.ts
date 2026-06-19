@@ -118,6 +118,41 @@ export type PromptMetricsResponse = {
   promptMetrics: PromptMetric[];
 };
 
+export type MonitoringResponse = {
+  generatedAt: string;
+  windowHours: number;
+  queue: {
+    total: number;
+    eligible: number;
+    blocked: number;
+    retryCapped: number;
+    running: number;
+    failed: number;
+  };
+  runs: {
+    total: number;
+    succeeded: number;
+    failed: number;
+    blocked: number;
+    running: number;
+    successRate: number;
+  };
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    costUsd: string;
+  };
+  stalledRuns: Array<{
+    id: string;
+    taskId: string;
+    repo: string;
+    status: RunStatus;
+    heartbeat: string;
+    reason: string;
+  }>;
+};
+
 export type HealthSignal = {
   name: string;
   state: "nominal" | "degraded" | "attention";

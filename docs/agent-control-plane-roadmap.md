@@ -496,6 +496,8 @@ Done              -> Terminal
 - 配置权限和审计。
 - 部署 Control Plane。
 - 监控 queue length、run success rate、token/cost、stalled runs。
+- Monitoring Dashboard 第一版已提供 `/monitoring` 和 `GET /api/monitoring`，覆盖 queue
+  length、run success rate、token/cost 和 stalled runs。
 
 交付物：
 

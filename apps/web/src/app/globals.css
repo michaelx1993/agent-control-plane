@@ -79,6 +79,13 @@ code {
   border-bottom: 1px solid var(--line);
 }
 
+.topActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .detailTopbar {
   display: flex;
   min-height: 88px;

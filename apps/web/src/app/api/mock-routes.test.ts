@@ -12,6 +12,7 @@ import {
 } from "./prompt-components/route";
 import { GET as getPromptComponentDiffRoute } from "./prompt-components/diff/route";
 import { POST as postPromptComponentRollbackRoute } from "./prompt-components/[componentId]/rollback/route";
+import { GET as getMonitoringRoute } from "./monitoring/route";
 import { GET as getPromptMetricsRoute } from "./prompt-metrics/route";
 import { GET as getPromptReleasesRoute } from "./prompt-releases/route";
 import { GET as getPromptScopesRoute } from "./prompt-scopes/route";
@@ -81,6 +82,31 @@ describe("new mock API routes", () => {
       avgInputTokens: expect.any(Number),
       avgOutputTokens: expect.any(Number),
       avgCostUsd: expect.any(String),
+    });
+  });
+
+  it("returns production monitoring metrics", async () => {
+    const response = await getMonitoringRoute(new Request("http://localhost/api/monitoring"));
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      generatedAt: expect.any(String),
+      queue: {
+        total: expect.any(Number),
+        eligible: expect.any(Number),
+        blocked: expect.any(Number),
+        retryCapped: expect.any(Number),
+      },
+      runs: {
+        total: expect.any(Number),
+        successRate: expect.any(Number),
+      },
+      usage: {
+        totalTokens: expect.any(Number),
+        costUsd: expect.any(String),
+      },
+      stalledRuns: expect.any(Array),
     });
   });
 

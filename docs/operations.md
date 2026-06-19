@@ -78,6 +78,8 @@ agents:
 
 - `GET /api/timeline` aggregates recent `run_events`, `audit_events`, and `feedback_items`.
   It is the low-noise view for "did an agent claim, run, fail, or complete?"
+- `GET /api/monitoring` and `/monitoring` expose the production-readiness monitoring surface:
+  queue length, run success rate, token/cost volume, and stalled runs.
 - `GET /api/readiness` reports Plane, OpenHands, Langfuse, database, and worker configuration
   readiness. Missing required live integration variables are `missing`; optional or defaulted
   variables are `warning`.

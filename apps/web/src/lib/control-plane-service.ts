@@ -19,6 +19,7 @@ import {
   taskQueue,
   type HealthSignal,
   type OperatorTimelineItem,
+  type MonitoringResponse,
   type PromptRelease,
   type PromptMetricsResponse,
   type Run,
@@ -194,6 +195,8 @@ export type OperatorTimelineResponse = {
   count: number;
   timeline: OperatorTimelineItem[];
 };
+
+export type { MonitoringResponse };
 
 export type SystemReadinessResponse = {
   status: "ready" | "warning" | "missing";
@@ -876,6 +879,91 @@ export async function getOperatorTimeline(): Promise<OperatorTimelineResponse> {
   return {
     count: timeline.length,
     timeline,
+  };
+}
+
+export async function getMonitoring(windowHours = 24): Promise<MonitoringResponse> {
+  if (!shouldUseDatabase()) {
+    return getMockMonitoring(windowHours);
+  }
+
+  const now = new Date();
+  const since = new Date(now.getTime() - windowHours * 60 * 60 * 1000);
+  const [queue, dbRuns] = await Promise.all([
+    getTaskQueue(),
+    prisma.run.findMany({
+      where: {
+        createdAt: {
+          gte: since,
+        },
+      },
+      include: {
+        repository: true,
+        task: true,
+        traceRefs: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 500,
+    }),
+  ]);
+  const runTotal = dbRuns.length;
+  const succeeded = dbRuns.filter((run) => run.status === "succeeded").length;
+  const failed = dbRuns.filter((run) => run.status === "failed").length;
+  const blocked = dbRuns.filter((run) => run.status === "blocked").length;
+  const running = dbRuns.filter((run) => activeRunStatuses.has(run.status)).length;
+  const inputTokens = sumNumbers(
+    dbRuns.map((run) => Number(run.traceRefs[0]?.inputTokens ?? run.tokenInput ?? 0)),
+  );
+  const outputTokens = sumNumbers(
+    dbRuns.map((run) => Number(run.traceRefs[0]?.outputTokens ?? run.tokenOutput ?? 0)),
+  );
+  const costUsd = sumNumbers(
+    dbRuns.map((run) => Number(run.traceRefs[0]?.costUsd ?? run.costUsd ?? 0)),
+  );
+  const leaseMs = getWorkerLeaseMs();
+  const stalledRuns = dbRuns
+    .filter((run) => activeRunStatuses.has(run.status))
+    .filter((run) => isRunStalled(run.leaseExpiresAt, run.heartbeatAt, now, leaseMs))
+    .map((run) => ({
+      id: run.id,
+      taskId: run.task.identifier,
+      repo: run.repository.slug,
+      status: dbRunStatusToApiStatus(run.status),
+      heartbeat: run.heartbeatAt?.toISOString() ?? "never",
+      reason:
+        run.leaseExpiresAt && run.leaseExpiresAt < now
+          ? "lease expired"
+          : `heartbeat stale over ${Math.round(leaseMs / 1000)}s`,
+    }));
+
+  return {
+    generatedAt: now.toISOString(),
+    windowHours,
+    queue: {
+      total: queue.count,
+      eligible: queue.summary.eligible,
+      blocked: queue.summary.blocked,
+      retryCapped: queue.summary.retryCapped,
+      running: queue.summary.running,
+      failed: queue.summary.failed,
+    },
+    runs: {
+      total: runTotal,
+      succeeded,
+      failed,
+      blocked,
+      running,
+      successRate: runTotal > 0 ? succeeded / runTotal : 0,
+    },
+    usage: {
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      costUsd: costUsd.toFixed(6),
+    },
+    stalledRuns,
   };
 }
 
@@ -1600,14 +1688,88 @@ function getWorkerMaxTaskAttempts(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 3;
 }
 
+function getWorkerLeaseMs(): number {
+  const parsed = Number(process.env.WORKER_LEASE_MS ?? 15 * 60 * 1000);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 15 * 60 * 1000;
+}
+
 function averageNumber(values: number[]): number {
   const validValues = values.filter((value) => Number.isFinite(value));
   if (validValues.length === 0) return 0;
   return validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
 }
 
+function sumNumbers(values: number[]): number {
+  return values.filter((value) => Number.isFinite(value)).reduce((sum, value) => sum + value, 0);
+}
+
 function averageRounded(values: number[]): number {
   return Math.round(averageNumber(values));
+}
+
+function getMockMonitoring(windowHours: number): MonitoringResponse {
+  const succeeded = runs.filter((run) => run.status === "completed").length;
+  const failed = runs.filter((run) => run.status === "failed").length;
+  const blocked = runs.filter((run) => run.status === "blocked").length;
+  const running = runs.filter((run) => run.status === "running" || run.status === "claimed").length;
+  const total = runs.length;
+  const inputTokens = sumNumbers(runs.map((run) => run.tokenInput));
+  const outputTokens = sumNumbers(runs.map((run) => run.tokenOutput));
+  const stalledRuns = runs
+    .filter((run) => run.heartbeat.toLowerCase().includes("stalled"))
+    .map((run) => ({
+      id: run.id,
+      taskId: run.taskId,
+      repo: run.repo,
+      status: run.status,
+      heartbeat: run.heartbeat,
+      reason: "heartbeat stalled",
+    }));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    windowHours,
+    queue: {
+      total: taskQueue.length,
+      eligible: mockQueueSummary.eligible,
+      blocked: mockQueueSummary.blocked,
+      retryCapped: mockQueueSummary.retryCapped,
+      running: mockQueueSummary.running,
+      failed: mockQueueSummary.failed,
+    },
+    runs: {
+      total,
+      succeeded,
+      failed,
+      blocked,
+      running,
+      successRate: total > 0 ? succeeded / total : 0,
+    },
+    usage: {
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      costUsd: sumNumbers(runs.map((run) => Number(run.costUsd))).toFixed(6),
+    },
+    stalledRuns,
+  };
+}
+
+function isRunStalled(
+  leaseExpiresAt: Date | null,
+  heartbeatAt: Date | null,
+  now: Date,
+  leaseMs: number,
+): boolean {
+  if (leaseExpiresAt && leaseExpiresAt < now) {
+    return true;
+  }
+
+  if (!heartbeatAt) {
+    return true;
+  }
+
+  return now.getTime() - heartbeatAt.getTime() > leaseMs;
 }
 
 function summarizeQueue(tasks: TaskQueueItem[], runsResponse: Run[]): QueueSummary {

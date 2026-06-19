@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getMonitoring,
   getPromptReleases,
   getRunDetail,
   getRuns,
@@ -79,5 +80,15 @@ describe("control plane mock service", () => {
     expect(releases.promptReleases.every((release) => release.hash.startsWith("sha256:"))).toBe(
       true,
     );
+  });
+
+  it("summarizes production monitoring indicators", async () => {
+    const monitoring = await getMonitoring();
+
+    expect(monitoring.queue.total).toBeGreaterThan(0);
+    expect(monitoring.runs.total).toBeGreaterThan(0);
+    expect(monitoring.usage.totalTokens).toBeGreaterThan(0);
+    expect(Number(monitoring.usage.costUsd)).toBeGreaterThan(0);
+    expect(monitoring.stalledRuns.some((run) => run.reason.includes("stalled"))).toBe(true);
   });
 });
