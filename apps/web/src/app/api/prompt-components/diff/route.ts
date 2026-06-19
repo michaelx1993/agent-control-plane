@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 
+import { requireReadAuth } from "../../../../lib/api-auth";
 import { getPromptComponentDiff } from "../../../../lib/control-plane-service";
 
 export async function GET(request: Request) {
+  const unauthorized = requireReadAuth(request);
+  if (unauthorized) return unauthorized;
+
   const url = new URL(request.url);
   const left = url.searchParams.get("left");
   const right = url.searchParams.get("right");

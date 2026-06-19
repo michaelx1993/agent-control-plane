@@ -159,13 +159,21 @@ export function PromptComponentsClient() {
     setError(undefined);
     try {
       const [componentsResponse, bindingsResponse, scopesResponse] = await Promise.all([
-        fetch("/api/prompt-components", { cache: "no-store" }),
-        fetch("/api/prompt-bindings", { cache: "no-store" }),
-        fetch("/api/prompt-scopes", { cache: "no-store" }),
+        operatorFetch("/api/prompt-components", { cache: "no-store" }),
+        operatorFetch("/api/prompt-bindings", { cache: "no-store" }),
+        operatorFetch("/api/prompt-scopes", { cache: "no-store" }),
       ]);
       const componentsPayload = (await componentsResponse.json()) as PromptComponentsResponse;
       const bindingsPayload = (await bindingsResponse.json()) as PromptBindingsResponse;
       const scopesPayload = (await scopesResponse.json()) as PromptScopesResponse;
+      if (!componentsResponse.ok || !bindingsResponse.ok || !scopesResponse.ok) {
+        throw new Error(
+          errorPayloadMessage(componentsPayload) ??
+            errorPayloadMessage(bindingsPayload) ??
+            errorPayloadMessage(scopesPayload) ??
+            "Load failed",
+        );
+      }
       setComponents(componentsPayload.promptComponents);
       setBindings(bindingsPayload.promptBindings);
       setScopes(scopesPayload.scopes);
@@ -242,7 +250,7 @@ export function PromptComponentsClient() {
     setDiffLoading(true);
     setError(undefined);
     try {
-      const response = await fetch(
+      const response = await operatorFetch(
         `/api/prompt-components/diff?left=${encodeURIComponent(diffLeftId)}&right=${encodeURIComponent(diffRightId)}`,
         { cache: "no-store" },
       );
@@ -670,4 +678,12 @@ export function PromptComponentsClient() {
       </section>
     </main>
   );
+}
+
+function errorPayloadMessage(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== "object" || !("error" in payload)) {
+    return undefined;
+  }
+  const error = (payload as { error?: unknown }).error;
+  return typeof error === "string" ? error : undefined;
 }

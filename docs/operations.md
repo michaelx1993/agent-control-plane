@@ -398,13 +398,16 @@ operator write APIs require either:
 - `X-Control-Plane-Token: <CONTROL_PLANE_API_TOKEN>`
 
 This guards manual transition, retry release, feedback creation, prompt component creation, prompt
-binding creation, and prompt rollback routes. Read-only dashboard APIs remain readable. Plane
-webhook auth is separate and continues to use `PLANE_WEBHOOK_SECRET` plus `X-Plane-Signature` or the
+binding creation, and prompt rollback routes. Set `CONTROL_PLANE_READ_API_TOKEN` to protect
+read-only dashboard APIs with a separate token. If `CONTROL_PLANE_READ_API_TOKEN` is unset, read
+APIs fall back to `CONTROL_PLANE_API_TOKEN`; if both are unset, read APIs stay open for local
+development. Plane webhook auth is separate and continues to use `PLANE_WEBHOOK_SECRET` plus
+`X-Plane-Signature` or the
 configured Plane webhook secret header.
 
-The web console includes an `Operator Token` panel on pages that perform write operations. Paste the
-same token there once per browser; the console stores it in browser `localStorage` and sends it as a
-bearer token on protected writes. Clear it after using a shared machine.
+The web console includes an `Operator Token` panel on pages that perform protected operations. Paste
+the read or operator token there once per browser; the console stores it in browser `localStorage`
+and sends it as a bearer token on protected reads and writes. Clear it after using a shared machine.
 
 ## Release Gate
 
@@ -493,8 +496,9 @@ Set `CONTROL_PLANE_API_TOKEN` before exposing the web app outside localhost. Whe
 operator write APIs require either `Authorization: Bearer <token>` or `X-Control-Plane-Token:
 <token>`.
 
-For browser use, paste the token into the console `Operator Token` panel before using write actions.
-The panel stores the token in browser `localStorage` and the client attaches it to protected writes.
+For browser use, paste the operator token, or the read token for read-only sessions, into the console
+`Operator Token` panel before using protected actions. The panel stores the token in browser
+`localStorage` and the client attaches it to protected reads and writes.
 
 Protected write paths include:
 

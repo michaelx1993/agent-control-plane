@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireReadAuth } from "../../../../lib/api-auth";
 import { getRunDetail } from "../../../../lib/control-plane-service";
 
 type RouteContext = {
@@ -8,7 +9,10 @@ type RouteContext = {
   }>;
 };
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
+  const unauthorized = requireReadAuth(request);
+  if (unauthorized) return unauthorized;
+
   const { runId } = await context.params;
   const run = await getRunDetail(runId);
 

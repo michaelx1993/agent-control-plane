@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireOperatorAuth } from "../../../lib/api-auth";
+import { requireOperatorAuth, requireReadAuth } from "../../../lib/api-auth";
 import {
   createPromptComponent,
   getPromptComponents,
@@ -11,7 +11,12 @@ const promptScopeTypes = new Set(["global", "team", "project", "repo", "role", "
 
 const promptStatuses = new Set(["draft", "active", "archived"]);
 
-export async function GET() {
+export async function GET(
+  request: Request = new Request("http://localhost/api/prompt-components"),
+) {
+  const unauthorized = requireReadAuth(request);
+  if (unauthorized) return unauthorized;
+
   return NextResponse.json(await getPromptComponents());
 }
 

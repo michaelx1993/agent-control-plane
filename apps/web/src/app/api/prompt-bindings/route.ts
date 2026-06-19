@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireOperatorAuth } from "../../../lib/api-auth";
+import { requireOperatorAuth, requireReadAuth } from "../../../lib/api-auth";
 import {
   createPromptBinding,
   getPromptBindings,
@@ -11,7 +11,10 @@ const promptScopeTypes = new Set(["team", "project", "repo", "role", "agent"]);
 const promptEnvironments = new Set(["dev", "staging", "prod"]);
 const promptBindingStatuses = new Set(["active", "disabled"]);
 
-export async function GET() {
+export async function GET(request: Request = new Request("http://localhost/api/prompt-bindings")) {
+  const unauthorized = requireReadAuth(request);
+  if (unauthorized) return unauthorized;
+
   return NextResponse.json(await getPromptBindings());
 }
 

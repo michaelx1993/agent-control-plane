@@ -233,6 +233,86 @@ describe("new mock API routes", () => {
     }
   });
 
+  it("optionally protects read-only Control Plane APIs", async () => {
+    const previousReadToken = process.env.CONTROL_PLANE_READ_API_TOKEN;
+    const previousOperatorToken = process.env.CONTROL_PLANE_API_TOKEN;
+    process.env.CONTROL_PLANE_READ_API_TOKEN = "read-token";
+    delete process.env.CONTROL_PLANE_API_TOKEN;
+
+    try {
+      const unauthorizedResponse = await getTasksRoute(
+        new Request("http://localhost/api/tasks?repo=crs-src"),
+      );
+      const unauthorizedPayload = await unauthorizedResponse.json();
+
+      expect(unauthorizedResponse.status).toBe(401);
+      expect(unauthorizedPayload.error).toContain("Unauthorized read");
+
+      const authorizedResponse = await getTasksRoute(
+        new Request("http://localhost/api/tasks?repo=crs-src", {
+          headers: {
+            authorization: "Bearer read-token",
+          },
+        }),
+      );
+      const authorizedPayload = await authorizedResponse.json();
+
+      expect(authorizedResponse.status).toBe(200);
+      expect(authorizedPayload.count).toBe(authorizedPayload.tasks.length);
+    } finally {
+      if (previousReadToken === undefined) {
+        delete process.env.CONTROL_PLANE_READ_API_TOKEN;
+      } else {
+        process.env.CONTROL_PLANE_READ_API_TOKEN = previousReadToken;
+      }
+      if (previousOperatorToken === undefined) {
+        delete process.env.CONTROL_PLANE_API_TOKEN;
+      } else {
+        process.env.CONTROL_PLANE_API_TOKEN = previousOperatorToken;
+      }
+    }
+  });
+
+  it("uses the operator token as a read API fallback", async () => {
+    const previousReadToken = process.env.CONTROL_PLANE_READ_API_TOKEN;
+    const previousOperatorToken = process.env.CONTROL_PLANE_API_TOKEN;
+    delete process.env.CONTROL_PLANE_READ_API_TOKEN;
+    process.env.CONTROL_PLANE_API_TOKEN = "operator-token";
+
+    try {
+      const unauthorizedResponse = await getAuditRoute(
+        new Request("http://localhost/api/audit?action=task.transition"),
+      );
+      const unauthorizedPayload = await unauthorizedResponse.json();
+
+      expect(unauthorizedResponse.status).toBe(401);
+      expect(unauthorizedPayload.error).toContain("Unauthorized read");
+
+      const authorizedResponse = await getAuditRoute(
+        new Request("http://localhost/api/audit?action=task.transition", {
+          headers: {
+            authorization: "Bearer operator-token",
+          },
+        }),
+      );
+      const authorizedPayload = await authorizedResponse.json();
+
+      expect(authorizedResponse.status).toBe(200);
+      expect(authorizedPayload.auditLog.length).toBeGreaterThan(0);
+    } finally {
+      if (previousReadToken === undefined) {
+        delete process.env.CONTROL_PLANE_READ_API_TOKEN;
+      } else {
+        process.env.CONTROL_PLANE_READ_API_TOKEN = previousReadToken;
+      }
+      if (previousOperatorToken === undefined) {
+        delete process.env.CONTROL_PLANE_API_TOKEN;
+      } else {
+        process.env.CONTROL_PLANE_API_TOKEN = previousOperatorToken;
+      }
+    }
+  });
+
   it("accepts bearer operator auth for mutating Control Plane APIs", async () => {
     const previousToken = process.env.CONTROL_PLANE_API_TOKEN;
     process.env.CONTROL_PLANE_API_TOKEN = "operator-token";

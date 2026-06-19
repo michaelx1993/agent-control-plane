@@ -2,11 +2,16 @@
 set -euo pipefail
 
 BASE_URL="${CONTROL_PLANE_BASE_URL:-http://127.0.0.1:3100}"
+AUTH_TOKEN="${CONTROL_PLANE_READ_API_TOKEN:-${CONTROL_PLANE_API_TOKEN:-}}"
 
 check_endpoint() {
   local path="$1"
   local status
-  status="$(curl -fsS -o /tmp/agent-control-plane-health.json -w "%{http_code}" "${BASE_URL}${path}")"
+  local curl_args=(-fsS -o /tmp/agent-control-plane-health.json -w "%{http_code}")
+  if [[ -n "${AUTH_TOKEN}" ]]; then
+    curl_args+=(-H "Authorization: Bearer ${AUTH_TOKEN}")
+  fi
+  status="$(curl "${curl_args[@]}" "${BASE_URL}${path}")"
   if [[ "${status}" != "200" ]]; then
     echo "health-check failed: ${path} returned ${status}" >&2
     exit 1

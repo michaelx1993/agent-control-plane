@@ -1121,6 +1121,12 @@ export async function getSystemReadiness(): Promise<SystemReadinessResponse> {
       "Operator write API token",
       { optional: true },
     ),
+    envCheck(
+      "CONTROL_PLANE_READ_API_TOKEN",
+      process.env.CONTROL_PLANE_READ_API_TOKEN,
+      "Optional read API token; falls back to CONTROL_PLANE_API_TOKEN when unset",
+      { optional: true },
+    ),
   ];
   if (shouldUseDatabase()) {
     controlPlaneChecks.push(await databaseBaselineReadinessCheck());

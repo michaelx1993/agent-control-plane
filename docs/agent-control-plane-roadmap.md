@@ -48,7 +48,8 @@ P0 方案固化
 - 已有 Readiness API/UI，展示 Plane/OpenHands/Langfuse/DB/Worker 配置缺口，并在 DB 配置后展示 seed baseline 状态。
 - 已有人工 task transition API 和控制台操作入口，状态跳转受 state-machine 校验。
 - 已有 feedback resolve API/UI，处理完成的反馈不会继续作为 unresolved rework context 注入后续 Development。
-- 已有 `CONTROL_PLANE_API_TOKEN` 保护 operator write APIs；只读 dashboard APIs 第一版仍开放。
+- 已有 `CONTROL_PLANE_API_TOKEN` 保护 operator write APIs；只读 dashboard APIs 可用
+  `CONTROL_PLANE_READ_API_TOKEN` 单独保护，未配置时回退到 `CONTROL_PLANE_API_TOKEN`，两者都未配置时保持本地开发开放。
 - `pnpm live:preflight` 会校验 DB 连通性和 Control Plane seed baseline，避免空库启动 live worker。
 - `pnpm plane:probe` 可对 self-host Plane work-items API、repo 路由解析、可选 PATCH/comment
   mutation 做 spike 验证。
@@ -62,6 +63,8 @@ P0 方案固化
 - `pnpm compose:check` 会校验 Docker Compose app profile，并已纳入 release gate。
 - 已有 `CONTROL_PLANE_API_TOKEN` operator write API 门禁，保护人工 transition、retry、
   feedback 和 prompt 写操作。
+- 已有 `CONTROL_PLANE_READ_API_TOKEN` 可选只读 API 门禁，保护 tasks/runs/timeline/audit/
+  monitoring/readiness/prompt read endpoints。
 - 控制台已有 `Operator Token` 面板，浏览器侧会把 token 附加到受保护写操作。
 - 控制台 Task Queue 已支持人工推进下一状态、打回 Development、转 Blocked、Done 或 Canceled。
 - 控制台 Task Queue 和 `/api/tasks` 已支持按 team/project/repo/state 过滤。
