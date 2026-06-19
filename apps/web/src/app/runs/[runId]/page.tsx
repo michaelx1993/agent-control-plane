@@ -60,6 +60,7 @@ export default async function RunDetailPage({ params }: PageProps) {
               <KeyValue label="Reasoning" value={run.reasoningEffort} />
               <KeyValue label="Started" value={run.startedAt} />
               <KeyValue label="Heartbeat" value={run.heartbeat} />
+              <KeyValue label="Attempt" value={`${run.attempt}/${run.maxAttempts}`} />
               <KeyValue label="Next State" value={run.nextState || "none"} />
               <KeyValue label="Prompt" value={run.promptReleaseId} />
             </dl>

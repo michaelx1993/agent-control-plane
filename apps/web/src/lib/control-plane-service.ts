@@ -759,6 +759,8 @@ async function getRunsFromDb(): Promise<RunsResponse> {
       repo: run.repository.slug,
       role: normalizeRoleName(run.role.name),
       status: dbRunStatusToApiStatus(run.status),
+      attempt: run.attempt,
+      maxAttempts: getWorkerMaxTaskAttempts(),
       promptReleaseId: run.promptReleaseId,
       startedAt: run.startedAt?.toISOString() ?? run.createdAt.toISOString(),
       heartbeat: run.finishedAt
@@ -833,6 +835,7 @@ async function getRunDetailFromDb(runId: string): Promise<RunDetail | null> {
     roleName: run.role.name,
     status: run.status,
     promptReleaseId: run.promptReleaseId,
+    attempt: run.attempt,
     startedAt: run.startedAt,
     createdAt: run.createdAt,
     finishedAt: run.finishedAt,
@@ -915,6 +918,7 @@ function runToApiRun(input: {
   repositorySlug: string;
   roleName: string;
   status: DbRunStatus;
+  attempt: number;
   promptReleaseId: string;
   startedAt: Date | null;
   createdAt: Date;
@@ -931,6 +935,8 @@ function runToApiRun(input: {
     repo: input.repositorySlug,
     role: normalizeRoleName(input.roleName),
     status: dbRunStatusToApiStatus(input.status),
+    attempt: input.attempt,
+    maxAttempts: getWorkerMaxTaskAttempts(),
     promptReleaseId: input.promptReleaseId,
     startedAt: (input.startedAt ?? input.createdAt).toISOString(),
     heartbeat: input.finishedAt
@@ -950,6 +956,11 @@ function runToApiRun(input: {
 
 function shouldUseDatabase(): boolean {
   return Boolean(process.env.DATABASE_URL);
+}
+
+function getWorkerMaxTaskAttempts(): number {
+  const parsed = Number(process.env.WORKER_MAX_TASK_ATTEMPTS ?? "3");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 3;
 }
 
 function summarizeQueue(tasks: TaskQueueItem[], runsResponse: Run[]): QueueSummary {

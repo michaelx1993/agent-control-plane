@@ -25,6 +25,8 @@ describe("control plane mock service", () => {
     for (const run of runs.runs) {
       expect(run.openHandsUrl).toContain("/conversations/");
       expect(run.langfuseUrl).toContain("/traces/");
+      expect(run.attempt).toBeGreaterThanOrEqual(1);
+      expect(run.maxAttempts).toBeGreaterThanOrEqual(run.attempt);
       expect(run.tokenInput + run.tokenOutput).toBeGreaterThan(0);
       expect(Number(run.costUsd)).toBeGreaterThan(0);
     }
@@ -39,10 +41,13 @@ describe("control plane mock service", () => {
       agent: expect.any(String),
       conversationId: expect.any(String),
       events: expect.any(Array),
+      attempt: expect.any(Number),
+      maxAttempts: expect.any(Number),
       model: "gpt-5.5 medium",
       promptPreview: expect.any(String),
       traceId: expect.any(String),
     });
+    expect(run?.maxAttempts).toBeGreaterThanOrEqual(run?.attempt ?? 0);
     expect(run?.events.length).toBeGreaterThan(0);
   });
 

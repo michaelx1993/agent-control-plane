@@ -128,6 +128,12 @@ export default async function DashboardPage() {
                     <dd>{run.heartbeat}</dd>
                   </div>
                   <div>
+                    <dt>Attempt</dt>
+                    <dd>
+                      {run.attempt}/{run.maxAttempts}
+                    </dd>
+                  </div>
+                  <div>
                     <dt>Tokens</dt>
                     <dd>{formatTokens(run.tokenInput, run.tokenOutput)}</dd>
                   </div>

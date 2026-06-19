@@ -32,6 +32,8 @@ export type Run = {
   repo: TaskQueueItem["repo"];
   role: "Intake" | "Development" | "Code Review" | "Merge";
   status: RunStatus;
+  attempt: number;
+  maxAttempts: number;
   promptReleaseId: string;
   startedAt: string;
   heartbeat: string;
@@ -151,6 +153,8 @@ export const runs: Run[] = [
     repo: "crs-src",
     role: "Merge",
     status: "running",
+    attempt: 1,
+    maxAttempts: 3,
     promptReleaseId: "prm-2026.06.18-4",
     startedAt: "2026-06-18 09:42",
     heartbeat: "24s ago",
@@ -166,6 +170,8 @@ export const runs: Run[] = [
     repo: "crs-src",
     role: "Development",
     status: "completed",
+    attempt: 1,
+    maxAttempts: 3,
     promptReleaseId: "prm-2026.06.18-3",
     startedAt: "2026-06-18 08:17",
     heartbeat: "completed",
@@ -181,6 +187,8 @@ export const runs: Run[] = [
     repo: "traffic",
     role: "Code Review",
     status: "failed",
+    attempt: 3,
+    maxAttempts: 3,
     promptReleaseId: "prm-2026.06.17-9",
     startedAt: "2026-06-17 18:03",
     heartbeat: "stalled after 11m",

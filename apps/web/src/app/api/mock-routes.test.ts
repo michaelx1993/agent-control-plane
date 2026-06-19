@@ -65,6 +65,8 @@ describe("new mock API routes", () => {
     expect(response.status).toBe(200);
     expect(payload.run).toMatchObject({
       id: "run-7741",
+      attempt: expect.any(Number),
+      maxAttempts: expect.any(Number),
       events: expect.any(Array),
       openHandsUrl: expect.stringContaining("/conversations/"),
       traceId: expect.any(String),
