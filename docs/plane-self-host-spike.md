@@ -111,11 +111,18 @@ the target Plane deployment explicitly requires OAuth-compatible `Authorization`
 - [x] `repo:<name>` label fallback 可创建、读取、解析。Plane 返回 work-item label ID 时，
       Control Plane 会先读 project labels API，再把 label ID 解析为 `repo:<name>`；2026-06-19
       probe 已解析出 `repo=crs-src`。
-- [ ] webhook receiver 能收到 issue create/update/delete。
-- [ ] webhook receiver 能收到 issue comment。
-- [ ] state change 是否表现为 issue update 已实测并记录。
-- [x] receiver 校验 `X-Plane-Signature`。代码已支持 HMAC-SHA256 raw body 验签；仍需 self-host
-      webhook delivery 实测。
+- [x] webhook receiver 能收到 issue create/update。2026-06-19 本机 self-host Plane 通过
+      `host.docker.internal` 投递到 Control Plane `/api/plane/webhook`，create/update 均返回 200
+      并 upsert task。
+- [x] DELETE work item 行为已实测。2026-06-19 DELETE API 返回 204，但 11 秒内未产生对应
+      issue delete webhook；P1 不能依赖 delete webhook，必须用 polling/API reconciliation 修复删除或取消状态。
+- [x] webhook receiver 能收到 issue comment。2026-06-19 `issue_comment` delivery 返回 200；
+      Control Plane 将其写入 `FeedbackItem(source=plane_comment)`，不再把 comment 误建成 task。
+- [x] state change 是否表现为 issue update 已实测并记录。2026-06-19 state 从 Todo 切到
+      Development 时，Plane 发送 `event=issue`、`action=updated`，payload 内含新 state；
+      Control Plane 映射为 `Development`。
+- [x] receiver 校验 `X-Plane-Signature`。代码已支持 HMAC-SHA256 raw body 验签；self-host
+      webhook delivery 已确认 Plane 会发送 `X-Plane-Signature`。
 - [x] webhook 不完整时的 polling fallback 决策已记录。worker 已实现 60s 最小间隔、
       `updated_since` cursor 和 `per_page<=100`；仍需 self-host API 行为实测。
 - [x] fork `michaelx1993/plane` 的同步、分支、license 策略已确认。GitHub 显示它是
@@ -126,7 +133,8 @@ the target Plane deployment explicitly requires OAuth-compatible `Authorization`
 ## 风险和未验证项
 
 - 官方 docs 仍沿用 `issue` 命名，而产品术语为 work item；API path 使用 `/work-items/`，webhook event 仍可能是 `issue`。P0.5 receiver 需兼容该命名差异。
-- webhook 事件粒度需实测：state change 可能只表现为 issue update，payload 是否包含足够 diff 未验证。
+- webhook 事件粒度已实测：state change 表现为 issue update，payload 含新 state；DELETE work
+  item 未产生 delete webhook，必须依赖 polling/API reconciliation。
 - webhook 要求公网可访问，纯 localhost receiver 不能直接接收 Plane 推送。
 - custom property `repo` PATCH/GET 已实测不足以作为 P1 repo routing 字段；P1 使用 label fallback，
   后续若需要页面展示、filter/order 或强类型字段，再进入 Plane fork 二开字段。
@@ -134,4 +142,5 @@ the target Plane deployment explicitly requires OAuth-compatible `Authorization`
 - 60 req/min 已在 self-host API header 中确认，对多 project polling 偏紧；P1 必须继续保持分页、
   退避、reconciliation 窗口和 token 预算。
 - AGPLv3 对服务端二开有合规约束，生产化前要补 license checklist。
-- 目前未执行真实 self-host 部署、API 调用和 webhook receiver 测试；本文是 P0.5 执行清单，不是实测报告。
+- 2026-06-19 已完成本机 self-host Plane API 和 webhook receiver 实测；剩余 OpenHands/Langfuse
+  live execution 不属于本文 P0.5 范围。

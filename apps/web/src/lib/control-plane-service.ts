@@ -211,11 +211,13 @@ export type CreatePromptBindingInput = {
 
 export type PlaneWebhookSyncResponse = {
   eventType: PlaneWebhookEventType;
-  action: "ignored" | "upserted";
+  action: "ignored" | "upserted" | "feedback_created" | "feedback_existing";
   taskId?: string;
   identifier?: string;
   repositorySlug?: string;
   blockedMissingRepo?: boolean;
+  commentId?: string;
+  feedbackId?: string;
 };
 
 export type SystemHealthResponse = {
@@ -1298,6 +1300,10 @@ export async function transitionTask(identifier: string, input: TransitionTaskIn
 
 export async function syncPlaneWebhookPayload(payload: unknown): Promise<PlaneWebhookSyncResponse> {
   const parsed = parsePlaneWebhookPayload(payload);
+  if (parsed.eventType === "comment.created") {
+    return syncPlaneCommentWebhook(parsed);
+  }
+
   if (!parsed.task || parsed.eventType === "unknown") {
     return {
       eventType: parsed.eventType,
@@ -1322,6 +1328,87 @@ export async function syncPlaneWebhookPayload(payload: unknown): Promise<PlaneWe
   };
 }
 
+async function syncPlaneCommentWebhook(
+  parsed: ParsedPlaneWebhook,
+): Promise<PlaneWebhookSyncResponse> {
+  const commentId = parsed.comment?.id;
+  const externalTaskId = parsed.comment?.issue ?? parsed.comment?.issue_id;
+  if (!commentId || !externalTaskId) {
+    return {
+      eventType: parsed.eventType,
+      action: "ignored",
+      commentId,
+    };
+  }
+
+  if (!shouldUseDatabase()) {
+    throw new Error("DATABASE_URL is required to sync Plane comment webhooks");
+  }
+
+  const task = await prisma.task.findFirst({
+    where: {
+      externalTaskId,
+    },
+    select: {
+      id: true,
+      identifier: true,
+    },
+  });
+  if (!task) {
+    return {
+      eventType: parsed.eventType,
+      action: "ignored",
+      commentId,
+      identifier: externalTaskId,
+    };
+  }
+
+  const marker = `[Plane comment ${commentId}]`;
+  const existing = await prisma.feedbackItem.findFirst({
+    where: {
+      taskId: task.id,
+      source: "plane_comment",
+      body: {
+        startsWith: marker,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+  if (existing) {
+    return {
+      eventType: parsed.eventType,
+      action: "feedback_existing",
+      taskId: task.id,
+      identifier: task.identifier,
+      commentId,
+      feedbackId: existing.id,
+    };
+  }
+
+  const feedback = await prisma.feedbackItem.create({
+    data: {
+      taskId: task.id,
+      source: "plane_comment",
+      severity: "major",
+      body: `${marker} ${planeCommentText(parsed.comment)}`.trim(),
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return {
+    eventType: parsed.eventType,
+    action: "feedback_created",
+    taskId: task.id,
+    identifier: task.identifier,
+    commentId,
+    feedbackId: feedback.id,
+  };
+}
+
 async function upsertPlaneWebhookTask(parsed: ParsedPlaneWebhook, normalized: NormalizedPlaneTask) {
   const projectSlug = process.env.CONTROL_PLANE_PROJECT_SLUG ?? "token";
   const state =
@@ -1340,6 +1427,23 @@ async function upsertPlaneWebhookTask(parsed: ParsedPlaneWebhook, normalized: No
     url: normalized.url,
     syncCursor: parsed.eventType,
   });
+}
+
+function planeCommentText(comment: ParsedPlaneWebhook["comment"]): string {
+  const html = typeof comment?.comment_html === "string" ? comment.comment_html : undefined;
+  const body = typeof comment?.body === "string" ? comment.body : undefined;
+  const text = stripHtml(html ?? body ?? "").trim();
+  return text || "Plane issue comment received.";
+}
+
+function stripHtml(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ");
 }
 
 function planeStateToDbTaskState(task: PlaneTaskPayload): DbTaskState {

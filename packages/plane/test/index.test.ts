@@ -78,6 +78,25 @@ describe("webhook parser", () => {
     expect(parsed.eventType).toBe("task.updated");
     expect(parsed.task?.id).toBe("issue-1");
   });
+
+  it("keeps Plane issue comments separate from task payloads", () => {
+    const parsed = parsePlaneWebhookPayload({
+      event: "issue_comment",
+      action: "created",
+      data: {
+        id: "comment-1",
+        issue: "issue-1",
+        comment_html: "<p>Needs changes</p>",
+      },
+    });
+
+    expect(parsed.eventType).toBe("comment.created");
+    expect(parsed.task).toBeUndefined();
+    expect(parsed.comment).toMatchObject({
+      id: "comment-1",
+      issue: "issue-1",
+    });
+  });
 });
 
 describe("Linear migration draft", () => {

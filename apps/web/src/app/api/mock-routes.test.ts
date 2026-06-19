@@ -826,6 +826,28 @@ describe("new mock API routes", () => {
     expect(response.status).toBe(503);
     expect(payload.error).toContain("DATABASE_URL");
   });
+
+  it("requires DATABASE_URL before syncing Plane comment webhooks", async () => {
+    const response = await postPlaneWebhookRoute(
+      new Request("http://localhost/api/plane/webhook", {
+        method: "POST",
+        body: JSON.stringify({
+          event: "issue_comment",
+          action: "created",
+          data: {
+            id: "comment-1",
+            issue: "plane-1",
+            comment_html: "<p>Needs changes</p>",
+          },
+        }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain("DATABASE_URL");
+    expect(payload.error).toContain("comment");
+  });
 });
 
 function hmacSha256(body: string, secret: string): string {

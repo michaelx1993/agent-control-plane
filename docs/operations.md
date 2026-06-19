@@ -282,6 +282,13 @@ Plane may return work-item labels as project label IDs instead of `{name, slug}`
 client therefore reads the project labels API first and resolves label IDs before repo routing. This
 keeps the MVP fallback label `repo:<name>` usable with both API shapes.
 
+Plane `issue_comment` webhooks are not tasks. The receiver stores them as unresolved
+`FeedbackItem(source=plane_comment)` records against the referenced task when it can resolve
+`data.issue`; duplicate deliveries reuse the existing feedback marker. In the 2026-06-19 self-host
+spike, state changes arrived as `issue` + `action=updated` with the new state in the payload, while
+DELETE work item did not emit a delete webhook within the observed window, so polling remains
+required for reconciliation.
+
 ## Runtime Secret Redaction
 
 Before prompt content is handed to OpenHands or stored as a prompt release snapshot, the worker

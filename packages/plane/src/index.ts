@@ -74,7 +74,17 @@ export type PlaneWebhookEventType =
 export type ParsedPlaneWebhook = {
   eventType: PlaneWebhookEventType;
   task?: PlaneTaskPayload;
+  comment?: PlaneCommentPayload;
   raw: Record<string, unknown>;
+};
+
+export type PlaneCommentPayload = {
+  id?: string;
+  issue?: string | null;
+  issue_id?: string | null;
+  comment_html?: string | null;
+  body?: string | null;
+  [key: string]: unknown;
 };
 
 export type ListPlaneTasksParams = {
@@ -334,14 +344,20 @@ export function parsePlaneWebhookPayload(payload: unknown): ParsedPlaneWebhook {
   }
 
   const action =
-    stringValue(payload.action) ?? stringValue(payload.event) ?? stringValue(payload.event_type);
+    stringValue(payload.action) ?? stringValue(payload.verb) ?? stringValue(payload.event_type);
   const model =
-    stringValue(payload.model) ?? stringValue(payload.entity) ?? stringValue(payload.type);
-  const task = extractTaskPayload(payload);
+    stringValue(payload.model) ??
+    stringValue(payload.entity) ??
+    stringValue(payload.type) ??
+    stringValue(payload.event);
+  const eventType = mapWebhookEventType(action, model);
+  const task = eventType === "comment.created" ? undefined : extractTaskPayload(payload);
+  const comment = eventType === "comment.created" ? extractCommentPayload(payload) : undefined;
 
   return {
-    eventType: mapWebhookEventType(action, model),
+    eventType,
     task,
+    comment,
     raw: payload,
   };
 }
@@ -617,6 +633,15 @@ function extractTaskPayload(payload: Record<string, unknown>): PlaneTaskPayload 
 
   if (payload.id || payload.issue_id || payload.work_item_id) {
     return payload as PlaneTaskPayload;
+  }
+
+  return undefined;
+}
+
+function extractCommentPayload(payload: Record<string, unknown>): PlaneCommentPayload | undefined {
+  const candidates = [payload.comment, payload.issue_comment, payload.issueComment, payload.data];
+  for (const candidate of candidates) {
+    if (isRecord(candidate)) return candidate as PlaneCommentPayload;
   }
 
   return undefined;
