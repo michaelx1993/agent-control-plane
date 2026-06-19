@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getRunDetail } from "@/lib/control-plane-service";
 import { type HealthSignal, type RunStatus } from "@/lib/mock-data";
 import { OperatorTokenPanel } from "../../OperatorTokenPanel";
+import { ResolveFeedbackButton } from "./ResolveFeedbackButton";
 import { RunFeedbackForm } from "./RunFeedbackForm";
 
 const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
@@ -31,6 +32,7 @@ export default async function RunDetailPage({ params }: PageProps) {
   if (!run) {
     notFound();
   }
+  const openFeedbackCount = run.feedback.filter((item) => !item.resolvedAt).length;
 
   return (
     <main className="shell">
@@ -136,22 +138,30 @@ export default async function RunDetailPage({ params }: PageProps) {
         <section className="panel">
           <div className="panelHead">
             <h2>Feedback</h2>
-            <span>{run.feedback.length} open items</span>
+            <span>{openFeedbackCount} open items</span>
           </div>
           <div className="feedbackStack">
             {run.feedback.length === 0 ? (
               <p className="emptyText">No feedback attached to this run.</p>
             ) : (
               run.feedback.map((item) => (
-                <article className="feedbackItem" key={item.id}>
+                <article
+                  className={`feedbackItem ${item.resolvedAt ? "feedbackItemResolved" : ""}`}
+                  key={item.id}
+                >
                   <div>
                     <strong>
                       {item.source} · {item.severity}
                     </strong>
-                    <small>{item.createdAt}</small>
+                    <small>
+                      {item.resolvedAt
+                        ? `resolved ${item.resolvedAt}`
+                        : `created ${item.createdAt}`}
+                    </small>
                   </div>
                   <p>{item.body}</p>
                   {item.externalUrl ? <a href={item.externalUrl}>Source</a> : null}
+                  {item.resolvedAt ? null : <ResolveFeedbackButton feedbackId={item.id} />}
                 </article>
               ))
             )}

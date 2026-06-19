@@ -69,6 +69,7 @@ export type FeedbackItem = {
   body: string;
   createdAt: string;
   externalUrl: string;
+  resolvedAt?: string;
 };
 
 export type RunDetail = Run & {

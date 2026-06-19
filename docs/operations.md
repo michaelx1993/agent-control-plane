@@ -506,6 +506,10 @@ The Task Queue table exposes manual task transitions for operator gates. It offe
 workflow state, rework back to `Development` where the state machine allows it, `Blocked`, `Done`,
 and `Canceled`. The API still validates every requested transition with the shared state machine.
 
+Run Detail exposes `Resolve` on unresolved feedback items. Use it after the feedback has been
+handled; resolved feedback remains visible in the run history but is no longer injected as unresolved
+Development rework context.
+
 ## Plane API Probe
 
 Use the Plane probe during the self-host spike after `live:preflight` proves basic connectivity.

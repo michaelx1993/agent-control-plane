@@ -169,6 +169,10 @@ export type CreateRunFeedbackInput = {
   returnToDevelopment?: boolean;
 };
 
+export type ResolveFeedbackInput = {
+  reason?: string;
+};
+
 export type ReleaseTaskRetryInput = {
   reason?: string;
 };
@@ -335,6 +339,53 @@ export async function createRunFeedback(runId: string, input: CreateRunFeedbackI
     body: feedback.body,
     createdAt: feedback.createdAt.toISOString(),
     externalUrl: feedback.externalUrl ?? "",
+    resolvedAt: feedback.resolvedAt?.toISOString(),
+  };
+}
+
+export async function resolveFeedbackItem(feedbackId: string, input: ResolveFeedbackInput = {}) {
+  if (!shouldUseDatabase()) {
+    throw new Error("DATABASE_URL is required to resolve feedback");
+  }
+
+  const feedback = await prisma.feedbackItem.findUnique({
+    where: { id: feedbackId },
+    select: {
+      id: true,
+      taskId: true,
+      resolvedAt: true,
+    },
+  });
+  if (!feedback) {
+    throw new Error(`Feedback ${feedbackId} not found`);
+  }
+
+  const resolvedAt = feedback.resolvedAt ?? new Date();
+  const updated = await prisma.$transaction(async (tx) => {
+    const item = await tx.feedbackItem.update({
+      where: { id: feedback.id },
+      data: {
+        resolvedAt,
+      },
+    });
+    await tx.auditEvent.create({
+      data: {
+        action: "feedback.resolve",
+        entityType: "feedback",
+        entityId: item.id,
+        message: input.reason ?? "Feedback marked resolved by operator",
+        payload: {
+          taskId: feedback.taskId,
+          previouslyResolved: Boolean(feedback.resolvedAt),
+        },
+      },
+    });
+    return item;
+  });
+
+  return {
+    id: updated.id,
+    resolvedAt: updated.resolvedAt?.toISOString() ?? resolvedAt.toISOString(),
   };
 }
 
@@ -1631,6 +1682,7 @@ async function getRunDetailFromDb(runId: string): Promise<RunDetail | null> {
       body: item.body,
       createdAt: item.createdAt.toISOString(),
       externalUrl: item.externalUrl ?? "",
+      resolvedAt: item.resolvedAt?.toISOString(),
     })),
   };
 }

@@ -77,6 +77,8 @@ data.
 
 Run Detail supports adding feedback from the UI. When `returnToDevelopment=true`, the task is moved
 back to Development and unresolved feedback is injected into the next worker prompt as comments.
+After the rework is handled, mark the feedback resolved from Run Detail so it remains auditable but
+stops being injected into future Development prompts.
 
 ## Live Worker Preconditions
 

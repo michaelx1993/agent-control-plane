@@ -16,6 +16,7 @@ import { GET as getMonitoringRoute } from "./monitoring/route";
 import { GET as getPromptMetricsRoute } from "./prompt-metrics/route";
 import { GET as getPromptReleasesRoute } from "./prompt-releases/route";
 import { GET as getPromptScopesRoute } from "./prompt-scopes/route";
+import { POST as postFeedbackResolveRoute } from "./feedback/[feedbackId]/resolve/route";
 import { GET as getRunDetailRoute } from "./runs/[runId]/route";
 import { POST as postRunFeedbackRoute } from "./runs/[runId]/feedback/route";
 import { GET as getReadinessRoute } from "./readiness/route";
@@ -256,6 +257,22 @@ describe("new mock API routes", () => {
         }),
       }),
       { params: Promise.resolve({ runId: "run-1" }) },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain("DATABASE_URL");
+  });
+
+  it("requires DATABASE_URL before resolving feedback", async () => {
+    const response = await postFeedbackResolveRoute(
+      new Request("http://localhost/api/feedback/feedback-1/resolve", {
+        method: "POST",
+        body: JSON.stringify({
+          reason: "Feedback has been handled.",
+        }),
+      }),
+      { params: Promise.resolve({ feedbackId: "feedback-1" }) },
     );
     const payload = await response.json();
 

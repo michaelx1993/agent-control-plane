@@ -46,6 +46,7 @@ P0 方案固化
 - 已有 Operator Timeline API/UI，聚合 run event、audit event、feedback。
 - 已有 Readiness API/UI，展示 Plane/OpenHands/Langfuse/DB/Worker 配置缺口，并在 DB 配置后展示 seed baseline 状态。
 - 已有人工 task transition API 和控制台操作入口，状态跳转受 state-machine 校验。
+- 已有 feedback resolve API/UI，处理完成的反馈不会继续作为 unresolved rework context 注入后续 Development。
 - 已有 `CONTROL_PLANE_API_TOKEN` 保护 operator write APIs；只读 dashboard APIs 第一版仍开放。
 - `pnpm live:preflight` 会校验 DB 连通性和 Control Plane seed baseline，避免空库启动 live worker。
 - `pnpm plane:probe` 可对 self-host Plane work-items API、repo 路由解析、可选 PATCH/comment
@@ -62,6 +63,7 @@ P0 方案固化
   feedback 和 prompt 写操作。
 - 控制台已有 `Operator Token` 面板，浏览器侧会把 token 附加到受保护写操作。
 - 控制台 Task Queue 已支持人工推进下一状态、打回 Development、转 Blocked、Done 或 Canceled。
+- Run Detail 已支持将 feedback 标记 resolved，减少返工上下文重复注入。
 - Task Queue 可区分 repo concurrency、role concurrency、retry capped、budget blocked 和普通 gate。
 - 已有 Linear 离线迁移草案工具，可将 JSON/CSV export 转换为 Plane import draft，并标出缺失 repo 的任务。
 

@@ -321,7 +321,7 @@ Trace 策略：
 
 当前完成度说明：
 
-- 已完成的是 Control Plane 本地 MVP：数据库模型、mock worker、run/lease/heartbeat、prompt 平台、run detail、feedback/rework、Operator Timeline、Readiness、人工 transition API。
+- 已完成的是 Control Plane 本地 MVP：数据库模型、mock worker、run/lease/heartbeat、prompt 平台、run detail、feedback/rework/resolve、Operator Timeline、Readiness、人工 transition API/UI。
 - 未完成的是完整产品：Plane self-host 实测、真实 Plane API/webhook 同步、真实 OpenHands 执行、真实 Langfuse trace、生产部署和权限治理。
 - 因此当前系统可以用于本地验证和控制台流程验收，还不能宣称已经替代 Symphony 跑生产任务。
 

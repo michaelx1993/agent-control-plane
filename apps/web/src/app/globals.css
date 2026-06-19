@@ -639,6 +639,20 @@ dd {
   background: rgba(255, 255, 255, 0.018);
 }
 
+.feedbackItemResolved {
+  opacity: 0.68;
+}
+
+.feedbackAction {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.feedbackAction small {
+  color: var(--bad);
+}
+
 .emptyText {
   color: var(--muted);
 }
