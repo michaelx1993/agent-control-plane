@@ -86,7 +86,9 @@ agents:
   It is the low-noise view for "did an agent claim, run, fail, or complete?"
 - `GET /api/audit` and `/audit` expose the dedicated operator audit log. Use `action=<name>`
   and `entityType=<type>` query parameters to inspect task transitions, feedback resolution,
-  prompt rollback, and other operator actions with their stored payloads.
+  prompt rollback, and other operator actions with their stored payloads. Audit reads apply
+  `AUDIT_LOG_RETENTION_DAYS` by default, support `retentionDays=<days>` overrides up to 3650 days,
+  redact sensitive payload keys/secret-like strings, and support `format=csv` exports.
 - `GET /api/monitoring` and `/monitoring` expose the production-readiness monitoring surface:
   queue length, run success rate, token/cost volume, and stalled runs.
 - `GET /api/readiness` reports Plane, OpenHands, Langfuse, database, and worker configuration
@@ -332,6 +334,23 @@ Verify the backup gate that live release checks use:
 
 ```bash
 BACKUP_FILE="backups/agent-control-plane-YYYYMMDDTHHMMSSZ.dump" scripts/check-backup.sh
+```
+
+## Audit Retention And Export
+
+The Audit Log uses the same read API auth as the rest of the dashboard. Configure
+`AUDIT_LOG_RETENTION_DAYS` to set the default read window; the API accepts `retentionDays=<days>` for
+operator investigations, capped at 3650 days. Payloads are redacted before they leave the server:
+sensitive keys such as `token`, `secret`, `apiKey`, `authorization`, `password`, and private-key
+fields are replaced with `[REDACTED]`, and common bearer/API-key strings are scrubbed inside string
+values.
+
+Export a filtered CSV:
+
+```bash
+curl -H "Authorization: Bearer ${CONTROL_PLANE_READ_API_TOKEN:-$CONTROL_PLANE_API_TOKEN}" \
+  "${CONTROL_PLANE_BASE_URL}/api/audit?action=task.transition&format=csv" \
+  -o audit-log.csv
 ```
 
 ## Linear Migration Plan

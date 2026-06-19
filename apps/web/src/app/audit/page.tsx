@@ -12,6 +12,7 @@ type AuditPageProps = {
 type AuditFilters = {
   action: string;
   entityType: string;
+  retentionDays: string;
 };
 
 export default async function AuditPage({ searchParams }: AuditPageProps) {
@@ -21,10 +22,12 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
     getAuditLog({
       action: filters.action || undefined,
       entityType: filters.entityType || undefined,
+      retentionDays: numberFilter(filters.retentionDays),
     }),
     getAuditLog(),
   ]);
   const options = auditFilterOptions(auditOptions.auditLog);
+  const exportHref = auditExportHref(filters);
 
   return (
     <main className="shell">
@@ -60,12 +63,25 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
               options={options.entityTypes}
               value={filters.entityType}
             />
+            <label>
+              <span>Retention</span>
+              <select name="retentionDays" defaultValue={filters.retentionDays}>
+                <option value="">180 days</option>
+                <option value="30">30 days</option>
+                <option value="90">90 days</option>
+                <option value="365">365 days</option>
+                <option value="3650">10 years</option>
+              </select>
+            </label>
             <div className="queueFilterActions">
               <button className="primaryButton" type="submit">
                 Apply
               </button>
               <a className="buttonLink" href="/audit">
                 Clear
+              </a>
+              <a className="buttonLink" href={exportHref}>
+                Export CSV
               </a>
             </div>
           </form>
@@ -126,6 +142,7 @@ function normalizeAuditFilters(
   return {
     action: firstParam(params.action),
     entityType: firstParam(params.entityType),
+    retentionDays: firstParam(params.retentionDays),
   };
 }
 
@@ -145,6 +162,22 @@ function auditFilterOptions(events: AuditLogItem[]) {
 
 function uniqueSorted(values: string[]): string[] {
   return Array.from(new Set(values)).sort((left, right) => left.localeCompare(right));
+}
+
+function numberFilter(value: string): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function auditExportHref(filters: AuditFilters): string {
+  const params = new URLSearchParams({ format: "csv" });
+  if (filters.action) params.set("action", filters.action);
+  if (filters.entityType) params.set("entityType", filters.entityType);
+  if (filters.retentionDays) params.set("retentionDays", filters.retentionDays);
+  return `/api/audit?${params.toString()}`;
 }
 
 function FilterSelect({

@@ -568,6 +568,9 @@ export const operatorTimeline: OperatorTimelineItem[] = [
   },
 ];
 
+const auditDate = (hoursAgo: number) =>
+  new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+
 export const auditLog: AuditLogItem[] = [
   {
     id: "audit-prompt-rollback-1",
@@ -579,8 +582,9 @@ export const auditLog: AuditLogItem[] = [
     payload: {
       scope: "repo:crs-src",
       version: 17,
+      accessToken: "fake-sensitive-value",
     },
-    createdAt: "2026-06-18 10:14",
+    createdAt: auditDate(2),
     href: "/prompt-components",
   },
   {
@@ -594,7 +598,7 @@ export const auditLog: AuditLogItem[] = [
       fromState: "Human Review",
       nextState: "In Merge",
     },
-    createdAt: "2026-06-18 09:58",
+    createdAt: auditDate(3),
     href: "/",
   },
   {
@@ -607,7 +611,7 @@ export const auditLog: AuditLogItem[] = [
     payload: {
       previouslyResolved: false,
     },
-    createdAt: "2026-06-18 09:12",
+    createdAt: auditDate(4),
     href: "/runs/run-7728",
   },
 ];

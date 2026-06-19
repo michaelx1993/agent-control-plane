@@ -411,6 +411,7 @@ describe("new mock API routes", () => {
     const response = await getAuditRoute();
     const payload = await response.json();
 
+    expect(payload.appliedRetentionDays).toEqual(expect.any(Number));
     expect(payload.count).toBe(payload.auditLog.length);
     expect(payload.auditLog[0]).toMatchObject({
       id: expect.any(String),
@@ -420,6 +421,18 @@ describe("new mock API routes", () => {
       entityType: expect.any(String),
       createdAt: expect.any(String),
       href: expect.any(String),
+    });
+  });
+
+  it("redacts sensitive audit payload fields", async () => {
+    const response = await getAuditRoute(
+      new Request("http://localhost/api/audit?action=prompt.rollback"),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.auditLog[0].payload).toMatchObject({
+      accessToken: "[REDACTED]",
     });
   });
 
@@ -433,6 +446,20 @@ describe("new mock API routes", () => {
     expect(
       payload.auditLog.every((event: { action: string }) => event.action === "task.transition"),
     ).toBe(true);
+  });
+
+  it("exports audit log events as CSV", async () => {
+    const response = await getAuditRoute(
+      new Request("http://localhost/api/audit?action=task.transition&format=csv"),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/csv");
+    expect(body).toContain(
+      '"createdAt","action","actor","entityType","entityId","message","payload"',
+    );
+    expect(body).toContain('"task.transition"');
   });
 
   it("returns readiness checks grouped by integration", async () => {

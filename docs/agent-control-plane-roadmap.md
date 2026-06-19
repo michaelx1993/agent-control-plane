@@ -518,7 +518,8 @@ Done              -> Terminal
 - Data migration
 - Backfill
 - Access control
-- Audit log：第一版已有 `/audit` 和 `GET /api/audit?action=&entityType=`，后续补保留策略、导出、敏感字段脱敏策略。
+- Audit log：已有 `/audit` 和 `GET /api/audit?action=&entityType=`，支持 retention window、
+  CSV export、payload secret redaction。
 - Secret management
 - Backup/restore
 - Deployment

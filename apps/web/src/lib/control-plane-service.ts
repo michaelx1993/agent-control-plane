@@ -79,9 +79,11 @@ export type TaskQueueFilters = {
 export type AuditLogFilters = {
   action?: string;
   entityType?: string;
+  retentionDays?: number;
 };
 
 export type AuditLogResponse = {
+  appliedRetentionDays: number;
   count: number;
   auditLog: AuditLogItem[];
 };
@@ -973,9 +975,16 @@ export async function getOperatorTimeline(): Promise<OperatorTimelineResponse> {
 }
 
 export async function getAuditLog(filters: AuditLogFilters = {}): Promise<AuditLogResponse> {
+  const retentionDays = normalizeAuditRetentionDays(filters.retentionDays);
+  const retentionSince = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
   if (!shouldUseDatabase()) {
-    const auditLog = filterAuditLogItems(mockAuditLog, filters);
+    const auditLog = filterAuditLogItems(mockAuditLog, {
+      ...filters,
+      retentionDays,
+    }).map(redactAuditLogItem);
     return {
+      appliedRetentionDays: retentionDays,
       count: auditLog.length,
       auditLog,
     };
@@ -992,6 +1001,9 @@ export async function getAuditLog(filters: AuditLogFilters = {}): Promise<AuditL
     where: {
       ...(filters.action ? { action: filters.action } : {}),
       ...(filters.entityType ? { entityType: filters.entityType } : {}),
+      createdAt: {
+        gte: retentionSince,
+      },
     },
   });
 
@@ -1003,13 +1015,14 @@ export async function getAuditLog(filters: AuditLogFilters = {}): Promise<AuditL
       entityId: event.entityId,
       entityType: event.entityType,
       message: event.message ?? "",
-      payload: event.payload,
+      payload: redactAuditPayload(event.payload),
       createdAt: event.createdAt.toISOString(),
       href: hrefForAuditEvent(event.entityType, event.entityId),
     };
   });
 
   return {
+    appliedRetentionDays: retentionDays,
     count: auditLog.length,
     auditLog,
   };
@@ -1126,6 +1139,12 @@ export async function getSystemReadiness(): Promise<SystemReadinessResponse> {
       process.env.CONTROL_PLANE_READ_API_TOKEN,
       "Optional read API token; falls back to CONTROL_PLANE_API_TOKEN when unset",
       { optional: true },
+    ),
+    envCheck(
+      "AUDIT_LOG_RETENTION_DAYS",
+      process.env.AUDIT_LOG_RETENTION_DAYS,
+      "Audit log read retention window",
+      { warningWhenMissing: "defaults to 180" },
     ),
   ];
   if (shouldUseDatabase()) {
@@ -2160,12 +2179,70 @@ function filterTaskQueueItems(tasks: TaskQueueItem[], filters: TaskQueueFilters)
 }
 
 function filterAuditLogItems(items: AuditLogItem[], filters: AuditLogFilters): AuditLogItem[] {
+  const retentionDays = normalizeAuditRetentionDays(filters.retentionDays);
+  const retentionSince = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+
   return items.filter((item) => {
+    const createdAtMs = Date.parse(item.createdAt);
     return (
       (!filters.action || item.action === filters.action) &&
-      (!filters.entityType || item.entityType === filters.entityType)
+      (!filters.entityType || item.entityType === filters.entityType) &&
+      (Number.isNaN(createdAtMs) || createdAtMs >= retentionSince)
     );
   });
+}
+
+function normalizeAuditRetentionDays(value: number | undefined): number {
+  const fallback = Number(process.env.AUDIT_LOG_RETENTION_DAYS ?? "180");
+  const days = value ?? fallback;
+  if (!Number.isFinite(days) || days <= 0) {
+    return 180;
+  }
+  return Math.min(Math.floor(days), 3650);
+}
+
+function redactAuditLogItem(item: AuditLogItem): AuditLogItem {
+  return {
+    ...item,
+    payload: redactAuditPayload(item.payload),
+  };
+}
+
+function redactAuditPayload(value: unknown): unknown {
+  if (typeof value === "string") {
+    return redactAuditString(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(redactAuditPayload);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, nestedValue]) => {
+      if (isSensitiveAuditKey(key)) {
+        return [key, "[REDACTED]"];
+      }
+      return [key, redactAuditPayload(nestedValue)];
+    }),
+  );
+}
+
+function isSensitiveAuditKey(key: string): boolean {
+  return /(api[-_]?key|authorization|bearer|credential|password|private[-_]?key|secret|token)/i.test(
+    key,
+  );
+}
+
+function redactAuditString(value: string): string {
+  return value
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]{12,}/gi, "Bearer [REDACTED]")
+    .replace(/\b(?:sk|pk|ghp|github_pat)_[A-Za-z0-9_]{16,}\b/g, "[REDACTED]")
+    .replace(
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+      "[REDACTED_PRIVATE_KEY]",
+    );
 }
 
 function hrefForAuditEvent(entityType: string, entityId: string): string {
