@@ -60,6 +60,8 @@ P0 方案固化
   workspace、OpenHands、Langfuse 或 Run Detail 证据时失败；成功 run 会强制校验 OpenHands/
   Langfuse URL 与 run refs 一致。
 - `pnpm release:check` 在 live 模式会强制校验非空且 `pg_restore --list` 可解析的数据库备份，再执行 live preflight。
+- 已有 `pnpm backup:drill`，可将备份还原到隔离 drill 数据库并校验 Control Plane seed
+  baseline；`REQUIRE_RESTORE_DRILL=1` 可把它纳入 live release gate。
 - 已有 Docker Compose `app` profile 和 app Dockerfile，可启动 web console 与
   `WORKER_RUN_LOOP=true` 的常驻 worker。
 - 已有 `pnpm deploy:compose` 和 `pnpm rollback:compose`，串联 release gate、compose app profile、
@@ -526,8 +528,8 @@ Done              -> Terminal
   CSV export、payload secret redaction。
 - Secret management：已有 runtime redaction 和 release secret scan gate；后续可接入外部 secret
   manager 做凭据注入与轮换。
-- Backup/restore：已有 `pg_dump` custom-format backup、`pg_restore` restore，以及 live release
-  前的 backup manifest integrity gate。
+- Backup/restore：已有 `pg_dump` custom-format backup、`pg_restore` restore、live release
+  前的 backup manifest integrity gate，以及隔离数据库 restore drill。
 - Deployment：已有 Docker Compose app profile、deploy script、rollback script 和 health gate。
 - Monitoring
 

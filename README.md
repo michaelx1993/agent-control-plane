@@ -147,6 +147,9 @@ Use `pnpm plane:probe` during the Plane self-host spike to verify list/get/repo 
 For live rollout, run `scripts/db-backup.sh` first. `pnpm release:check` requires a non-empty,
 `pg_restore --list`-verifiable `BACKUP_FILE` or the latest `agent-control-plane-*.dump` under
 `BACKUP_DIR` when `WORKER_MODE=live`.
+Run `RESTORE_DRILL_DATABASE_URL=<disposable-db-url> BACKUP_FILE=<dump> pnpm backup:drill` before the
+first live rollout or backup/restore script changes. Set `REQUIRE_RESTORE_DRILL=1` during
+`WORKER_MODE=live pnpm release:check` when an isolated drill database is available.
 Use `WORKER_MODE=live pnpm live:verify-once` for the first real Development task; it runs
 preflight first, dispatches one task, prints the JSON evidence bundle, and fails if Plane,
 workspace, OpenHands, Langfuse, or Control Plane Run Detail evidence is missing. Use

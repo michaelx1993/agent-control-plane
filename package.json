@@ -6,6 +6,7 @@
   "packageManager": "pnpm@11.0.8",
   "scripts": {
     "build": "pnpm -r --if-present build",
+    "backup:drill": "scripts/restore-drill.sh",
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "compose:check": "scripts/compose-check.sh",
     "db:seed-demo": "pnpm --filter @agent-control-plane/db seed:demo",

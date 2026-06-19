@@ -8,6 +8,9 @@ fi
 
 if [[ "${WORKER_MODE:-}" == "live" ]]; then
   scripts/check-backup.sh
+  if [[ "${REQUIRE_RESTORE_DRILL:-}" == "1" ]]; then
+    scripts/restore-drill.sh
+  fi
 fi
 
 pnpm format

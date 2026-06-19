@@ -348,6 +348,29 @@ the gate runs `pg_restore --list` against the selected custom-format dump:
 BACKUP_FILE="backups/agent-control-plane-YYYYMMDDTHHMMSSZ.dump" scripts/check-backup.sh
 ```
 
+Run a restore drill against a disposable database before first live rollout and after backup/restore
+script changes. The drill refuses to run if `RESTORE_DRILL_DATABASE_URL` equals `DATABASE_URL`,
+restores the selected custom-format dump, then checks baseline teams, active repositories, roles, and
+active agent definitions:
+
+```bash
+DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" \
+RESTORE_DRILL_DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane_restore_drill?schema=public" \
+BACKUP_FILE="backups/agent-control-plane-YYYYMMDDTHHMMSSZ.dump" \
+  pnpm backup:drill
+```
+
+Set `REQUIRE_RESTORE_DRILL=1` during live release checks when an isolated drill database is
+available:
+
+```bash
+WORKER_MODE="live" \
+REQUIRE_RESTORE_DRILL="1" \
+RESTORE_DRILL_DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane_restore_drill?schema=public" \
+BACKUP_FILE="backups/agent-control-plane-YYYYMMDDTHHMMSSZ.dump" \
+  pnpm release:check
+```
+
 ## Audit Retention And Export
 
 The Audit Log uses the same read API auth as the rest of the dashboard. Configure
@@ -454,10 +477,12 @@ Before using the worker against live systems:
 - `WORKER_MODE=live` has `OPENHANDS_BASE_URL`, `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY`; the worker fails fast without them.
 - `WORKER_DEFAULT_REPO_CONCURRENCY=1` unless a repo is known safe for parallel edits.
 - A database backup exists for the target environment.
+- A restore drill has passed against a disposable database for first live rollout or any
+  backup/restore script change.
 - `WORKER_MODE=live` is only enabled after a successful mock run and DB migration.
 - Seed baseline data exists for teams, active repositories, roles, and active agent definitions.
-- `pnpm release:check` passes; in live mode this includes backup verification and
-  `pnpm live:preflight`.
+- `pnpm release:check` passes; in live mode this includes backup verification, optional
+  `REQUIRE_RESTORE_DRILL=1` restore drill, and `pnpm live:preflight`.
 
 ## Live Preflight
 
@@ -522,6 +547,8 @@ The local deployment manifest lives at `infra/docker/docker-compose.yml`.
 - `BACKUP_FILE=<dump> pnpm rollback:compose` stops web/worker, verifies and restores the selected
   backup, restarts web/worker, then runs `pnpm health`. Use `RESTART_AFTER_ROLLBACK=0` when the
   operator needs to inspect the database before restart.
+- `REQUIRE_RESTORE_DRILL=1 pnpm release:check` runs the restore drill before live deploy when
+  `RESTORE_DRILL_DATABASE_URL` points at a disposable database.
 
 Before using the `app` profile in live mode, run migrations, seed baseline rows, configure Plane /
 OpenHands / Langfuse endpoints in `.env`, then run `pnpm release:check`.
