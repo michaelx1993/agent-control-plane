@@ -15,6 +15,8 @@
     "@agent-control-plane/openhands": "workspace:*",
     "@agent-control-plane/plane": "workspace:*",
     "@agent-control-plane/runtime-policy": "workspace:*",
+    "@agent-control-plane/shared": "workspace:*",
+    "@agent-control-plane/state-machine": "workspace:*",
     "tsx": "^4.20.3"
   },
   "devDependencies": {

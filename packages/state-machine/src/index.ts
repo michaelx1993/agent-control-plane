@@ -1,5 +1,10 @@
-import type { AgentRoleKey, FeedbackSeverity, Result, TaskState } from "../../shared/src/index";
-import { controlPlaneError, err, ok, TASK_STATES } from "../../shared/src/index";
+import type {
+  AgentRoleKey,
+  FeedbackSeverity,
+  Result,
+  TaskState,
+} from "@agent-control-plane/shared";
+import { controlPlaneError, err, ok, TASK_STATES } from "@agent-control-plane/shared";
 
 export const MAIN_STATE_CHAIN: readonly TaskState[] = [
   "Backlog",

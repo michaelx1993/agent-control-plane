@@ -32,6 +32,8 @@ import {
   evaluateRuntimePolicy,
   type RuntimePolicyConfig,
 } from "@agent-control-plane/runtime-policy";
+import { planWorkflowClosure, validateTransition } from "@agent-control-plane/state-machine";
+import type { AgentRoleKey } from "@agent-control-plane/shared";
 
 export type TaskState =
   | "Backlog"
@@ -329,7 +331,7 @@ export class DispatchWorker {
         role: runningRun.role,
       });
 
-      const nextState = this.decideNextState(task, openHandsResult);
+      const nextState = this.decideNextState(task, runningRun, openHandsResult);
       const completedRun = await this.store.completeRun(
         runningRun.id,
         openHandsResult,
@@ -385,17 +387,23 @@ export class DispatchWorker {
     ].join("\n\n");
   }
 
-  decideNextState(task: Task, result: OpenHandsRunResult): TaskState {
-    if (result.suggestedNextState && isAllowedTransition(task.state, result.suggestedNextState)) {
+  decideNextState(task: Task, run: Run, result: OpenHandsRunResult): TaskState {
+    if (
+      result.suggestedNextState &&
+      isAllowedWorkerTransition(task.state, result.suggestedNextState)
+    ) {
       return result.suggestedNextState;
     }
 
-    if (task.state === "Development") {
-      return "Code Review";
-    }
-
-    if (task.state === "Todo") {
-      return "Development";
+    const closure = planWorkflowClosure({
+      taskState: task.state,
+      role: roleKeyFromRunRole(run.role),
+      openHandsResult: {
+        status: result.status === "succeeded" ? "completed" : "failed",
+      },
+    });
+    if (closure.ok && closure.value.allowedTransition) {
+      return closure.value.nextState as TaskState;
     }
 
     return task.state;
@@ -1199,30 +1207,6 @@ export function createMockTask(overrides: Partial<Task> = {}): Task {
   };
 }
 
-function isAllowedTransition(from: TaskState, to: TaskState): boolean {
-  if (to === "Done" || to === "Canceled") {
-    return true;
-  }
-
-  const allowed: Record<TaskState, TaskState[]> = {
-    Backlog: ["Todo"],
-    Todo: ["Development"],
-    Development: ["Code Review"],
-    "Code Review": ["Development", "Human Review"],
-    "Human Review": ["Development", "In Merge"],
-    "In Merge": ["Merged"],
-    Merged: ["Development", "Release Version"],
-    "Release Version": ["Released"],
-    Released: ["Development", "Deployment"],
-    Deployment: ["Deployed"],
-    Deployed: ["Development", "Done"],
-    Done: [],
-    Canceled: [],
-  };
-
-  return allowed[from].includes(to);
-}
-
 export async function runDryRun(): Promise<DispatchResult | undefined> {
   const config = loadConfig();
   const store =
@@ -1287,6 +1271,19 @@ function toDbTaskState(state: TaskState): DbTaskState {
     throw new Error(`Task state ${state} is not persisted in the DB schema`);
   }
   return dbState;
+}
+
+function roleKeyFromRunRole(role: string): AgentRoleKey {
+  if (role.includes("Intake")) return "intake";
+  if (role.includes("Review")) return "code_review";
+  if (role.includes("Merge")) return "merge";
+  if (role.includes("Release")) return "release";
+  if (role.includes("Deploy")) return "deployment";
+  return "development";
+}
+
+function isAllowedWorkerTransition(from: TaskState, to: TaskState): boolean {
+  return validateTransition(from as never, to as never).ok;
 }
 
 function runtimePolicyConfigFromWorkerConfig(config: WorkerConfig): RuntimePolicyConfig {

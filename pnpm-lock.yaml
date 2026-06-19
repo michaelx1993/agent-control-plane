@@ -71,6 +71,12 @@ importers:
       "@agent-control-plane/runtime-policy":
         specifier: workspace:*
         version: link:../../packages/runtime-policy
+      "@agent-control-plane/shared":
+        specifier: workspace:*
+        version: link:../../packages/shared
+      "@agent-control-plane/state-machine":
+        specifier: workspace:*
+        version: link:../../packages/state-machine
       tsx:
         specifier: ^4.20.3
         version: 4.22.4
@@ -190,7 +196,7 @@ importers:
   packages/state-machine:
     dependencies:
       "@agent-control-plane/shared":
-        specifier: file:../shared
+        specifier: workspace:*
         version: link:../shared
     devDependencies:
       "@types/node":

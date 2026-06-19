@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agent-control-plane/shared": "file:../shared"
+    "@agent-control-plane/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
