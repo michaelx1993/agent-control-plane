@@ -144,6 +144,57 @@ describe("LangfuseHttpAdapter", () => {
       generationCount: 1,
     });
   });
+
+  it("supports custom endpoint paths without losing defaults", async () => {
+    const requests: string[] = [];
+    const fetch = async (input: string) => {
+      requests.push(input);
+
+      if (input === "https://langfuse.example/v1/traces") {
+        return jsonResponse({
+          id: "trace-2",
+          url: "https://langfuse.example/trace/trace-2",
+        });
+      }
+
+      if (input === "https://langfuse.example/api/public/generations") {
+        return jsonResponse({ id: "generation-2" });
+      }
+
+      throw new Error(`Unexpected request: ${input}`);
+    };
+    const adapter = new LangfuseHttpAdapter({
+      baseUrl: "https://langfuse.example",
+      publicKey: "pk",
+      secretKey: "sk",
+      fetch,
+      endpoints: {
+        traces: "/v1/traces",
+      },
+    });
+
+    const trace = await adapter.createTrace({
+      name: "custom-path-run",
+      metadata: {
+        taskId: "task-2",
+        runId: "run-2",
+        repo: "traffic",
+        role: "Development",
+        model: "gpt-5.5",
+      },
+    });
+    await adapter.createGeneration({
+      traceId: trace.traceId,
+      name: "llm-call",
+      model: "gpt-5.5",
+      usage: tokenUsage(1, 1),
+    });
+
+    expect(requests).toEqual([
+      "https://langfuse.example/v1/traces",
+      "https://langfuse.example/api/public/generations",
+    ]);
+  });
 });
 
 function jsonResponse(body: unknown) {

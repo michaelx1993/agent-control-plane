@@ -106,7 +106,10 @@ export class LangfuseHttpAdapter implements LangfuseAdapter {
   constructor(options: LangfuseHttpAdapterOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.fetchImpl = options.fetch ?? defaultFetch;
-    this.endpoints = { ...defaultLangfuseEndpoints, ...options.endpoints };
+    this.endpoints = {
+      traces: options.endpoints?.traces ?? defaultLangfuseEndpoints.traces,
+      generations: options.endpoints?.generations ?? defaultLangfuseEndpoints.generations,
+    };
     this.authHeader = `Basic ${base64Encode(`${options.publicKey}:${options.secretKey}`)}`;
   }
 

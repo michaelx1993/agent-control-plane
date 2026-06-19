@@ -76,6 +76,8 @@ export interface WorkerConfig {
   langfuseBaseUrl?: string;
   langfusePublicKey?: string;
   langfuseSecretKey?: string;
+  langfuseTracesPath?: string;
+  langfuseGenerationsPath?: string;
   planeBaseUrl?: string;
   planeApiKey?: string;
   planeApiKeyHeader: string;
@@ -301,6 +303,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     langfuseBaseUrl: env.LANGFUSE_BASE_URL,
     langfusePublicKey: env.LANGFUSE_PUBLIC_KEY,
     langfuseSecretKey: env.LANGFUSE_SECRET_KEY,
+    langfuseTracesPath: env.LANGFUSE_TRACES_PATH,
+    langfuseGenerationsPath: env.LANGFUSE_GENERATIONS_PATH,
     planeBaseUrl: env.PLANE_BASE_URL,
     planeApiKey: env.PLANE_API_KEY,
     planeApiKeyHeader: env.PLANE_API_KEY_HEADER ?? "X-API-Key",
@@ -1646,6 +1650,10 @@ export function createTraceRecorder(config: WorkerConfig): TraceRecorder {
       baseUrl: config.langfuseBaseUrl,
       publicKey: config.langfusePublicKey,
       secretKey: config.langfuseSecretKey,
+      endpoints: {
+        traces: config.langfuseTracesPath,
+        generations: config.langfuseGenerationsPath,
+      },
     }),
   );
 }

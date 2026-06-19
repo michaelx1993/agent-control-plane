@@ -300,6 +300,16 @@ describe("DispatchWorker", () => {
     expect(config.openHandsRunsPath).toBe("/v1/runs");
   });
 
+  it("loads Langfuse endpoint paths from env", () => {
+    const config = loadConfig({
+      LANGFUSE_TRACES_PATH: "/v1/traces",
+      LANGFUSE_GENERATIONS_PATH: "/v1/generations",
+    });
+
+    expect(config.langfuseTracesPath).toBe("/v1/traces");
+    expect(config.langfuseGenerationsPath).toBe("/v1/generations");
+  });
+
   it("fails fast when live runtime integrations are not configured", () => {
     const config = loadConfig({ WORKER_MODE: "live" });
 

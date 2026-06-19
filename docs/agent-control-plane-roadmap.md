@@ -40,7 +40,7 @@ P0 方案固化
 - Worker 在交给 OpenHands 和保存 prompt release snapshot 前，会对运行时 prompt 执行最低限度
   secret redaction，覆盖常见 API key、bearer token 和 private key block。
 - 已有 OpenHands adapter、可配置 runtime endpoint paths、conversation refs、poll heartbeat hook。
-- 已有 Langfuse trace refs、token/cost summary 写入、prompt version metrics 和 dashboard 展示。
+- 已有 Langfuse trace refs、可配置 trace/generation endpoint paths、token/cost summary 写入、prompt version metrics 和 dashboard 展示。
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
 - 已有 Run Detail feedback 表单和 feedback API，支持打回 Development。
 - 已有 Operator Timeline API/UI，聚合 run event、audit event、feedback。

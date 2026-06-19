@@ -93,6 +93,9 @@ Plane API key auth defaults to `X-API-Key`, matching self-host Personal Access T
 OpenHands runtime API paths default to `OPENHANDS_CONVERSATIONS_PATH=/api/conversations` and
 `OPENHANDS_RUNS_PATH=/api/runs`; override them when the target OpenHands SDK server exposes
 different routes.
+Langfuse runtime API paths default to `LANGFUSE_TRACES_PATH=/api/public/traces` and
+`LANGFUSE_GENERATIONS_PATH=/api/public/generations`; override them when a self-hosted Langfuse
+deployment exposes different API routes.
 
 Run `pnpm live:preflight` before enabling live mode. It performs non-mutating probes:
 

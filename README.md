@@ -104,6 +104,8 @@ OPENHANDS_BASE_URL="https://openhands.example" \
 OPENHANDS_CONVERSATIONS_PATH="/api/conversations" \
 OPENHANDS_RUNS_PATH="/api/runs" \
 LANGFUSE_BASE_URL="https://langfuse.example" \
+LANGFUSE_TRACES_PATH="/api/public/traces" \
+LANGFUSE_GENERATIONS_PATH="/api/public/generations" \
 LANGFUSE_PUBLIC_KEY="pk" \
 LANGFUSE_SECRET_KEY="sk" \
 pnpm live:preflight

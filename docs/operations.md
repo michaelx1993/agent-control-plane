@@ -384,6 +384,8 @@ OPENHANDS_BASE_URL="https://openhands.example" \
 OPENHANDS_CONVERSATIONS_PATH="/api/conversations" \
 OPENHANDS_RUNS_PATH="/api/runs" \
 LANGFUSE_BASE_URL="https://langfuse.example" \
+LANGFUSE_TRACES_PATH="/api/public/traces" \
+LANGFUSE_GENERATIONS_PATH="/api/public/generations" \
 LANGFUSE_PUBLIC_KEY="..." \
 LANGFUSE_SECRET_KEY="..." \
 pnpm live:preflight
@@ -403,6 +405,8 @@ Checks:
   `OPENHANDS_CONVERSATIONS_PATH` and `OPENHANDS_RUNS_PATH` if the SDK server differs.
 - Langfuse health endpoint responds. Default path: `/api/public/health`; override with
   `LANGFUSE_HEALTH_PATH`.
+- Langfuse trace/generation paths default to `/api/public/traces` and `/api/public/generations`;
+  override with `LANGFUSE_TRACES_PATH` and `LANGFUSE_GENERATIONS_PATH` if the deployment differs.
 
 Exit code is `0` only when all checks pass. Use this before starting a live worker and after any
 credential, endpoint, or self-host upgrade change.
