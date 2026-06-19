@@ -92,6 +92,23 @@ Run the full release gate with a configured database:
 DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" pnpm release:check
 ```
 
+Before turning on `WORKER_MODE=live`, run the non-mutating live preflight:
+
+```bash
+DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" \
+PLANE_BASE_URL="https://plane.example" \
+PLANE_WORKSPACE_SLUG="workspace" \
+PLANE_PROJECT_ID="project" \
+OPENHANDS_BASE_URL="https://openhands.example" \
+LANGFUSE_BASE_URL="https://langfuse.example" \
+LANGFUSE_PUBLIC_KEY="pk" \
+LANGFUSE_SECRET_KEY="sk" \
+pnpm live:preflight
+```
+
+The preflight checks DB connectivity, Plane work item listing, OpenHands health, and Langfuse
+health without creating tasks, conversations, or traces.
+
 ## Design Docs
 
 - [PRD](docs/agent-control-plane-prd.md)

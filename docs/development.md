@@ -86,3 +86,15 @@ configured:
 - `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY`
 
 The worker uses mock OpenHands and mock tracing only when `WORKER_MODE=mock`.
+
+Run `pnpm live:preflight` before enabling live mode. It performs non-mutating probes:
+
+- `SELECT 1` against PostgreSQL.
+- `Plane listTasks({ perPage: 1 })` against the configured workspace/project.
+- HTTP health probe against `OPENHANDS_BASE_URL + OPENHANDS_HEALTH_PATH` where the default path is
+  `/health`.
+- HTTP health probe against `LANGFUSE_BASE_URL + LANGFUSE_HEALTH_PATH` where the default path is
+  `/api/public/health`.
+
+If a self-hosted service exposes a different health endpoint, set `OPENHANDS_HEALTH_PATH` or
+`LANGFUSE_HEALTH_PATH` instead of changing code.

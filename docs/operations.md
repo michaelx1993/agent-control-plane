@@ -209,3 +209,35 @@ Before using the worker against live systems:
 - `WORKER_DEFAULT_REPO_CONCURRENCY=1` unless a repo is known safe for parallel edits.
 - A database backup exists for the target environment.
 - `WORKER_MODE=live` is only enabled after a successful mock run and DB migration.
+- `pnpm live:preflight` passes.
+
+## Live Preflight
+
+The live preflight is a non-mutating integration check for the next milestone. It does not create
+Plane work items, OpenHands conversations, or Langfuse traces.
+
+```bash
+DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" \
+PLANE_BASE_URL="https://plane.example" \
+PLANE_WORKSPACE_SLUG="workspace" \
+PLANE_PROJECT_ID="project" \
+PLANE_API_KEY="..." \
+OPENHANDS_BASE_URL="https://openhands.example" \
+LANGFUSE_BASE_URL="https://langfuse.example" \
+LANGFUSE_PUBLIC_KEY="..." \
+LANGFUSE_SECRET_KEY="..." \
+pnpm live:preflight
+```
+
+Checks:
+
+- Required live env vars are present.
+- PostgreSQL responds to `SELECT 1`.
+- Plane work-items API can list one item from the configured project.
+- OpenHands health endpoint responds. Default path: `/health`; override with
+  `OPENHANDS_HEALTH_PATH`.
+- Langfuse health endpoint responds. Default path: `/api/public/health`; override with
+  `LANGFUSE_HEALTH_PATH`.
+
+Exit code is `0` only when all checks pass. Use this before starting a live worker and after any
+credential, endpoint, or self-host upgrade change.

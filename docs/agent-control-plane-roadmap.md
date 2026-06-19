@@ -49,10 +49,11 @@ P0 方案固化
 下一阶段优先级：
 
 1. 启动并验证 Plane self-host，确认 work item API、webhook、repo 字段方案。
-2. 配置 `WORKER_MODE=live`，用真实 OpenHands endpoint 跑一次 Development 任务。
-3. 接入真实 Langfuse trace，确认 run detail 能跳转并展示 token/cost。
-4. 将 live run 的 Plane 状态回写和低频 comment 验证通过。
-5. 固化部署/回滚/备份 runbook。
+2. 运行 `pnpm live:preflight`，确认 DB、Plane、OpenHands、Langfuse 基础连通。
+3. 配置 `WORKER_MODE=live`，用真实 OpenHands endpoint 跑一次 Development 任务。
+4. 接入真实 Langfuse trace，确认 run detail 能跳转并展示 token/cost。
+5. 将 live run 的 Plane 状态回写和低频 comment 验证通过。
+6. 固化部署/回滚/备份 runbook。
 
 ## P0 方案固化
 
@@ -114,6 +115,7 @@ P0 方案固化
 - Plane task 状态和 repo 字段能被读取。
 - Plane webhook 能触发本地 receiver，或明确需要 polling fallback。
 - Work items API 路径 `/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/` 已实测。
+- `pnpm live:preflight` 的 Plane check 能通过。
 - API rate limit `60 req/min` 已纳入 polling 预算。
 - 明确第一阶段是否需要改 Plane 源码。
 
@@ -309,6 +311,7 @@ global
 验收标准：
 
 - Development 任务可由 OpenHands 完成一次代码修改。
+- `pnpm live:preflight` 的 OpenHands check 能通过。
 - 用户能从 run detail 跳到 OpenHands conversation。
 - OpenHands event log 中能看到 agent 消息、tool call、shell/file 操作。
 - OpenHands 失败时，Control Plane 能记录失败原因并决定 retry/block。
@@ -352,6 +355,7 @@ global
 - 用户能看到每次 LLM call 的 prompt、output、token、cost。
 - 用户能按 prompt version 查看历史 run 表现。
 - run detail 同时有 OpenHands conversation 和 Langfuse trace 链接。
+- `pnpm live:preflight` 的 Langfuse check 能通过。
 
 风险：
 

@@ -18,4 +18,8 @@ if [[ -n "${CONTROL_PLANE_BASE_URL:-}" ]]; then
   scripts/health-check.sh
 fi
 
+if [[ "${WORKER_MODE:-}" == "live" ]]; then
+  pnpm live:preflight
+fi
+
 echo "release-check passed"
