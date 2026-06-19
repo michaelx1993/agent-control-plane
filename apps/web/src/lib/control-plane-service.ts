@@ -14,6 +14,8 @@ import {
 import { PrismaClient } from "@prisma/client";
 import type { RunStatus as DbRunStatus, TaskState as DbTaskState } from "@prisma/client";
 import type {
+  PromptBindingEnvironment as DbPromptBindingEnvironment,
+  PromptBindingStatus as DbPromptBindingStatus,
   PromptComponentStatus as DbPromptComponentStatus,
   PromptScopeType as DbPromptScopeType,
 } from "@prisma/client";
@@ -75,6 +77,33 @@ export type CreatePromptComponentInput = {
   changelog?: string | null;
   author?: string | null;
   version?: number;
+};
+
+export type PromptBindingItem = {
+  id: string;
+  scopeType: DbPromptScopeType;
+  scopeId: string;
+  promptComponentId: string;
+  promptComponentName: string;
+  promptComponentVersion: number;
+  orderIndex: number;
+  environment: DbPromptBindingEnvironment;
+  status: DbPromptBindingStatus;
+  updatedAt: string;
+};
+
+export type PromptBindingsResponse = {
+  count: number;
+  promptBindings: PromptBindingItem[];
+};
+
+export type CreatePromptBindingInput = {
+  scopeType: DbPromptScopeType;
+  scopeId: string;
+  promptComponentId: string;
+  orderIndex?: number;
+  environment?: DbPromptBindingEnvironment;
+  status?: DbPromptBindingStatus;
 };
 
 export type SystemHealthResponse = {
@@ -212,6 +241,81 @@ export async function createPromptComponent(
     changelog: component.changelog,
     author: component.author,
     updatedAt: component.updatedAt.toISOString(),
+  };
+}
+
+export async function getPromptBindings(): Promise<PromptBindingsResponse> {
+  if (!shouldUseDatabase()) {
+    return {
+      count: 0,
+      promptBindings: [],
+    };
+  }
+
+  const bindings = await prisma.promptBinding.findMany({
+    include: {
+      promptComponent: true,
+    },
+    orderBy: [{ scopeType: "asc" }, { orderIndex: "asc" }, { updatedAt: "desc" }],
+    take: 200,
+  });
+  const promptBindings = bindings.map((binding): PromptBindingItem => {
+    return {
+      id: binding.id,
+      scopeType: binding.scopeType,
+      scopeId: binding.scopeId,
+      promptComponentId: binding.promptComponentId,
+      promptComponentName: binding.promptComponent.name,
+      promptComponentVersion: binding.promptComponent.version,
+      orderIndex: binding.orderIndex,
+      environment: binding.environment,
+      status: binding.status,
+      updatedAt: binding.updatedAt.toISOString(),
+    };
+  });
+
+  return {
+    count: promptBindings.length,
+    promptBindings,
+  };
+}
+
+export async function createPromptBinding(
+  input: CreatePromptBindingInput,
+): Promise<PromptBindingItem> {
+  if (!shouldUseDatabase()) {
+    throw new Error("DATABASE_URL is required to create prompt bindings");
+  }
+
+  if (input.scopeType === "global") {
+    throw new Error("Global prompt components are active by status and do not need bindings");
+  }
+
+  const binding = await prisma.promptBinding.create({
+    data: {
+      scopeType: input.scopeType,
+      scopeId: input.scopeId,
+      promptComponentId: input.promptComponentId,
+      orderIndex: input.orderIndex ?? 0,
+      environment: input.environment ?? "dev",
+      status: input.status ?? "active",
+    },
+    include: {
+      promptComponent: true,
+    },
+  });
+
+  return {
+    id: binding.id,
+    scopeType: binding.scopeType,
+    scopeId: binding.scopeId,
+    promptComponentId: binding.promptComponentId,
+    promptComponentName: binding.promptComponent.name,
+    promptComponentVersion: binding.promptComponent.version,
+    orderIndex: binding.orderIndex,
+    environment: binding.environment,
+    status: binding.status,
+    updatedAt: binding.updatedAt.toISOString(),
   };
 }
 

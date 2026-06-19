@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  GET as getPromptBindingsRoute,
+  POST as postPromptBindingsRoute,
+} from "./prompt-bindings/route";
+import {
   GET as getPromptComponentsRoute,
   POST as postPromptComponentsRoute,
 } from "./prompt-components/route";
@@ -107,6 +111,50 @@ describe("new mock API routes", () => {
           scopeType: "global",
           name: "global-base",
           content: "Use Chinese.",
+        }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain("DATABASE_URL");
+  });
+
+  it("returns an empty prompt binding list without a database", async () => {
+    const response = await getPromptBindingsRoute();
+    const payload = await response.json();
+
+    expect(payload).toEqual({
+      count: 0,
+      promptBindings: [],
+    });
+  });
+
+  it("validates prompt binding creation payloads", async () => {
+    const response = await postPromptBindingsRoute(
+      new Request("http://localhost/api/prompt-bindings", {
+        method: "POST",
+        body: JSON.stringify({
+          scopeType: "global",
+          scopeId: "scope-1",
+          promptComponentId: "component-1",
+        }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toContain("scopeType");
+  });
+
+  it("requires DATABASE_URL before creating prompt bindings", async () => {
+    const response = await postPromptBindingsRoute(
+      new Request("http://localhost/api/prompt-bindings", {
+        method: "POST",
+        body: JSON.stringify({
+          scopeType: "team",
+          scopeId: "00000000-0000-4000-8000-000000000001",
+          promptComponentId: "00000000-0000-4000-8000-000000000002",
         }),
       }),
     );
