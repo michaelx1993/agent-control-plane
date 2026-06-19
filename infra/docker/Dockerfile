@@ -6,6 +6,9 @@ WORKDIR /app
 ENV CI=true
 
 RUN corepack enable && corepack prepare pnpm@11.0.8 --activate
+RUN apt-get update -y \
+  && apt-get install -y --no-install-recommends ca-certificates openssl \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
