@@ -6,6 +6,10 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   exit 1
 fi
 
+if [[ "${WORKER_MODE:-}" == "live" ]]; then
+  scripts/check-backup.sh
+fi
+
 pnpm format
 pnpm typecheck
 DATABASE_URL="" pnpm test

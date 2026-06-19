@@ -54,6 +54,10 @@ DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schem
   pnpm release:check
 ```
 
+When `WORKER_MODE=live`, `release:check` also requires a non-empty database backup. It uses
+`BACKUP_FILE` when provided, otherwise the latest `agent-control-plane-*.dump` under `BACKUP_DIR`
+which defaults to `backups`.
+
 ## Health Checks
 
 ```bash
@@ -266,6 +270,12 @@ DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schem
   scripts/db-restore.sh backups/agent-control-plane-YYYYMMDDTHHMMSSZ.dump
 ```
 
+Verify the backup gate that live release checks use:
+
+```bash
+BACKUP_FILE="backups/agent-control-plane-YYYYMMDDTHHMMSSZ.dump" scripts/check-backup.sh
+```
+
 ## Linear Migration Plan
 
 Generate an offline migration draft from a Linear JSON or CSV export before creating Plane work
@@ -336,7 +346,8 @@ Before using the worker against live systems:
 - A database backup exists for the target environment.
 - `WORKER_MODE=live` is only enabled after a successful mock run and DB migration.
 - Seed baseline data exists for teams, active repositories, roles, and active agent definitions.
-- `pnpm live:preflight` passes.
+- `pnpm release:check` passes; in live mode this includes backup verification and
+  `pnpm live:preflight`.
 
 ## Live Preflight
 

@@ -113,6 +113,9 @@ panel shows the same DB baseline risk when `DATABASE_URL` is configured.
 Plane self-host Personal Access Tokens use `X-API-Key` by default; set
 `PLANE_API_KEY_HEADER=Authorization` only for OAuth/bearer-compatible deployments.
 
+For live rollout, run `scripts/db-backup.sh` first. `pnpm release:check` requires a non-empty
+`BACKUP_FILE` or the latest `agent-control-plane-*.dump` under `BACKUP_DIR` when `WORKER_MODE=live`.
+
 ## Design Docs
 
 - [PRD](docs/agent-control-plane-prd.md)
