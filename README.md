@@ -104,6 +104,8 @@ docker compose -f infra/docker/docker-compose.yml --profile app up --build
 The `app` profile builds the web console on port `3100` and a long-running worker using
 `WORKER_RUN_LOOP=true`. Keep live external endpoints in `.env` before enabling live mode.
 Use `pnpm compose:check` to validate the Compose app profile without starting containers.
+Use `pnpm deploy:compose` for the scripted local deployment path and `BACKUP_FILE=<dump> pnpm
+rollback:compose` for the scripted rollback path.
 Set `CONTROL_PLANE_API_TOKEN` before exposing the web app outside localhost; operator write APIs
 accept `Authorization: Bearer <token>` or `X-Control-Plane-Token`.
 Set `CONTROL_PLANE_READ_API_TOKEN` to protect read-only dashboard APIs with a separate token; when

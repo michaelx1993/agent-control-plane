@@ -61,6 +61,8 @@ P0 方案固化
 - `pnpm release:check` 在 live 模式会强制校验非空且 `pg_restore --list` 可解析的数据库备份，再执行 live preflight。
 - 已有 Docker Compose `app` profile 和 app Dockerfile，可启动 web console 与
   `WORKER_RUN_LOOP=true` 的常驻 worker。
+- 已有 `pnpm deploy:compose` 和 `pnpm rollback:compose`，串联 release gate、compose app profile、
+  backup restore 和 health check。
 - `pnpm compose:check` 会校验 Docker Compose app profile，并已纳入 release gate。
 - 已有 `CONTROL_PLANE_API_TOKEN` operator write API 门禁，保护人工 transition、retry、
   feedback 和 prompt 写操作。
@@ -525,7 +527,7 @@ Done              -> Terminal
   manager 做凭据注入与轮换。
 - Backup/restore：已有 `pg_dump` custom-format backup、`pg_restore` restore，以及 live release
   前的 backup manifest integrity gate。
-- Deployment
+- Deployment：已有 Docker Compose app profile、deploy script、rollback script 和 health gate。
 - Monitoring
 
 关键能力：

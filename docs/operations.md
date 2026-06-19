@@ -517,6 +517,11 @@ The local deployment manifest lives at `infra/docker/docker-compose.yml`.
   internal `postgres` hostname.
 - `pnpm compose:check` validates the app profile with `docker compose config`; `release:check`
   runs the same check when Docker Compose is available.
+- `pnpm deploy:compose` runs `pnpm release:check`, starts the `app` profile, then runs `pnpm health`
+  against `CONTROL_PLANE_BASE_URL`.
+- `BACKUP_FILE=<dump> pnpm rollback:compose` stops web/worker, verifies and restores the selected
+  backup, restarts web/worker, then runs `pnpm health`. Use `RESTART_AFTER_ROLLBACK=0` when the
+  operator needs to inspect the database before restart.
 
 Before using the `app` profile in live mode, run migrations, seed baseline rows, configure Plane /
 OpenHands / Langfuse endpoints in `.env`, then run `pnpm release:check`.
