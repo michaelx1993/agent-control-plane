@@ -351,7 +351,7 @@ Trace 策略：
 - 替换更多 Symphony 内部逻辑为自建 Control Plane。
 - 支持 webhook 优先、polling 兜底。
 - 支持 project/repo/role prompt A/B。
-- 支持成本预算和自动熔断。
+- 支持成本预算和自动熔断；blocked 模式会把任务送入 `Blocked` 人工 gate 并记录 audit。
 
 ## 验收标准
 

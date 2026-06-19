@@ -14,6 +14,7 @@ export type DbClient = Pick<
   PrismaClient,
   | "$transaction"
   | "agentDefinition"
+  | "auditEvent"
   | "conversationRef"
   | "project"
   | "promptBinding"

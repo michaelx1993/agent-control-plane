@@ -127,6 +127,28 @@ Operational rule:
 - Reviewers should add feedback or mark the task blocked/done after the retry cap is reached.
   This prevents failing tasks from looping silently through the worker.
 
+## Runtime Budget Policy
+
+The worker can enforce a coarse cost budget before dispatching tasks.
+
+Default configuration:
+
+```bash
+WORKER_COST_BUDGET_LIMIT=""
+WORKER_COST_BUDGET_SPENT=""
+WORKER_COST_BUDGET_EXCEEDED_ACTION="waiting-approval"
+```
+
+Operational rule:
+
+- Estimate task cost with a Plane label such as `cost:1.25` or `estimated-cost:1.25`.
+- `WORKER_COST_BUDGET_SPENT + active run reserved cost + estimated task cost` is compared with
+  `WORKER_COST_BUDGET_LIMIT`.
+- `WORKER_COST_BUDGET_EXCEEDED_ACTION=blocked` moves the task to `Blocked` and writes a
+  `task.budget_blocked` audit event.
+- `waiting-approval` keeps the task out of the dispatch result without changing state in this first
+  version; use `blocked` when the operator needs an explicit visible gate.
+
 ## Plane Polling Fallback
 
 The live worker calls Plane sync before each dispatch pass. This is a reconciliation fallback for

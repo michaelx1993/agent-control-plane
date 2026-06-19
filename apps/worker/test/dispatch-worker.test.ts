@@ -542,6 +542,84 @@ describe("DispatchWorker", () => {
     expect(tasks.map((task) => task.id)).toEqual(["task-traffic"]);
   });
 
+  it("blocks DB-backed tasks when estimated cost exceeds the configured budget", async () => {
+    const taskFindMany = vi.fn().mockResolvedValue([
+      {
+        id: "task-expensive",
+        externalTaskId: "plane-expensive",
+        title: "Expensive task",
+        url: "https://plane.test/token/TOK-9",
+        state: "Development",
+        priority: 1,
+        createdAt: new Date("2026-06-18T10:00:00.000Z"),
+        labels: ["repo:crs-src", "cost:15"],
+        repositoryId: "repo-crs",
+        runs: [],
+        repository: {
+          slug: "crs-src",
+          status: "active",
+        },
+        project: {
+          slug: "token",
+          team: {
+            name: "token-team",
+            key: "TOK",
+            externalTeamId: "token-team",
+          },
+        },
+      },
+    ]);
+    const activeRunFindMany = vi.fn().mockResolvedValue([]);
+    const taskUpdate = vi.fn().mockResolvedValue({});
+    const auditCreate = vi.fn().mockResolvedValue({});
+    const db = {
+      task: {
+        findMany: taskFindMany,
+      },
+      run: {
+        findMany: activeRunFindMany,
+      },
+      $transaction: vi.fn(async (callback) => {
+        return callback({
+          task: {
+            update: taskUpdate,
+          },
+          auditEvent: {
+            create: auditCreate,
+          },
+        });
+      }),
+    } as unknown as DbClient;
+    const store = new DbControlPlaneStore(db);
+
+    const tasks = await store.findDispatchableTasks(
+      loadConfig({
+        WORKER_MODE: "live",
+        WORKER_ENABLED_TEAMS: "token-team",
+        WORKER_COST_BUDGET_LIMIT: "10",
+        WORKER_COST_BUDGET_EXCEEDED_ACTION: "blocked",
+      }),
+    );
+
+    expect(tasks).toEqual([]);
+    expect(taskUpdate).toHaveBeenCalledWith({
+      where: { id: "task-expensive" },
+      data: { state: "Blocked" },
+    });
+    expect(auditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "task.budget_blocked",
+          entityId: "task-expensive",
+          payload: expect.objectContaining({
+            estimatedCost: 15,
+            reason: "cost-budget-exceeded",
+          }),
+        }),
+      }),
+    );
+  });
+
   it("does not return DB-backed tasks after the configured attempt limit is reached", async () => {
     const taskFindMany = vi.fn().mockResolvedValue([
       {

@@ -33,6 +33,7 @@ import {
 } from "@agent-control-plane/openhands";
 import {
   evaluateRuntimePolicy,
+  type RuntimePolicyDecision,
   type RuntimePolicyConfig,
 } from "@agent-control-plane/runtime-policy";
 import { planWorkflowClosure, validateTransition } from "@agent-control-plane/state-machine";
@@ -772,10 +773,12 @@ export class DbControlPlaneStore implements ControlPlaneStore {
         role: roleByState[workerTask.state] ?? "Development Agent",
         priority: dbTask.priority ?? undefined,
         createdAt: dbTask.createdAt,
+        estimatedCost: estimatedCostFromLabels(workerTask.labels),
       })),
       activeRuns,
       runtimePolicyConfigFromWorkerConfig(config),
     );
+    await this.persistBudgetBlocks(policy.dispatch);
     const allowedTaskIds = new Set(
       policy.dispatch
         .filter((decision) => decision.status === "allowed")
@@ -785,6 +788,45 @@ export class DbControlPlaneStore implements ControlPlaneStore {
     return enabledTaskPairs
       .map(({ workerTask }) => workerTask)
       .filter((task) => allowedTaskIds.has(task.id));
+  }
+
+  private async persistBudgetBlocks(decisions: RuntimePolicyDecision[]): Promise<void> {
+    const blockedDecisions = decisions.filter(
+      (decision) => decision.reason === "cost-budget-exceeded" && decision.status === "blocked",
+    );
+    if (blockedDecisions.length === 0) {
+      return;
+    }
+
+    await Promise.all(
+      blockedDecisions.map((decision) =>
+        this.db.$transaction(async (tx) => {
+          await tx.task.update({
+            where: {
+              id: decision.task.id,
+            },
+            data: {
+              state: "Blocked",
+            },
+          });
+          await tx.auditEvent.create({
+            data: {
+              action: "task.budget_blocked",
+              entityType: "task",
+              entityId: decision.task.id,
+              message: "Task blocked by cost budget policy",
+              payload: {
+                reason: decision.reason,
+                status: decision.status,
+                estimatedCost: decision.task.estimatedCost ?? null,
+                repo: decision.task.repo,
+                role: decision.task.role,
+              },
+            },
+          });
+        }),
+      ),
+    );
   }
 
   async claimRun(taskId: string, workerId: string, leaseMs: number): Promise<Run> {
@@ -1640,6 +1682,21 @@ function parseStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function estimatedCostFromLabels(labels: string[]): number | undefined {
+  for (const label of labels) {
+    const match = /^(?:cost|estimated[-_]cost):(?<cost>\d+(?:\.\d+)?)$/i.exec(label.trim());
+    if (!match?.groups?.cost) {
+      continue;
+    }
+    const cost = Number(match.groups.cost);
+    if (Number.isFinite(cost) && cost >= 0) {
+      return cost;
+    }
+  }
+
+  return undefined;
 }
 
 function normalizeStateName(stateName?: string): string {

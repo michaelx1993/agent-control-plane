@@ -449,6 +449,8 @@ Done              -> Terminal
 - 不同 role 使用不同 agent definition。
 - 同 repo 可限制并发，避免多个 agent 修改同一仓库冲突。
 - 同 task 不允许重复执行。
+- task 可用 `cost:<number>` 或 `estimated-cost:<number>` label 提供预算估算。
+- 预算超限且策略为 `blocked` 时，Control Plane 将 task 标记为 `Blocked` 并写入 audit event。
 
 交付物：
 
@@ -463,7 +465,7 @@ Done              -> Terminal
 - repo prompt 能正确注入。
 - role prompt 能正确注入。
 - 超过并发限制的任务保持 queued。
-- 超过预算的任务进入 blocked 或 waiting-approval。
+- 超过预算的任务进入 blocked 或 waiting-approval；blocked 模式必须在 Task Queue 可见。
 
 风险：
 
