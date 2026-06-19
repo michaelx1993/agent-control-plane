@@ -33,6 +33,22 @@ mock Plane task
 The mock run must pass typecheck and unit tests before real Plane/OpenHands
 credentials are introduced.
 
+## Demo Run Data
+
+The base database seed creates teams, repositories, roles, and default agent
+definitions only. To verify run detail UI locally without waiting for a live
+Plane/OpenHands/Langfuse run, load one explicit demo run:
+
+```bash
+DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" pnpm --filter @agent-control-plane/db seed
+DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" pnpm db:seed-demo
+```
+
+The demo run is `00000000-0000-4000-9000-000000000001` and includes a task,
+prompt release, OpenHands conversation ref, Langfuse trace ref, run events, and
+one feedback item. This seed is opt-in and should not be used for production
+data.
+
 ## Live Worker Preconditions
 
 `WORKER_MODE=live` intentionally fails fast unless the runtime integrations are
