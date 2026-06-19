@@ -30,6 +30,7 @@ P0 方案固化
 - 已有 Next.js Control Plane web console 和 worker app。
 - 已有 PostgreSQL/Prisma 数据模型、seed、demo run。
 - 已有 Plane task webhook receiver、task mirror、repo label 兜底解析。
+- 已有 Plane polling fallback cursor 分页 reconciliation，避免 live worker 只同步第一页任务。
 - 已有 run/lease/heartbeat、expired lease stalled blocking、OpenHands event summary persistence。
 - 已有 Prompt Manager、prompt component/binding/release、scope lookup API、prompt diff 和 rollback。
 - 已有 OpenHands adapter skeleton、conversation refs、poll heartbeat hook。
@@ -163,7 +164,8 @@ P0 方案固化
 - 本地 run 完成后，能把状态和摘要写回 Plane。
 - webhook 可选 `PLANE_WEBHOOK_SECRET`，对外暴露时必须配置。
 - receiver 支持 Plane `X-Plane-Signature` HMAC-SHA256 raw body 验签。
-- polling fallback 支持 60s 最小请求间隔、`updated_since` cursor 和 `per_page<=100`。
+- polling fallback 支持 60s 最小请求间隔、`updated_since` cursor、Plane cursor 分页和
+  `per_page<=100`。
 
 风险：
 

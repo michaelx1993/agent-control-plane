@@ -18,8 +18,10 @@ import {
 import {
   HttpPlaneClient,
   normalizePlaneTask,
+  type ListPlaneTasksParams,
   type NormalizedPlaneTask,
   type PlaneClient,
+  type PlaneTaskPayload,
 } from "@agent-control-plane/plane";
 import {
   LangfuseHttpAdapter,
@@ -1226,7 +1228,7 @@ export class PlaneTaskSyncService {
       perPage: this.options.perPage ?? 100,
       ...(this.updatedSinceCursor ? { updatedSince: this.updatedSinceCursor } : {}),
     };
-    const payloads = await this.plane.listTasks(listParams);
+    const payloads = await this.listTaskPages(listParams);
 
     let upserted = 0;
     let blockedMissingRepo = 0;
@@ -1250,6 +1252,26 @@ export class PlaneTaskSyncService {
       upserted,
       blockedMissingRepo,
     };
+  }
+
+  private async listTaskPages(params: ListPlaneTasksParams): Promise<PlaneTaskPayload[]> {
+    const payloads: PlaneTaskPayload[] = [];
+    let cursor: string | undefined;
+    const seenCursors = new Set<string>();
+
+    for (let page = 0; page < 100; page += 1) {
+      const response = await this.plane.listTaskPage({ ...params, cursor });
+      payloads.push(...response.results);
+
+      if (!response.nextCursor || seenCursors.has(response.nextCursor)) {
+        return payloads;
+      }
+
+      seenCursors.add(response.nextCursor);
+      cursor = response.nextCursor;
+    }
+
+    throw new Error("Plane task sync pagination exceeded 100 pages");
   }
 
   private shouldThrottle(now: Date): boolean {

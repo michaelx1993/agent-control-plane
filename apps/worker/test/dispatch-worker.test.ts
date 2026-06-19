@@ -859,9 +859,9 @@ describe("DispatchWorker", () => {
         labels: [{ name: "Feature" }],
       },
     ];
-    const listTasks = vi.fn().mockResolvedValue(payloads);
+    const listTaskPage = vi.fn().mockResolvedValue({ results: payloads });
     const plane = {
-      listTasks,
+      listTaskPage,
     } as unknown as PlaneClient;
     const upsert = vi.fn().mockResolvedValue({});
     const db = {
@@ -888,10 +888,11 @@ describe("DispatchWorker", () => {
 
     const result = await sync.sync();
 
-    expect(listTasks).toHaveBeenCalledWith({
+    expect(listTaskPage).toHaveBeenCalledWith({
       workspaceSlug: "acme",
       projectId: "project-plane-1",
       perPage: 10,
+      cursor: undefined,
     });
     expect(result).toEqual({ fetched: 2, upserted: 2, blockedMissingRepo: 1 });
     expect(upsert).toHaveBeenCalledTimes(2);
@@ -906,16 +907,93 @@ describe("DispatchWorker", () => {
     );
   });
 
-  it("throttles Plane polling fallback inside the configured interval", async () => {
-    let now = new Date("2026-06-18T10:00:00.000Z");
-    const listTasks = vi.fn().mockResolvedValue([]);
-    const sync = new PlaneTaskSyncService({} as DbClient, { listTasks } as unknown as PlaneClient, {
+  it("paginates Plane polling fallback before upserting tasks", async () => {
+    const listTaskPage = vi
+      .fn()
+      .mockResolvedValueOnce({
+        nextCursor: "page-2",
+        results: [
+          {
+            id: "plane-1",
+            identifier: "TOK-1",
+            name: "First page",
+            state: { name: "Todo" },
+            labels: [{ name: "repo:crs-src" }],
+          },
+        ] satisfies PlaneTaskPayload[],
+      })
+      .mockResolvedValueOnce({
+        results: [
+          {
+            id: "plane-2",
+            identifier: "TOK-2",
+            name: "Second page",
+            state: { name: "Development" },
+            labels: [{ name: "repo:traffic" }],
+          },
+        ] satisfies PlaneTaskPayload[],
+      });
+    const plane = {
+      listTaskPage,
+    } as unknown as PlaneClient;
+    const upsert = vi.fn().mockResolvedValue({});
+    const db = {
+      $transaction: vi.fn(async (callback) => {
+        return callback({
+          project: {
+            findFirst: vi.fn().mockResolvedValue({ id: "project-1" }),
+          },
+          repository: {
+            findFirst: vi
+              .fn()
+              .mockResolvedValueOnce({ id: "repo-crs-src" })
+              .mockResolvedValueOnce({ id: "repo-traffic" }),
+          },
+          task: {
+            upsert,
+          },
+        });
+      }),
+    } as unknown as DbClient;
+    const sync = new PlaneTaskSyncService(db, plane, {
       projectSlug: "token",
       workspaceSlug: "acme",
       projectId: "project-plane-1",
-      minIntervalMs: 60_000,
-      now: () => now,
+      perPage: 1,
     });
+
+    const result = await sync.sync();
+
+    expect(listTaskPage).toHaveBeenNthCalledWith(1, {
+      workspaceSlug: "acme",
+      projectId: "project-plane-1",
+      perPage: 1,
+      cursor: undefined,
+    });
+    expect(listTaskPage).toHaveBeenNthCalledWith(2, {
+      workspaceSlug: "acme",
+      projectId: "project-plane-1",
+      perPage: 1,
+      cursor: "page-2",
+    });
+    expect(result).toEqual({ fetched: 2, upserted: 2, blockedMissingRepo: 0 });
+    expect(upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("throttles Plane polling fallback inside the configured interval", async () => {
+    let now = new Date("2026-06-18T10:00:00.000Z");
+    const listTaskPage = vi.fn().mockResolvedValue({ results: [] });
+    const sync = new PlaneTaskSyncService(
+      {} as DbClient,
+      { listTaskPage } as unknown as PlaneClient,
+      {
+        projectSlug: "token",
+        workspaceSlug: "acme",
+        projectId: "project-plane-1",
+        minIntervalMs: 60_000,
+        now: () => now,
+      },
+    );
 
     const first = await sync.sync();
     now = new Date("2026-06-18T10:00:30.000Z");
@@ -923,35 +1001,41 @@ describe("DispatchWorker", () => {
 
     expect(first).toEqual({ fetched: 0, upserted: 0, blockedMissingRepo: 0 });
     expect(second).toEqual({ fetched: 0, upserted: 0, blockedMissingRepo: 0 });
-    expect(listTasks).toHaveBeenCalledTimes(1);
-    expect(listTasks).toHaveBeenCalledWith({
+    expect(listTaskPage).toHaveBeenCalledTimes(1);
+    expect(listTaskPage).toHaveBeenCalledWith({
       workspaceSlug: "acme",
       projectId: "project-plane-1",
       perPage: 100,
+      cursor: undefined,
     });
   });
 
   it("uses the previous successful sync start as the Plane updatedSince cursor", async () => {
     let now = new Date("2026-06-18T10:00:00.000Z");
-    const listTasks = vi.fn().mockResolvedValue([]);
-    const sync = new PlaneTaskSyncService({} as DbClient, { listTasks } as unknown as PlaneClient, {
-      projectSlug: "token",
-      workspaceSlug: "acme",
-      projectId: "project-plane-1",
-      perPage: 50,
-      minIntervalMs: 60_000,
-      now: () => now,
-    });
+    const listTaskPage = vi.fn().mockResolvedValue({ results: [] });
+    const sync = new PlaneTaskSyncService(
+      {} as DbClient,
+      { listTaskPage } as unknown as PlaneClient,
+      {
+        projectSlug: "token",
+        workspaceSlug: "acme",
+        projectId: "project-plane-1",
+        perPage: 50,
+        minIntervalMs: 60_000,
+        now: () => now,
+      },
+    );
 
     await sync.sync();
     now = new Date("2026-06-18T10:01:00.000Z");
     await sync.sync();
 
-    expect(listTasks).toHaveBeenNthCalledWith(2, {
+    expect(listTaskPage).toHaveBeenNthCalledWith(2, {
       workspaceSlug: "acme",
       projectId: "project-plane-1",
       perPage: 50,
       updatedSince: "2026-06-18T10:00:00.000Z",
+      cursor: undefined,
     });
   });
 

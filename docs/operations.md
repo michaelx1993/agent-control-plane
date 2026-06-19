@@ -169,9 +169,11 @@ PLANE_SYNC_PER_PAGE="100"
 
 Operational rule:
 
-- `PLANE_SYNC_MIN_INTERVAL_MS=60000` keeps one worker to at most 60 Plane list requests per hour for
-  fallback polling.
+- `PLANE_SYNC_MIN_INTERVAL_MS=60000` keeps one worker to at most 60 Plane reconciliation passes per
+  hour for fallback polling.
 - `PLANE_SYNC_PER_PAGE` is clamped to `1..100`.
+- Each reconciliation paginates through Plane cursor pages until there is no `next_cursor`; this
+  prevents tasks beyond the first page from being invisible to the live worker.
 - The first sync is full project reconciliation. Later syncs use the previous successful sync start
   timestamp as `updated_since`, so changes during an in-flight sync are picked up in the next pass.
 - Keep webhooks enabled even with polling fallback; polling is for healing missed events and startup
