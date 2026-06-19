@@ -79,6 +79,8 @@ Run Detail supports adding feedback from the UI. When `returnToDevelopment=true`
 back to Development and unresolved feedback is injected into the next worker prompt as comments.
 After the rework is handled, mark the feedback resolved from Run Detail so it remains auditable but
 stops being injected into future Development prompts.
+Run Detail also renders `Progress / Workpad`, derived from `run_events`, so local and live runs have
+the same operator-facing progress surface without writing high-frequency updates back to Plane.
 
 ## Live Worker Preconditions
 

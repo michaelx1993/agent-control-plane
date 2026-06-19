@@ -294,6 +294,7 @@ Trace 策略：
 ### Agent Runs
 
 - 查看每次 run 的状态、耗时、token、成本、结果。
+- 查看每次 run 的 Progress / Workpad，快速判断 agent 是否已接单、是否仍在跑、卡在哪一步。
 - 跳转 OpenHands conversation。
 - 跳转 Langfuse trace。
 - 展示本次使用的 prompt release。
@@ -359,6 +360,7 @@ Trace 策略：
 - 用户可以创建 token project 下的任务，并通过 repo 字段分发到正确仓库。
 - 用户可以看到 agent 已接单、运行中、完成、阻塞。
 - 用户可以打开一次 run，看到 OpenHands conversation/event log。
+- 用户可以在 Run Detail 看到 operator-readable Progress / Workpad，不需要 tail 本地日志。
 - 用户可以打开 Langfuse trace，看到 LLM 输入输出、prompt version、token 和成本。
 - Agent 完成后可以自动推动任务进入下一个状态。
 - 人类可以在 review gate 打回 Development，并且 agent 下一次能读到打回意见。

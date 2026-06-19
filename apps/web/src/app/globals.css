@@ -603,6 +603,67 @@ dd {
   gap: 10px;
 }
 
+.progressGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.42fr);
+  gap: 12px;
+  padding: 12px;
+}
+
+.progressList {
+  display: grid;
+  gap: 8px;
+}
+
+.progressItem {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.progressItem small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.progressPhase-claimed,
+.progressPhase-running {
+  color: var(--info);
+  background: var(--info-bg);
+}
+
+.progressPhase-openhands,
+.progressPhase-state {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.progressPhase-terminal {
+  color: var(--good);
+  background: var(--good-bg);
+}
+
+.workpadPreview {
+  min-height: 100%;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 .errorText {
   color: var(--bad);
 }

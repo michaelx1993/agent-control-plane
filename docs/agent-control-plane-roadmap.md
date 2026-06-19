@@ -64,6 +64,7 @@ P0 方案固化
 - 控制台已有 `Operator Token` 面板，浏览器侧会把 token 附加到受保护写操作。
 - 控制台 Task Queue 已支持人工推进下一状态、打回 Development、转 Blocked、Done 或 Canceled。
 - Run Detail 已支持将 feedback 标记 resolved，减少返工上下文重复注入。
+- Run Detail 已有 Progress / Workpad 面板，将 run events 派生成 operator 可读进度和当前工作摘要。
 - Task Queue 可区分 repo concurrency、role concurrency、retry capped、budget blocked 和普通 gate。
 - 已有 Linear 离线迁移草案工具，可将 JSON/CSV export 转换为 Plane import draft，并标出缺失 repo 的任务。
 
@@ -433,6 +434,7 @@ Done              -> Terminal
 - 人工状态只等待用户操作。
 - reviewer/human 打回后，Development agent 必须读到反馈。
 - Run Detail 可以新增 feedback，并可选退回 Development。
+- Run Detail 可以从 run events 查看 Progress / Workpad，不需要读原始日志判断 agent 是否卡住。
 - agent 完成后只建议或执行允许的状态转移。
 
 交付物：
@@ -442,6 +444,7 @@ Done              -> Terminal
 - `feedback_collector`
 - `plane_state_sync`
 - Run Detail feedback form
+- Run Detail Progress / Workpad panel
 
 验收标准：
 

@@ -32,6 +32,8 @@ import {
   type PromptMetricsResponse,
   type Run,
   type RunDetail,
+  type RunEvent,
+  type RunProgressItem,
   type TaskQueueItem,
 } from "./mock-data";
 import { PrismaClient } from "@prisma/client";
@@ -1628,6 +1630,13 @@ async function getRunDetailFromDb(runId: string): Promise<RunDetail | null> {
 
   const trace = run.traceRefs[0];
   const workspace = run.workspace;
+  const events = run.runEvents.map((event) => ({
+    id: event.id,
+    type: event.eventType,
+    message: event.message ?? "",
+    createdAt: event.createdAt.toISOString(),
+    payload: event.payload,
+  }));
   const baseRun = runToApiRun({
     id: run.id,
     taskIdentifier: run.task.identifier,
@@ -1668,13 +1677,17 @@ async function getRunDetailFromDb(runId: string): Promise<RunDetail | null> {
     tokenInput: Number(trace?.inputTokens ?? run.tokenInput ?? 0),
     tokenOutput: Number(trace?.outputTokens ?? run.tokenOutput ?? 0),
     costUsd: (trace?.costUsd ?? run.costUsd ?? 0).toString(),
-    events: run.runEvents.map((event) => ({
-      id: event.id,
-      type: event.eventType,
-      message: event.message ?? "",
-      createdAt: event.createdAt.toISOString(),
-      payload: event.payload,
-    })),
+    events,
+    progress: progressItemsFromEvents(events),
+    workpad: workpadFromRunDetail({
+      currentState: dbTaskStateToPlaneState(run.task.state),
+      failureReason: run.failureReason ?? "",
+      nextState: run.nextState ? dbTaskStateToPlaneState(run.nextState) : "",
+      openFeedbackCount: run.feedbackItems.filter((item) => !item.resolvedAt).length,
+      progressMessage: events.at(-1)?.message ?? "",
+      resultSummary: run.resultSummary ?? "",
+      workspacePath: workspace?.path ?? "",
+    }),
     feedback: run.feedbackItems.map((item) => ({
       id: item.id,
       source: item.source,
@@ -1685,6 +1698,65 @@ async function getRunDetailFromDb(runId: string): Promise<RunDetail | null> {
       resolvedAt: item.resolvedAt?.toISOString(),
     })),
   };
+}
+
+function progressItemsFromEvents(events: RunEvent[]): RunProgressItem[] {
+  return events.map((event) => {
+    const externalType = stringFromPayload(event.payload, "externalEventType");
+    const phase: RunProgressItem["phase"] =
+      externalType !== ""
+        ? "openhands"
+        : event.type === "claimed"
+          ? "claimed"
+          : event.type === "heartbeat"
+            ? "running"
+            : event.type === "completed" ||
+                event.type === "failed" ||
+                event.type === "blocked" ||
+                event.type === "canceled"
+              ? "terminal"
+              : "state";
+
+    return {
+      id: `progress-${event.id}`,
+      phase,
+      label:
+        phase === "openhands"
+          ? `OpenHands ${externalType}`
+          : event.type === "heartbeat"
+            ? "Running"
+            : event.type,
+      detail: event.message || stringFromPayload(event.payload, "status") || event.type,
+      createdAt: event.createdAt,
+    };
+  });
+}
+
+function workpadFromRunDetail(input: {
+  currentState: string;
+  failureReason: string;
+  nextState: string;
+  openFeedbackCount: number;
+  progressMessage: string;
+  resultSummary: string;
+  workspacePath: string;
+}): string {
+  return [
+    `Current State: ${input.currentState}`,
+    `Suggested Next State: ${input.nextState || "none"}`,
+    `Latest Progress: ${input.progressMessage || "none"}`,
+    `Open Feedback: ${input.openFeedbackCount}`,
+    `Workspace: ${input.workspacePath || "none"}`,
+    `Result: ${input.resultSummary || input.failureReason || "pending"}`,
+  ].join("\n");
+}
+
+function stringFromPayload(payload: unknown, key: string): string {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return "";
+  }
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : "";
 }
 
 async function getPromptReleasesFromDb(): Promise<PromptReleasesResponse> {

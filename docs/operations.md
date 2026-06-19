@@ -510,6 +510,11 @@ Run Detail exposes `Resolve` on unresolved feedback items. Use it after the feed
 handled; resolved feedback remains visible in the run history but is no longer injected as unresolved
 Development rework context.
 
+Run Detail also exposes `Progress / Workpad`. The progress list is derived from Control Plane run
+events, including claimed/running heartbeat, OpenHands external events, state sync, and terminal
+events. The workpad snapshot summarizes current state, suggested next state, latest progress, open
+feedback count, workspace path, and result/failure summary for fast operator triage.
+
 ## Plane API Probe
 
 Use the Plane probe during the self-host spike after `live:preflight` proves basic connectivity.

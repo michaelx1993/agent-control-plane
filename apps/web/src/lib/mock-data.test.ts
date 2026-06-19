@@ -49,14 +49,18 @@ describe("control plane mock service", () => {
       attempt: expect.any(Number),
       maxAttempts: expect.any(Number),
       model: "gpt-5.5 medium",
+      progress: expect.any(Array),
       promptPreview: expect.any(String),
       traceId: expect.any(String),
+      workpad: expect.any(String),
       workspacePath: expect.any(String),
       workspaceStatus: expect.any(String),
       workspaceStrategy: expect.any(String),
     });
     expect(run?.maxAttempts).toBeGreaterThanOrEqual(run?.attempt ?? 0);
     expect(run?.events.length).toBeGreaterThan(0);
+    expect(run?.progress.length).toBeGreaterThan(0);
+    expect(run?.workpad).toContain("Latest Progress");
   });
 
   it("summarizes queue state from the static fixtures", async () => {

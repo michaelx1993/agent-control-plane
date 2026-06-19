@@ -62,6 +62,14 @@ export type RunEvent = {
   payload?: unknown;
 };
 
+export type RunProgressItem = {
+  id: string;
+  phase: "claimed" | "running" | "openhands" | "state" | "terminal";
+  label: string;
+  detail: string;
+  createdAt: string;
+};
+
 export type FeedbackItem = {
   id: string;
   source: string;
@@ -94,6 +102,8 @@ export type RunDetail = Run & {
   tokenOutput: number;
   costUsd: string;
   events: RunEvent[];
+  progress: RunProgressItem[];
+  workpad: string;
   feedback: FeedbackItem[];
 };
 
@@ -320,37 +330,8 @@ export const runs: Run[] = [
   },
 ];
 
-export const runDetails: RunDetail[] = runs.map((run) => ({
-  ...run,
-  taskTitle:
-    run.taskId === "ACP-1057"
-      ? "Merge retry policy migration"
-      : run.taskId === "ACP-1042"
-        ? "Implement repo-aware dispatch loop"
-        : "Stabilize trace finalization",
-  project: "token",
-  planeTaskUrl: `https://plane.local/acp/${run.taskId}`,
-  agent: `${run.role} Agent`,
-  model: "gpt-5.5 medium",
-  reasoningEffort: "medium",
-  resultSummary:
-    run.status === "failed"
-      ? "Run stalled before final trace close."
-      : "Run completed its assigned workflow step and wrote observability refs.",
-  failureReason:
-    run.status === "failed" ? "Heartbeat expired after OpenHands event stream idle." : "",
-  nextState:
-    run.role === "Development" ? "Code Review" : run.role === "Merge" ? "Merged" : "Development",
-  promptHash: "sha256:7bd01a93",
-  promptPreview:
-    "global + team + project + repo + role prompt assembled with task context, active comments, workpad, and runtime constraints.",
-  workspacePath: `/workspaces/${run.repo}/runs/${run.id}`,
-  workspaceStatus: run.status === "failed" ? "dirty" : "ready",
-  workspaceStrategy: "clone",
-  conversationId: run.openHandsUrl.split("/").at(-1) ?? "",
-  eventCursor: run.id === "run-7728" ? "event-91" : "event-128",
-  traceId: run.langfuseUrl.split("/").at(-1) ?? "",
-  events: [
+export const runDetails: RunDetail[] = runs.map((run) => {
+  const events: RunEvent[] = [
     {
       id: `${run.id}-claimed`,
       type: "claimed",
@@ -384,8 +365,8 @@ export const runDetails: RunDetail[] = runs.map((run) => ({
         openHandsUrl: run.openHandsUrl,
       },
     },
-  ],
-  feedback:
+  ];
+  const feedback: FeedbackItem[] =
     run.status === "failed"
       ? [
           {
@@ -397,8 +378,63 @@ export const runDetails: RunDetail[] = runs.map((run) => ({
             externalUrl: run.openHandsUrl,
           },
         ]
-      : [],
-}));
+      : [];
+  const nextState =
+    run.role === "Development" ? "Code Review" : run.role === "Merge" ? "Merged" : "Development";
+
+  return {
+    ...run,
+    taskTitle:
+      run.taskId === "ACP-1057"
+        ? "Merge retry policy migration"
+        : run.taskId === "ACP-1042"
+          ? "Implement repo-aware dispatch loop"
+          : "Stabilize trace finalization",
+    project: "token",
+    planeTaskUrl: `https://plane.local/acp/${run.taskId}`,
+    agent: `${run.role} Agent`,
+    model: "gpt-5.5 medium",
+    reasoningEffort: "medium",
+    resultSummary:
+      run.status === "failed"
+        ? "Run stalled before final trace close."
+        : "Run completed its assigned workflow step and wrote observability refs.",
+    failureReason:
+      run.status === "failed" ? "Heartbeat expired after OpenHands event stream idle." : "",
+    nextState,
+    promptHash: "sha256:7bd01a93",
+    promptPreview:
+      "global + team + project + repo + role prompt assembled with task context, active comments, workpad, and runtime constraints.",
+    workspacePath: `/workspaces/${run.repo}/runs/${run.id}`,
+    workspaceStatus: run.status === "failed" ? "dirty" : "ready",
+    workspaceStrategy: "clone",
+    conversationId: run.openHandsUrl.split("/").at(-1) ?? "",
+    eventCursor: run.id === "run-7728" ? "event-91" : "event-128",
+    traceId: run.langfuseUrl.split("/").at(-1) ?? "",
+    events,
+    progress: events.map((event) => ({
+      id: `progress-${event.id}`,
+      phase:
+        event.type === "claimed"
+          ? "claimed"
+          : event.type === "heartbeat"
+            ? "running"
+            : event.type === "failed"
+              ? "terminal"
+              : "state",
+      label: event.type === "heartbeat" ? "Running" : event.type,
+      detail: event.message,
+      createdAt: event.createdAt,
+    })),
+    workpad: [
+      `Current State: ${run.status}`,
+      `Suggested Next State: ${nextState}`,
+      `Latest Progress: ${events.at(-1)?.message ?? "none"}`,
+      `Open Feedback: ${feedback.filter((item) => !item.resolvedAt).length}`,
+    ].join("\n"),
+    feedback,
+  };
+});
 
 export const promptReleases: PromptRelease[] = [
   {

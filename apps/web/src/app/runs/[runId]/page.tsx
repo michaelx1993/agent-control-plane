@@ -103,6 +103,31 @@ export default async function RunDetailPage({ params }: PageProps) {
           </div>
         </section>
 
+        <section className="panel panelWide">
+          <div className="panelHead">
+            <h2>Progress / Workpad</h2>
+            <span>{run.progress.length} progress items</span>
+          </div>
+          <div className="progressGrid">
+            <div className="progressList">
+              {run.progress.length === 0 ? (
+                <p className="emptyText">No progress recorded.</p>
+              ) : (
+                run.progress.map((item) => (
+                  <article className="progressItem" key={item.id}>
+                    <span className={`pill progressPhase-${item.phase}`}>{item.label}</span>
+                    <div>
+                      <strong>{item.detail}</strong>
+                      <small>{item.createdAt}</small>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+            <pre className="workpadPreview">{run.workpad || "No workpad snapshot recorded."}</pre>
+          </div>
+        </section>
+
         <section className="panel">
           <div className="panelHead">
             <h2>Result</h2>
