@@ -4,6 +4,7 @@ import {
   isDispatchableTaskCandidate,
   markExpiredLeasesFailed,
   markRunRunning,
+  recordRunConversationRef,
   recordRunExternalEvents,
   recordRunObservabilityRefs,
   startRun,
@@ -353,6 +354,60 @@ describe("isDispatchableTaskCandidate", () => {
           runId: "run-1",
           eventType: "state_sync",
           message: "Recorded OpenHands conversation and Langfuse trace refs",
+        }),
+      }),
+    );
+  });
+
+  it("records OpenHands conversation refs without requiring a Langfuse trace", async () => {
+    const conversationUpsert = viLike();
+    const eventCreate = viLike();
+    const db = {
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+        return callback({
+          conversationRef: {
+            upsert: async (input: unknown) => {
+              conversationUpsert(input);
+              return { id: "conversation-ref-1" };
+            },
+          },
+          runEvent: {
+            create: async (input: unknown) => {
+              eventCreate(input);
+              return {};
+            },
+          },
+        });
+      },
+    } as unknown as DbClient;
+
+    const result = await recordRunConversationRef(db, {
+      runId: "run-1",
+      conversationId: "conversation-1",
+      conversationUrl: "https://openhands.test/conversations/conversation-1",
+      eventCursor: "event-42",
+    });
+
+    expect(result).toEqual({
+      conversationRef: { id: "conversation-ref-1" },
+    });
+    expect(conversationUpsert.calls[0]).toEqual(
+      expect.objectContaining({
+        where: { runId: "run-1" },
+        create: expect.objectContaining({
+          runId: "run-1",
+          conversationId: "conversation-1",
+          eventCursor: "event-42",
+          uiUrl: "https://openhands.test/conversations/conversation-1",
+        }),
+      }),
+    );
+    expect(eventCreate.calls[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          runId: "run-1",
+          eventType: "state_sync",
+          message: "Recorded OpenHands conversation ref",
         }),
       }),
     );

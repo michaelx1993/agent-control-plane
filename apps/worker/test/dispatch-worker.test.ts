@@ -73,6 +73,46 @@ describe("DispatchWorker", () => {
     expect(tasks).toEqual([]);
   });
 
+  it("keeps OpenHands failure context when a run fails before tracing", async () => {
+    const task = createMockTask({ id: "task-dev-1", state: "Development" });
+    const store = new InMemoryControlPlaneStore([task]);
+    const traces = {
+      record: vi.fn(),
+    };
+    const worker = new DispatchWorker(
+      loadConfig({ WORKER_MODE: "mock", WORKER_ENABLED_TEAMS: "token-team" }),
+      store,
+      {
+        run: vi.fn().mockResolvedValue({
+          status: "failed",
+          conversationId: "conversation-failed-1",
+          conversationUrl: "https://openhands.test/conversations/conversation-failed-1",
+          eventCursor: "event-9",
+          events: [
+            {
+              id: "event-9",
+              conversationId: "conversation-failed-1",
+              type: "run.status",
+              status: "failed",
+              createdAt: "2026-06-18T00:00:00.000Z",
+            },
+          ],
+          summary: "Unit tests failed.",
+        }),
+      },
+      traces,
+    );
+
+    await expect(worker.dispatchOnce()).rejects.toThrow("Unit tests failed.");
+
+    const [run] = [...store.runs.values()];
+    expect(run.status).toBe("failed");
+    expect(run.conversationId).toBe("conversation-failed-1");
+    expect(run.summary).toBe("Unit tests failed.");
+    expect(run.statusHistory).toEqual(["queued", "claimed", "running", "failed"]);
+    expect(traces.record).not.toHaveBeenCalled();
+  });
+
   it("returns Code Review work with unresolved major feedback back to Development", () => {
     const task = createMockTask({
       state: "Code Review",

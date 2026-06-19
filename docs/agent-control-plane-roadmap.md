@@ -34,6 +34,8 @@ P0 方案固化
 - Plane webhook 与 polling fallback 复用同一 DB upsert 语义，同步 repo、priority、assignee、
   labels、state 和 sync cursor。
 - 已有 run/lease/heartbeat、expired lease stalled blocking、OpenHands event summary persistence。
+- OpenHands terminal failed/stuck results will still persist conversation refs, event cursor, and
+  external events before the worker marks the run failed.
 - 已有 Prompt Manager、prompt component/binding/release、scope lookup API、prompt diff 和 rollback。
 - 已有 OpenHands adapter skeleton、conversation refs、poll heartbeat hook。
 - 已有 Langfuse trace refs、token/cost summary 写入、prompt version metrics 和 dashboard 展示。

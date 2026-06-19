@@ -6,6 +6,7 @@ import {
   heartbeatRun as dbHeartbeatRun,
   markExpiredLeasesFailed as dbMarkExpiredLeasesFailed,
   markRunRunning as dbMarkRunRunning,
+  recordRunConversationRef as dbRecordRunConversationRef,
   prisma,
   recordRunObservabilityRefs as dbRecordRunObservabilityRefs,
   recordRunExternalEvents as dbRecordRunExternalEvents,
@@ -167,7 +168,7 @@ export interface ControlPlaneStore {
     nextState: TaskState,
   ): Promise<void>;
   syncRunStatus(task: Task, run: Run, status: "Claimed" | "Running" | "Failed"): Promise<void>;
-  failRun(runId: string, error: Error): Promise<Run>;
+  failRun(runId: string, error: Error, result?: OpenHandsRunResult): Promise<Run>;
   updateTaskState(taskId: string, nextState: TaskState): Promise<Task>;
   getTask(taskId: string): Promise<Task | undefined>;
 }
@@ -345,6 +346,7 @@ export class DispatchWorker {
     );
     await this.syncRunStatusBestEffort(task, runningRun, "Running");
     const heartbeat = this.createHeartbeatReporter(runningRun.id);
+    let failureRecorded = false;
 
     try {
       const openHandsResult = await this.openHands.run({
@@ -356,7 +358,11 @@ export class DispatchWorker {
       });
 
       if (openHandsResult.status !== "succeeded") {
-        throw new Error(openHandsResult.summary || "OpenHands run failed");
+        const error = new Error(openHandsResult.summary || "OpenHands run failed");
+        const failedRun = await this.store.failRun(runningRun.id, error, openHandsResult);
+        failureRecorded = true;
+        await this.syncRunStatusBestEffort(task, failedRun, "Failed");
+        throw error;
       }
 
       const traceRef = await this.traces.record({
@@ -385,11 +391,13 @@ export class DispatchWorker {
         prompt: promptAssembly.content,
       };
     } catch (error) {
-      const failedRun = await this.store.failRun(
-        runningRun.id,
-        error instanceof Error ? error : new Error(String(error)),
-      );
-      await this.syncRunStatusBestEffort(task, failedRun, "Failed");
+      if (!failureRecorded) {
+        const failedRun = await this.store.failRun(
+          runningRun.id,
+          error instanceof Error ? error : new Error(String(error)),
+        );
+        await this.syncRunStatusBestEffort(task, failedRun, "Failed");
+      }
       throw error;
     }
   }
@@ -663,11 +671,13 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return;
   }
 
-  async failRun(runId: string, error: Error): Promise<Run> {
+  async failRun(runId: string, error: Error, result?: OpenHandsRunResult): Promise<Run> {
     const run = this.requireRun(runId);
     run.status = "failed";
     run.statusHistory.push("failed");
     run.error = error.message;
+    run.conversationId = result?.conversationId;
+    run.summary = result?.summary ?? error.message;
     run.leaseExpiresAt = undefined;
     run.updatedAt = new Date();
     return { ...run };
@@ -977,16 +987,32 @@ export class DbControlPlaneStore implements ControlPlaneStore {
     await this.planeSync?.syncRunStatus(task, run, status);
   }
 
-  async failRun(runId: string, error: Error): Promise<Run> {
+  async failRun(runId: string, error: Error, result?: OpenHandsRunResult): Promise<Run> {
     const run = await dbCompleteRun(this.db, {
       runId,
       status: "failed",
+      resultSummary: result?.summary,
       failureReason: error.message,
     });
+    if (result?.conversationId) {
+      await dbRecordRunConversationRef(this.db, {
+        runId,
+        conversationId: result.conversationId,
+        conversationUrl: result.conversationUrl,
+        eventCursor: result.eventCursor,
+      });
+      await dbRecordRunExternalEvents(this.db, {
+        runId,
+        source: "openhands",
+        events: (result.events ?? []).map((event) => openHandsEventToRunEventInput(event)),
+      });
+    }
 
     this.leaseOwners.delete(runId);
     return {
       ...this.toWorkerRun(run),
+      conversationId: result?.conversationId,
+      summary: result?.summary,
       error: error.message,
     };
   }

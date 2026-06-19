@@ -704,6 +704,50 @@ export async function recordRunObservabilityRefs(
   });
 }
 
+export interface RecordRunConversationRefInput {
+  runId: string;
+  conversationId: string;
+  conversationUrl?: string;
+  eventCursor?: string;
+}
+
+export async function recordRunConversationRef(db: DbClient, input: RecordRunConversationRefInput) {
+  return db.$transaction(async (tx) => {
+    const conversationRef = await tx.conversationRef.upsert({
+      where: {
+        runId: input.runId,
+      },
+      update: {
+        conversationId: input.conversationId,
+        eventCursor: input.eventCursor,
+        uiUrl: input.conversationUrl,
+      },
+      create: {
+        runId: input.runId,
+        conversationId: input.conversationId,
+        eventCursor: input.eventCursor,
+        uiUrl: input.conversationUrl,
+      },
+    });
+
+    await tx.runEvent.create({
+      data: {
+        runId: input.runId,
+        eventType: "state_sync",
+        message: "Recorded OpenHands conversation ref",
+        payload: {
+          conversationId: input.conversationId,
+          eventCursor: input.eventCursor ?? null,
+        } satisfies Prisma.InputJsonObject,
+      },
+    });
+
+    return {
+      conversationRef,
+    };
+  });
+}
+
 export interface RecordRunExternalEventsInput {
   runId: string;
   source: string;

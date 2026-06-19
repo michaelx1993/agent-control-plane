@@ -112,6 +112,9 @@ Operational rule:
   records a `blocked` run event, clears the lease, and moves the task to `Blocked`. This is the
   Control Plane stalled state; an operator must inspect the run detail before returning the task to
   Development or closing it.
+- If OpenHands returns a terminal failed or stuck result, the worker marks the run `failed` but still
+  records the OpenHands conversation id, UI URL, event cursor, and external events. Failed live runs
+  should remain inspectable from Run Detail even when no Langfuse trace was created.
 
 ## Worker Retry Limit
 
