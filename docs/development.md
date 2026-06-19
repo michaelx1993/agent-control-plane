@@ -112,13 +112,15 @@ If a self-hosted service exposes a different health endpoint, set `OPENHANDS_HEA
 Use one-shot live dispatch for the first real Development task:
 
 ```bash
-WORKER_MODE="live" pnpm live:dispatch-once
+WORKER_MODE="live" pnpm live:verify-once
 ```
 
-It runs live preflight before dispatching and prints a JSON evidence bundle:
+It runs live preflight, dispatches exactly one task, prints the JSON evidence bundle, and validates
+that the evidence contains the required Plane/workspace/OpenHands/Langfuse/Run Detail handles. Use
+`pnpm live:dispatch-once` when you only want the raw dispatch output.
 
 - `task`: Control Plane task id, Plane task id, team/project/repo, and post-dispatch state.
 - `run`: run id, status, role, attempt, prompt release id, OpenHands conversation id/url,
-  Langfuse trace id/url, next state, summary, and error if present.
+  workspace path, Langfuse trace id/url, next state, summary, and error if present.
 - `verification`: direct evidence handles for the operator: `/runs/<run_id>`, Plane task id,
   OpenHands evidence, Langfuse evidence, and expected next state.

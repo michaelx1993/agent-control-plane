@@ -124,8 +124,9 @@ Operational rule:
 ## Worker Workspaces
 
 Each DB-backed run creates one Control Plane `workspace` record before OpenHands execution starts.
-The first implementation records the workspace path and marks it `ready`; OpenHands remains
-responsible for the actual checkout/sandbox lifecycle.
+The first implementation records the workspace path, marks it `ready`, and passes that path to the
+OpenHands conversation request. OpenHands remains responsible for the actual checkout/sandbox
+lifecycle.
 Run Detail exposes the workspace path, strategy, and status so operators can confirm which local
 directory or future sandbox belongs to a run.
 
@@ -441,17 +442,21 @@ OPENHANDS_BASE_URL="https://openhands.example" \
 LANGFUSE_BASE_URL="https://langfuse.example" \
 LANGFUSE_PUBLIC_KEY="..." \
 LANGFUSE_SECRET_KEY="..." \
-pnpm live:dispatch-once
+pnpm live:verify-once
 ```
 
-The script refuses to run unless `WORKER_MODE=live`, runs `pnpm live:preflight`, then dispatches one
-eligible task. The JSON output is the smoke-test evidence bundle:
+The script refuses to run unless `WORKER_MODE=live`, runs `pnpm live:preflight`, dispatches one
+eligible task, then validates the smoke-test evidence bundle. Use `pnpm live:dispatch-once` when you
+need the raw dispatch JSON without the verifier.
 
 - `task`: Control Plane task id, Plane task id, title, team/project/repo, and post-dispatch state.
 - `run`: run id, status, role, attempt, prompt release id, OpenHands conversation id/url,
   Langfuse trace id/url, next state, summary, and error if present.
 - `verification`: `/runs/<run_id>`, Plane task id, OpenHands evidence, Langfuse evidence, and the
   expected next state.
+
+The verifier fails if the run evidence is missing Run Detail, Plane, workspace, OpenHands, or
+Langfuse handles.
 
 Verify the Run Detail workspace metadata, OpenHands conversation, Langfuse trace, and Plane status
 comment before enabling a long-running worker.

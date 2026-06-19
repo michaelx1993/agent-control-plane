@@ -119,10 +119,10 @@ Plane self-host Personal Access Tokens use `X-API-Key` by default; set
 
 For live rollout, run `scripts/db-backup.sh` first. `pnpm release:check` requires a non-empty
 `BACKUP_FILE` or the latest `agent-control-plane-*.dump` under `BACKUP_DIR` when `WORKER_MODE=live`.
-Use `WORKER_MODE=live pnpm live:dispatch-once` for the first real Development task; it runs
-preflight first and prints a JSON evidence bundle with Plane task id, run id, role, attempt,
-prompt release id, OpenHands conversation id/url, Langfuse trace id/url, next state, summary, and
-the Control Plane run detail path.
+Use `WORKER_MODE=live pnpm live:verify-once` for the first real Development task; it runs
+preflight first, dispatches one task, prints the JSON evidence bundle, and fails if Plane,
+workspace, OpenHands, Langfuse, or Control Plane Run Detail evidence is missing. Use
+`WORKER_MODE=live pnpm live:dispatch-once` when you only need the raw dispatch JSON.
 
 ## Design Docs
 

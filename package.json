@@ -16,6 +16,7 @@
     "linear:migration-plan": "pnpm --filter @agent-control-plane/worker exec tsx ../../scripts/linear-to-plane-import.ts",
     "live:preflight": "pnpm --filter @agent-control-plane/worker live-preflight",
     "live:dispatch-once": "scripts/live-dispatch-once.sh",
+    "live:verify-once": "scripts/live-verify-once.sh",
     "release:check": "scripts/release-check.sh",
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",

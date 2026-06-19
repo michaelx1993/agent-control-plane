@@ -307,8 +307,8 @@ Prompt 片段。
 
 第一版每个 run 都会登记一个独立 workspace 记录，默认 strategy 为 `clone`。路径优先使用
 repository `local_path`，否则使用 `workspaces/<repo>/runs/<run_id>`。Control Plane 只保存
-workspace 事实和路径；实际 checkout / sandbox 准备由 OpenHands runtime 负责。稳定后再引入
-`git worktree` 优化磁盘和 clone 成本。
+workspace 事实和路径，并把路径传给 OpenHands conversation；实际 checkout / sandbox 准备由
+OpenHands runtime 负责。稳定后再引入 `git worktree` 优化磁盘和 clone 成本。
 
 ### conversation_refs
 

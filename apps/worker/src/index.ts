@@ -119,6 +119,7 @@ export interface Run {
   leaseExpiresAt?: Date;
   promptReleaseId?: string;
   promptSnapshot?: string;
+  workspacePath?: string;
   conversationId?: string;
   conversationUrl?: string;
   langfuseTraceId?: string;
@@ -188,6 +189,7 @@ export interface OpenHandsRunInput {
   run: Run;
   prompt: string;
   workspaceRepo: string;
+  workspacePath?: string;
   onHeartbeat?: (heartbeat: OpenHandsHeartbeat) => Promise<void> | void;
 }
 
@@ -364,6 +366,7 @@ export class DispatchWorker {
         run: runningRun,
         prompt: promptAssembly.content,
         workspaceRepo: task.repo ?? "",
+        workspacePath: runningRun.workspacePath,
         onHeartbeat: heartbeat,
       });
 
@@ -755,6 +758,7 @@ type DbTaskWithWorkerContext = {
 type DbRunWithContext = DbRun & {
   role?: { name: string } | null;
   promptRelease?: { renderedContent: string } | null;
+  workspace?: { path: string } | null;
 };
 
 export class DbControlPlaneStore implements ControlPlaneStore {
@@ -1145,6 +1149,7 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       leaseExpiresAt: run.leaseExpiresAt ?? undefined,
       promptReleaseId: run.promptReleaseId,
       promptSnapshot: run.promptRelease?.renderedContent,
+      workspacePath: run.workspace?.path,
       summary: run.resultSummary ?? undefined,
       error: run.failureReason ?? undefined,
       attempt: run.attempt,
@@ -1494,11 +1499,13 @@ export class OpenHandsRuntimeAdapter implements OpenHandsAdapter {
       taskId: input.task.id,
       runId: input.run.id,
       repo: input.workspaceRepo,
+      workspacePath: input.workspacePath,
       prompt: input.prompt,
       metadata: {
         role: input.run.role,
         state: input.task.state,
         project: input.task.project,
+        workspacePath: input.workspacePath ?? "",
       },
     });
     await this.client.startRun(conversation.id);
@@ -1865,6 +1872,7 @@ export function formatLiveDispatchResult(result: DispatchResult) {
       role: result.run.role,
       attempt: result.run.attempt,
       promptReleaseId: result.run.promptReleaseId ?? null,
+      workspacePath: result.run.workspacePath ?? null,
       conversationId: result.run.conversationId ?? null,
       conversationUrl: result.run.conversationUrl ?? null,
       langfuseTraceId: result.run.langfuseTraceId ?? null,

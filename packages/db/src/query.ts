@@ -305,7 +305,7 @@ export async function startRun(db: DbClient, input: StartRunInput) {
       },
     });
 
-    await tx.workspace.create({
+    const workspace = await tx.workspace.create({
       data: {
         runId: run.id,
         repositoryId: task.repositoryId,
@@ -330,7 +330,7 @@ export async function startRun(db: DbClient, input: StartRunInput) {
       },
     });
 
-    return run;
+    return { ...run, workspace };
   });
 }
 
@@ -402,6 +402,7 @@ export async function markRunRunning(db: DbClient, input: MarkRunRunningInput) {
       include: {
         role: true,
         promptRelease: true,
+        workspace: true,
       },
     });
 
@@ -466,7 +467,7 @@ export async function createRun(db: DbClient, input: CreateRunInput) {
       },
     });
 
-    await tx.workspace.create({
+    const workspace = await tx.workspace.create({
       data: {
         runId: run.id,
         repositoryId: input.repositoryId,
@@ -489,7 +490,7 @@ export async function createRun(db: DbClient, input: CreateRunInput) {
       },
     });
 
-    return run;
+    return { ...run, workspace };
   });
 }
 

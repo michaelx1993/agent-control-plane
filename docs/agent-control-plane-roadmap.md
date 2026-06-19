@@ -39,7 +39,7 @@ P0 方案固化
 - 已有 Prompt Manager、prompt component/binding/release、scope lookup API、prompt diff 和 rollback。
 - Worker 在交给 OpenHands 和保存 prompt release snapshot 前，会对运行时 prompt 执行最低限度
   secret redaction，覆盖常见 API key、bearer token 和 private key block。
-- 已有 OpenHands adapter、workspace 记录、Run Detail workspace 可视化、可配置 runtime endpoint paths、conversation refs、poll heartbeat hook。
+- 已有 OpenHands adapter、workspace 记录和注入、Run Detail workspace 可视化、可配置 runtime endpoint paths、conversation refs、poll heartbeat hook。
 - 已有 Langfuse trace refs、可配置 trace/generation endpoint paths、token/cost summary 写入、prompt version metrics 和 dashboard 展示。
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
 - 已有 Run Detail feedback 表单和 feedback API，支持打回 Development。
@@ -49,6 +49,8 @@ P0 方案固化
 - `pnpm live:preflight` 会校验 DB 连通性和 Control Plane seed baseline，避免空库启动 live worker。
 - `pnpm live:dispatch-once` 会先执行 live preflight，再派发一个真实任务，并输出 task/run/
   OpenHands/Langfuse/next-state evidence bundle 用于 Development run smoke test。
+- `pnpm live:verify-once` 会在 one-shot live dispatch 后校验 evidence bundle，缺少 Plane、
+  workspace、OpenHands、Langfuse 或 Run Detail 证据时失败。
 - `pnpm release:check` 在 live 模式会强制校验非空数据库备份，再执行 live preflight。
 - Task Queue 可区分 repo concurrency、role concurrency、retry capped、budget blocked 和普通 gate。
 - 已有 Linear 离线迁移草案工具，可将 JSON/CSV export 转换为 Plane import draft，并标出缺失 repo 的任务。

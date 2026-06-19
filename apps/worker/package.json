@@ -9,7 +9,8 @@
     "live-once": "tsx src/index.ts",
     "live-preflight": "tsx src/live-preflight.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify-live-dispatch-output": "tsx src/live-verification.ts"
   },
   "dependencies": {
     "@agent-control-plane/db": "workspace:*",

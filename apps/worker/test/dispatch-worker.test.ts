@@ -17,6 +17,7 @@ import {
   planeStateNameToDbTaskState,
   redactRuntimeSecrets,
 } from "../src/index.js";
+import { validateLiveDispatchEvidence } from "../src/live-verification.js";
 import type { DbClient } from "@agent-control-plane/db";
 import type { PlaneClient, PlaneTaskPayload } from "@agent-control-plane/plane";
 
@@ -70,6 +71,7 @@ describe("DispatchWorker", () => {
           role: "Development Agent",
           attempt: 2,
           promptReleaseId: "prompt-release-1",
+          workspacePath: "/tmp/crs-src/runs/run-1",
           conversationId: "conversation-1",
           conversationUrl: "https://openhands.test/conversations/conversation-1",
           langfuseTraceId: "trace-1",
@@ -97,6 +99,7 @@ describe("DispatchWorker", () => {
         role: "Development Agent",
         attempt: 2,
         promptReleaseId: "prompt-release-1",
+        workspacePath: "/tmp/crs-src/runs/run-1",
         conversationId: "conversation-1",
         conversationUrl: "https://openhands.test/conversations/conversation-1",
         langfuseTraceId: "trace-1",
@@ -113,6 +116,91 @@ describe("DispatchWorker", () => {
         expectedNextState: "Code Review",
       },
     });
+  });
+
+  it("validates live dispatch evidence before operators trust the smoke result", () => {
+    const task = createMockTask({
+      id: "task-1",
+      planeId: "plane-1",
+      title: "Implement live smoke",
+      state: "Code Review",
+    });
+    const evidence = formatLiveDispatchResult({
+      task,
+      prompt: "redacted prompt",
+      run: {
+        id: "run-1",
+        taskId: task.id,
+        status: "succeeded",
+        role: "Development Agent",
+        attempt: 1,
+        promptReleaseId: "prompt-release-1",
+        workspacePath: "/tmp/crs-src/runs/run-1",
+        conversationId: "conversation-1",
+        conversationUrl: "https://openhands.test/conversations/conversation-1",
+        langfuseTraceId: "trace-1",
+        langfuseTraceUrl: "https://langfuse.test/trace-1",
+        summary: "Implemented and tested.",
+        nextState: "Code Review",
+        statusHistory: ["queued", "claimed", "running", "succeeded"],
+        createdAt: new Date("2026-06-18T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+      },
+    });
+
+    expect(validateLiveDispatchEvidence(evidence)).toEqual({ ok: true, errors: [] });
+  });
+
+  it("rejects live dispatch evidence without OpenHands and Langfuse refs", () => {
+    expect(
+      validateLiveDispatchEvidence({
+        task: { id: "task-1", planeId: "plane-1", repo: "crs-src" },
+        run: {
+          id: "run-1",
+          status: "succeeded",
+          role: "Development Agent",
+          attempt: 1,
+          promptReleaseId: "prompt-release-1",
+          nextState: "Code Review",
+          summary: "Implemented.",
+        },
+        verification: {
+          runDetailPath: "/runs/run-1",
+          planeEvidence: "plane-1",
+          expectedNextState: "Code Review",
+        },
+      }),
+    ).toMatchObject({
+      ok: false,
+      errors: expect.arrayContaining([
+        "verification.openHandsEvidence is required.",
+        "verification.langfuseEvidence is required.",
+      ]),
+    });
+  });
+
+  it("allows failed live dispatch evidence only when debugging context is present", () => {
+    expect(
+      validateLiveDispatchEvidence({
+        task: { id: "task-1", planeId: "plane-1", repo: "crs-src" },
+        run: {
+          id: "run-1",
+          status: "failed",
+          role: "Development Agent",
+          attempt: 1,
+          promptReleaseId: "prompt-release-1",
+          workspacePath: "/tmp/crs-src/runs/run-1",
+          conversationId: "conversation-1",
+          error: "OpenHands timed out.",
+        },
+        verification: {
+          runDetailPath: "/runs/run-1",
+          planeEvidence: "plane-1",
+          openHandsEvidence: "conversation-1",
+          langfuseEvidence: "trace-1",
+        },
+      }),
+    ).toEqual({ ok: true, errors: [] });
   });
 
   it("redacts runtime secrets before prompt release and tracing", async () => {
@@ -235,6 +323,7 @@ describe("DispatchWorker", () => {
         statusHistory: ["running"],
         createdAt: new Date("2026-06-18T00:00:00.000Z"),
         updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+        workspacePath: "/workspace/crs-src/runs/run-1",
       },
       {
         status: "succeeded",
@@ -432,6 +521,7 @@ describe("DispatchWorker", () => {
       },
       prompt: "Implement task",
       workspaceRepo: "crs-src",
+      workspacePath: "/workspace/crs-src/runs/run-1",
       onHeartbeat,
     });
 
@@ -440,9 +530,11 @@ describe("DispatchWorker", () => {
         taskId: "task-1",
         runId: "run-1",
         repo: "crs-src",
+        workspacePath: "/workspace/crs-src/runs/run-1",
         prompt: "Implement task",
         metadata: expect.objectContaining({
           role: "Development Agent",
+          workspacePath: "/workspace/crs-src/runs/run-1",
         }),
       }),
     );
