@@ -620,4 +620,41 @@ describe("DispatchWorker", () => {
       expect.stringContaining("Trace: https://langfuse.test/trace-1"),
     );
   });
+
+  it("writes low-frequency claimed and running statuses back to Plane", async () => {
+    const addComment = vi.fn().mockResolvedValue({ id: "comment-1", body: "ok" });
+    const plane = {
+      addComment,
+    } as unknown as PlaneClient;
+    const sync = new PlaneTaskSyncService({} as DbClient, plane, {
+      projectSlug: "token",
+    });
+    const task = createMockTask({ planeId: "plane-1", state: "Development" });
+    const run = {
+      id: "run-1",
+      taskId: task.id,
+      status: "running" as const,
+      role: "Development Agent",
+      workerId: "worker-1",
+      statusHistory: ["running" as const],
+      createdAt: new Date("2026-06-18T00:00:00.000Z"),
+      updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+    };
+
+    await sync.syncRunStatus(task, run, "Claimed");
+    await sync.syncRunStatus(task, run, "Running");
+
+    expect(addComment).toHaveBeenNthCalledWith(
+      1,
+      "plane-1",
+      expect.stringContaining("Agent Status: Claimed"),
+    );
+    expect(addComment).toHaveBeenNthCalledWith(
+      2,
+      "plane-1",
+      expect.stringContaining("Agent Status: Running"),
+    );
+    expect(addComment.mock.calls[1][1]).toContain("Worker: worker-1");
+    expect(addComment.mock.calls[1][1]).toContain("Current State: Development");
+  });
 });

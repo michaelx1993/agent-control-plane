@@ -157,6 +157,7 @@ export interface ControlPlaneStore {
     traceRef: TraceRef,
     nextState: TaskState,
   ): Promise<void>;
+  syncRunStatus(task: Task, run: Run, status: "Claimed" | "Running" | "Failed"): Promise<void>;
   failRun(runId: string, error: Error): Promise<Run>;
   updateTaskState(taskId: string, nextState: TaskState): Promise<Task>;
   getTask(taskId: string): Promise<Task | undefined>;
@@ -319,6 +320,7 @@ export class DispatchWorker {
       this.config.workerId,
       this.config.leaseMs,
     );
+    await this.syncRunStatusBestEffort(task, claimedRun, "Claimed");
     const fallbackPrompt = this.assemblePrompt(task, claimedRun);
     const promptAssembly = await this.store.assemblePrompt(task, claimedRun, fallbackPrompt);
     const runningRun = await this.store.markRunRunning(
@@ -327,6 +329,7 @@ export class DispatchWorker {
       promptAssembly.content,
       promptAssembly.components,
     );
+    await this.syncRunStatusBestEffort(task, runningRun, "Running");
     const heartbeat = this.createHeartbeatReporter(runningRun.id);
 
     try {
@@ -368,10 +371,11 @@ export class DispatchWorker {
         prompt: promptAssembly.content,
       };
     } catch (error) {
-      await this.store.failRun(
+      const failedRun = await this.store.failRun(
         runningRun.id,
         error instanceof Error ? error : new Error(String(error)),
       );
+      await this.syncRunStatusBestEffort(task, failedRun, "Failed");
       throw error;
     }
   }
@@ -445,6 +449,22 @@ export class DispatchWorker {
     } catch (error) {
       console.warn(
         `Failed to sync run result for task ${task.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  private async syncRunStatusBestEffort(
+    task: Task,
+    run: Run,
+    status: "Claimed" | "Running" | "Failed",
+  ): Promise<void> {
+    try {
+      await this.store.syncRunStatus(task, run, status);
+    } catch (error) {
+      console.warn(
+        `Failed to sync run status ${status} for task ${task.id}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -603,6 +623,10 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   }
 
   async syncRunResult(): Promise<void> {
+    return;
+  }
+
+  async syncRunStatus(): Promise<void> {
     return;
   }
 
@@ -845,6 +869,10 @@ export class DbControlPlaneStore implements ControlPlaneStore {
     nextState: TaskState,
   ): Promise<void> {
     await this.planeSync?.syncRunResult(task, result, traceRef, nextState);
+  }
+
+  async syncRunStatus(task: Task, run: Run, status: "Claimed" | "Running" | "Failed") {
+    await this.planeSync?.syncRunStatus(task, run, status);
   }
 
   async failRun(runId: string, error: Error): Promise<Run> {
@@ -1097,6 +1125,23 @@ export class PlaneTaskSyncService {
         "",
         result.summary,
       ].join("\n"),
+    );
+  }
+
+  async syncRunStatus(task: Task, run: Run, status: "Claimed" | "Running" | "Failed") {
+    await this.plane.addComment(
+      task.planeId,
+      [
+        `Agent Status: ${status}`,
+        "",
+        `Run: ${run.id}`,
+        `Role: ${run.role}`,
+        `Worker: ${run.workerId ?? "unknown"}`,
+        `Current State: ${workerTaskStateToPlaneStateName(task.state)}`,
+        status === "Failed" && run.error ? `Error: ${run.error}` : undefined,
+      ]
+        .filter((line): line is string => line !== undefined)
+        .join("\n"),
     );
   }
 }
