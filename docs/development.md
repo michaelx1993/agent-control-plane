@@ -16,6 +16,9 @@ explicitly downgraded for cost or upgraded for a hard debugging pass.
 - `packages/prompt` owns prompt composition and release metadata.
 - `packages/plane`, `packages/openhands`, and `packages/langfuse` own external adapters.
 
+Workspace package `main` and `types` should point at `src/index.ts` while packages are private.
+CI runs typecheck before build, so internal imports must not depend on generated `dist/*.d.ts`.
+
 ## Documentation Discipline
 
 Any change that alters architecture, state transitions, persistence, prompt assembly, runtime
