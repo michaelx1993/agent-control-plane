@@ -40,6 +40,20 @@ P0 方案固化
 - 已有 Readiness API/UI，展示 Plane/OpenHands/Langfuse/DB/Worker 配置缺口。
 - 已有人工 task transition API，状态跳转受 state-machine 校验。
 
+当前完成度判定：
+
+- 本地/operator MVP：约 70%，已具备 mock worker、DB demo run、控制台、prompt 管理、timeline、readiness、feedback/rework、人工 transition。
+- 真实任务执行闭环：未完成。关键缺口是 Plane self-host 实测、OpenHands live execution、Langfuse live trace。
+- 生产化替代 Symphony：未完成。还需要部署、权限、配置管理、备份恢复、错误恢复、长任务稳定性和操作审计完善。
+
+下一阶段优先级：
+
+1. 启动并验证 Plane self-host，确认 work item API、webhook、repo 字段方案。
+2. 配置 `WORKER_MODE=live`，用真实 OpenHands endpoint 跑一次 Development 任务。
+3. 接入真实 Langfuse trace，确认 run detail 能跳转并展示 token/cost。
+4. 将 live run 的 Plane 状态回写和低频 comment 验证通过。
+5. 固化部署/回滚/备份 runbook。
+
 ## P0 方案固化
 
 目标：把产品边界、数据模型、状态机和集成边界定死。

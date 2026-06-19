@@ -33,7 +33,7 @@ Primary docs:
 
 ## First Milestone
 
-The first milestone is an end-to-end mock run:
+The first milestone is an end-to-end mock/control-plane run:
 
 ```text
 mock Plane task
@@ -47,6 +47,15 @@ mock Plane task
 
 The mock run must pass typecheck and unit tests before real Plane/OpenHands
 credentials are introduced.
+
+Current status:
+
+- The mock/control-plane milestone is complete.
+- The web console exposes task queue, runs, run detail, prompt manager, Operator Timeline, and
+  Readiness.
+- The worker can execute a mock dispatch and persist/return run state.
+- Code Review `major`/`blocker` feedback sends work back to Development.
+- Live Plane/OpenHands/Langfuse execution is the next milestone, not yet complete.
 
 ## Demo Run Data
 

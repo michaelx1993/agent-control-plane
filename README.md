@@ -23,6 +23,24 @@ Langfuse
   LLM traces, prompt/run analytics, token and cost
 ```
 
+## Current Status
+
+The Control Plane codebase now has a verified local/operator MVP:
+
+- Task queue, run/lease/heartbeat, retry cap, manual retry release.
+- Prompt component/binding/release management.
+- Run detail with feedback, OpenHands/Langfuse refs, event payloads, and prompt snapshot.
+- Operator Timeline and Readiness panels for web-based operations.
+- Manual workflow transition API with state-machine validation.
+- Mock worker dry run and database-backed demo run.
+
+The full product is not finished yet. The remaining critical path is live integration:
+
+- Plane self-host must be started and validated against real API/webhook behavior.
+- Worker must run against a real OpenHands endpoint instead of the mock adapter.
+- Langfuse must receive real traces from live OpenHands/LLM execution.
+- Production deployment, permissions, backup/restore, and long-running ops still need hardening.
+
 ## Workspace
 
 ```text
