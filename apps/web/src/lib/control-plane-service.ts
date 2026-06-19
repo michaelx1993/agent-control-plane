@@ -3,10 +3,12 @@ import {
   promptReleases,
   queueSummary as mockQueueSummary,
   runs,
+  runDetails,
   taskQueue,
   type HealthSignal,
   type PromptRelease,
   type Run,
+  type RunDetail,
   type TaskQueueItem,
 } from "./mock-data";
 import { PrismaClient } from "@prisma/client";
@@ -35,6 +37,10 @@ export type TaskQueueResponse = {
 export type RunsResponse = {
   count: number;
   runs: Run[];
+};
+
+export type RunDetailResponse = {
+  run: RunDetail;
 };
 
 export type PromptReleasesResponse = {
@@ -118,6 +124,14 @@ export async function getRuns(): Promise<RunsResponse> {
     count: runs.length,
     runs,
   };
+}
+
+export async function getRunDetail(runId: string): Promise<RunDetail | null> {
+  if (shouldUseDatabase()) {
+    return getRunDetailFromDb(runId);
+  }
+
+  return runDetails.find((run) => run.id === runId) ?? null;
 }
 
 export async function getPromptReleases(): Promise<PromptReleasesResponse> {
@@ -373,6 +387,101 @@ async function getRunsFromDb(): Promise<RunsResponse> {
   };
 }
 
+async function getRunDetailFromDb(runId: string): Promise<RunDetail | null> {
+  const run = await prisma.run.findUnique({
+    where: {
+      id: runId,
+    },
+    include: {
+      agentDefinition: true,
+      conversationRef: true,
+      feedbackItems: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 20,
+      },
+      promptRelease: true,
+      repository: {
+        include: {
+          project: true,
+        },
+      },
+      role: true,
+      runEvents: {
+        orderBy: {
+          createdAt: "asc",
+        },
+        take: 100,
+      },
+      task: true,
+      traceRefs: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+      },
+    },
+  });
+
+  if (!run) {
+    return null;
+  }
+
+  const trace = run.traceRefs[0];
+  const baseRun = runToApiRun({
+    id: run.id,
+    taskIdentifier: run.task.identifier,
+    repositorySlug: run.repository.slug,
+    roleName: run.role.name,
+    status: run.status,
+    promptReleaseId: run.promptReleaseId,
+    startedAt: run.startedAt,
+    createdAt: run.createdAt,
+    finishedAt: run.finishedAt,
+    heartbeatAt: run.heartbeatAt,
+    conversationId: run.conversationRef?.conversationId,
+    conversationUrl: run.conversationRef?.uiUrl,
+    traceId: trace?.traceId,
+    traceUrl: trace?.uiUrl,
+  });
+
+  return {
+    ...baseRun,
+    taskTitle: run.task.title,
+    project: run.repository.project.slug,
+    planeTaskUrl: run.task.url ?? "",
+    agent: run.agentDefinition.name,
+    model: run.agentDefinition.model,
+    reasoningEffort: run.agentDefinition.reasoningEffort,
+    resultSummary: run.resultSummary ?? "",
+    failureReason: run.failureReason ?? "",
+    nextState: run.nextState ? dbTaskStateToPlaneState(run.nextState) : "",
+    promptHash: `sha256:${run.promptRelease.contentHash.slice(0, 12)}`,
+    promptPreview: run.promptRelease.renderedContent,
+    conversationId: run.conversationRef?.conversationId ?? "",
+    eventCursor: run.conversationRef?.eventCursor ?? "",
+    traceId: trace?.traceId ?? "",
+    tokenInput: Number(trace?.inputTokens ?? run.tokenInput ?? 0),
+    tokenOutput: Number(trace?.outputTokens ?? run.tokenOutput ?? 0),
+    costUsd: (trace?.costUsd ?? run.costUsd ?? 0).toString(),
+    events: run.runEvents.map((event) => ({
+      id: event.id,
+      type: event.eventType,
+      message: event.message ?? "",
+      createdAt: event.createdAt.toISOString(),
+    })),
+    feedback: run.feedbackItems.map((item) => ({
+      id: item.id,
+      source: item.source,
+      severity: item.severity,
+      body: item.body,
+      createdAt: item.createdAt.toISOString(),
+      externalUrl: item.externalUrl ?? "",
+    })),
+  };
+}
+
 async function getPromptReleasesFromDb(): Promise<PromptReleasesResponse> {
   const dbPromptReleases = await prisma.promptRelease.findMany({
     include: {
@@ -400,6 +509,42 @@ async function getPromptReleasesFromDb(): Promise<PromptReleasesResponse> {
   return {
     count: responsePromptReleases.length,
     promptReleases: responsePromptReleases,
+  };
+}
+
+function runToApiRun(input: {
+  id: string;
+  taskIdentifier: string;
+  repositorySlug: string;
+  roleName: string;
+  status: DbRunStatus;
+  promptReleaseId: string;
+  startedAt: Date | null;
+  createdAt: Date;
+  finishedAt: Date | null;
+  heartbeatAt: Date | null;
+  conversationId?: string;
+  conversationUrl?: string | null;
+  traceId?: string;
+  traceUrl?: string | null;
+}): Run {
+  return {
+    id: input.id,
+    taskId: input.taskIdentifier,
+    repo: input.repositorySlug,
+    role: normalizeRoleName(input.roleName),
+    status: dbRunStatusToApiStatus(input.status),
+    promptReleaseId: input.promptReleaseId,
+    startedAt: (input.startedAt ?? input.createdAt).toISOString(),
+    heartbeat: input.finishedAt
+      ? "completed"
+      : input.heartbeatAt
+        ? `${Math.max(0, Math.round((Date.now() - input.heartbeatAt.getTime()) / 1000))}s ago`
+        : "none",
+    openHandsUrl:
+      input.conversationUrl ??
+      (input.conversationId ? `openhands://conversations/${input.conversationId}` : ""),
+    langfuseUrl: input.traceUrl ?? (input.traceId ? `langfuse://traces/${input.traceId}` : ""),
   };
 }
 

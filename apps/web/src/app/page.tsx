@@ -89,7 +89,9 @@ export default async function DashboardPage() {
               <article className="runRow" key={run.id}>
                 <div className="runMain">
                   <div>
-                    <strong>{run.id}</strong>
+                    <strong>
+                      <a href={`/runs/${run.id}`}>{run.id}</a>
+                    </strong>
                     <span>
                       {run.taskId} · {run.repo} · {run.role}
                     </span>

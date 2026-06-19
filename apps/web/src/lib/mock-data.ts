@@ -39,6 +39,44 @@ export type Run = {
   langfuseUrl: string;
 };
 
+export type RunEvent = {
+  id: string;
+  type: string;
+  message: string;
+  createdAt: string;
+};
+
+export type FeedbackItem = {
+  id: string;
+  source: string;
+  severity: string;
+  body: string;
+  createdAt: string;
+  externalUrl: string;
+};
+
+export type RunDetail = Run & {
+  taskTitle: string;
+  project: string;
+  planeTaskUrl: string;
+  agent: string;
+  model: string;
+  reasoningEffort: string;
+  resultSummary: string;
+  failureReason: string;
+  nextState: PlaneState | "";
+  promptHash: string;
+  promptPreview: string;
+  conversationId: string;
+  eventCursor: string;
+  traceId: string;
+  tokenInput: number;
+  tokenOutput: number;
+  costUsd: string;
+  events: RunEvent[];
+  feedback: FeedbackItem[];
+};
+
 export type PromptRelease = {
   id: string;
   scope: string;
@@ -141,6 +179,74 @@ export const runs: Run[] = [
     langfuseUrl: "https://langfuse.local/project/acp/traces/trace-7728",
   },
 ];
+
+export const runDetails: RunDetail[] = runs.map((run) => ({
+  ...run,
+  taskTitle:
+    run.taskId === "ACP-1057"
+      ? "Merge retry policy migration"
+      : run.taskId === "ACP-1042"
+        ? "Implement repo-aware dispatch loop"
+        : "Stabilize trace finalization",
+  project: "token",
+  planeTaskUrl: `https://plane.local/acp/${run.taskId}`,
+  agent: `${run.role} Agent`,
+  model: "gpt-5.5 medium",
+  reasoningEffort: "medium",
+  resultSummary:
+    run.status === "failed"
+      ? "Run stalled before final trace close."
+      : "Run completed its assigned workflow step and wrote observability refs.",
+  failureReason:
+    run.status === "failed" ? "Heartbeat expired after OpenHands event stream idle." : "",
+  nextState:
+    run.role === "Development" ? "Code Review" : run.role === "Merge" ? "Merged" : "Development",
+  promptHash: "sha256:7bd01a93",
+  promptPreview:
+    "global + team + project + repo + role prompt assembled with task context, active comments, workpad, and runtime constraints.",
+  conversationId: run.openHandsUrl.split("/").at(-1) ?? "",
+  eventCursor: run.id === "run-7728" ? "event-91" : "event-128",
+  traceId: run.langfuseUrl.split("/").at(-1) ?? "",
+  tokenInput: run.status === "failed" ? 12840 : 18612,
+  tokenOutput: run.status === "failed" ? 2048 : 5319,
+  costUsd: run.status === "failed" ? "0.42" : "0.87",
+  events: [
+    {
+      id: `${run.id}-claimed`,
+      type: "claimed",
+      message: `${run.role} Agent claimed the task lease.`,
+      createdAt: run.startedAt,
+    },
+    {
+      id: `${run.id}-running`,
+      type: "heartbeat",
+      message: "OpenHands conversation started and prompt release injected.",
+      createdAt: run.startedAt,
+    },
+    {
+      id: `${run.id}-refs`,
+      type: run.status === "failed" ? "failed" : "state_sync",
+      message:
+        run.status === "failed"
+          ? "Run failed after lease expiry; trace link retained for debugging."
+          : "Recorded OpenHands conversation and Langfuse trace refs.",
+      createdAt: run.heartbeat,
+    },
+  ],
+  feedback:
+    run.status === "failed"
+      ? [
+          {
+            id: `${run.id}-fb-1`,
+            source: "agent",
+            severity: "major",
+            body: "Retry should resume from the saved event cursor instead of starting a new conversation.",
+            createdAt: run.heartbeat,
+            externalUrl: run.openHandsUrl,
+          },
+        ]
+      : [],
+}));
 
 export const promptReleases: PromptRelease[] = [
   {

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { getPromptReleases, getRuns, getSystemHealth, getTaskQueue } from "./control-plane-service";
+import {
+  getPromptReleases,
+  getRunDetail,
+  getRuns,
+  getSystemHealth,
+  getTaskQueue,
+} from "./control-plane-service";
 
 describe("control plane mock service", () => {
   it("keeps every dispatchable Plane task tied to an explicit repo", async () => {
@@ -20,6 +26,22 @@ describe("control plane mock service", () => {
       expect(run.openHandsUrl).toContain("/conversations/");
       expect(run.langfuseUrl).toContain("/traces/");
     }
+  });
+
+  it("exposes run detail with timeline and observability refs", async () => {
+    const runs = await getRuns();
+    const run = await getRunDetail(runs.runs[0].id);
+
+    expect(run).toMatchObject({
+      id: runs.runs[0].id,
+      agent: expect.any(String),
+      conversationId: expect.any(String),
+      events: expect.any(Array),
+      model: "gpt-5.5 medium",
+      promptPreview: expect.any(String),
+      traceId: expect.any(String),
+    });
+    expect(run?.events.length).toBeGreaterThan(0);
   });
 
   it("summarizes queue state from the static fixtures", async () => {

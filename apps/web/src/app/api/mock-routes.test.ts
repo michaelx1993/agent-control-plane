@@ -5,6 +5,7 @@ import {
   POST as postPromptComponentsRoute,
 } from "./prompt-components/route";
 import { GET as getPromptReleasesRoute } from "./prompt-releases/route";
+import { GET as getRunDetailRoute } from "./runs/[runId]/route";
 import { GET as getTasksRoute } from "./tasks/route";
 
 describe("new mock API routes", () => {
@@ -46,6 +47,29 @@ describe("new mock API routes", () => {
       updatedBy: expect.any(String),
       version: expect.any(String),
     });
+  });
+
+  it("returns run detail JSON and a 404 for unknown runs", async () => {
+    const response = await getRunDetailRoute(new Request("http://localhost/api/runs/run-7741"), {
+      params: Promise.resolve({ runId: "run-7741" }),
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.run).toMatchObject({
+      id: "run-7741",
+      events: expect.any(Array),
+      openHandsUrl: expect.stringContaining("/conversations/"),
+      traceId: expect.any(String),
+    });
+
+    const missingResponse = await getRunDetailRoute(
+      new Request("http://localhost/api/runs/missing"),
+      {
+        params: Promise.resolve({ runId: "missing" }),
+      },
+    );
+    expect(missingResponse.status).toBe(404);
   });
 
   it("returns an empty prompt component list without a database", async () => {
