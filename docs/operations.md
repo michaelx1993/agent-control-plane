@@ -282,9 +282,9 @@ The output contains:
   be fixed before import because the worker requires repo routing.
 - `--apply` skips blocked drafts and creates only ready Plane work items. Use `--dry-run` first to
   inspect the exact create/skip plan.
-- Before creating a work item, `--apply` lists existing Plane work items and treats matching
-  `sourceId`, `sourceIdentifier`, or `Migrated from Linear: <identifier>` markers as `existing`.
-  This makes rerunning the same import idempotent for already migrated Linear issues.
+- Before creating a work item, `--apply` paginates through existing Plane work items and treats
+  matching `sourceId`, `sourceIdentifier`, or `Migrated from Linear: <identifier>` markers as
+  `existing`. This makes rerunning the same import idempotent for already migrated Linear issues.
 
 CSV headers are normalized for common Linear exports, including `id`, `identifier`, `key`, `title`,
 `description`, `state`, `status`, `priority`, `labels`, `repo`, `repository`, `project`, `team`,

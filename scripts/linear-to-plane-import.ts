@@ -129,7 +129,7 @@ function extractDrafts(input: unknown): PlaneImportDraft[] {
 
 async function applyImport(output: MigrationOutput, dryRun: boolean): Promise<ImportResult> {
   const client = dryRun ? undefined : createPlaneClientFromEnv();
-  const existingTasks = dryRun ? [] : await client!.listTasks({ perPage: 100 });
+  const existingTasks = dryRun ? [] : await listAllExistingPlaneTasks(client!);
   const results: ImportResult["results"] = [];
 
   for (const task of output.tasks) {
@@ -191,6 +191,26 @@ async function applyImport(output: MigrationOutput, dryRun: boolean): Promise<Im
     },
     results,
   };
+}
+
+async function listAllExistingPlaneTasks(client: HttpPlaneClient): Promise<PlaneTaskPayload[]> {
+  const tasks: PlaneTaskPayload[] = [];
+  let cursor: string | undefined;
+  const seenCursors = new Set<string>();
+
+  for (let page = 0; page < 100; page += 1) {
+    const response = await client.listTaskPage({ cursor, perPage: 100 });
+    tasks.push(...response.results);
+
+    if (!response.nextCursor || seenCursors.has(response.nextCursor)) {
+      return tasks;
+    }
+
+    seenCursors.add(response.nextCursor);
+    cursor = response.nextCursor;
+  }
+
+  throw new Error("Plane work-item pagination exceeded 100 pages");
 }
 
 function findExistingPlaneTask(

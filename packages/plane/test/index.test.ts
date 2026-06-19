@@ -248,6 +248,28 @@ describe("HTTP client skeleton", () => {
     );
   });
 
+  it("returns page cursors from paginated work-item responses", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ next_cursor: "page-2", results: [{ id: "task-1" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const client = new HttpPlaneClient({
+      baseUrl: "https://plane.example",
+      apiKey: "secret",
+      workspaceSlug: "bob-x-space",
+      projectId: "token",
+      fetch: fetchMock,
+    });
+
+    await expect(client.listTaskPage({ perPage: 100 })).resolves.toMatchObject({
+      nextCursor: "page-2",
+      results: [{ id: "task-1" }],
+    });
+  });
+
   it("requires workspace and project unless basePath is supplied", async () => {
     const client = new HttpPlaneClient({
       baseUrl: "https://plane.example",

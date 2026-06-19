@@ -68,6 +68,11 @@ export type ListPlaneTasksParams = {
   perPage?: number;
 };
 
+export type PlaneTaskListPage = {
+  results: PlaneTaskPayload[];
+  nextCursor?: string;
+};
+
 export type PlaneTaskUpdate = {
   stateId?: string;
   stateName?: string;
@@ -89,6 +94,7 @@ export type PlaneTaskCreate = {
 export type PlaneClient = {
   getTask(taskId: string): Promise<PlaneTaskPayload>;
   listTasks(params?: ListPlaneTasksParams): Promise<PlaneTaskPayload[]>;
+  listTaskPage(params?: ListPlaneTasksParams): Promise<PlaneTaskListPage>;
   createTask(input: PlaneTaskCreate): Promise<PlaneTaskPayload>;
   updateTask(taskId: string, update: PlaneTaskUpdate): Promise<PlaneTaskPayload>;
   addComment(taskId: string, body: string): Promise<{ id: string; body: string }>;
@@ -169,6 +175,11 @@ export class HttpPlaneClient implements PlaneClient {
   }
 
   async listTasks(params: ListPlaneTasksParams = {}): Promise<PlaneTaskPayload[]> {
+    const firstPage = await this.listTaskPage(params);
+    return firstPage.results;
+  }
+
+  async listTaskPage(params: ListPlaneTasksParams = {}): Promise<PlaneTaskListPage> {
     const search = new URLSearchParams();
     if (params.state) search.set("state", params.state);
     if (params.updatedSince) search.set("updated_since", params.updatedSince);
@@ -185,11 +196,21 @@ export class HttpPlaneClient implements PlaneClient {
     }
 
     const suffix = search.size > 0 ? `?${search.toString()}` : "";
-    const response = await this.request<PlaneTaskPayload[] | { results?: PlaneTaskPayload[] }>(
-      `${this.workItemsPath(params)}${suffix}`,
-    );
+    const response = await this.request<
+      | PlaneTaskPayload[]
+      | {
+          next_cursor?: string | null;
+          nextCursor?: string | null;
+          results?: PlaneTaskPayload[];
+        }
+    >(`${this.workItemsPath(params)}${suffix}`);
 
-    return Array.isArray(response) ? response : (response.results ?? []);
+    return Array.isArray(response)
+      ? { results: response }
+      : {
+          nextCursor: response.next_cursor ?? response.nextCursor ?? undefined,
+          results: response.results ?? [],
+        };
   }
 
   async createTask(input: PlaneTaskCreate): Promise<PlaneTaskPayload> {
