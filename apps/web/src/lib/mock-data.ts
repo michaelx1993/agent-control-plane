@@ -191,6 +191,18 @@ export type OperatorTimelineItem = {
   href: string;
 };
 
+export type AuditLogItem = {
+  id: string;
+  action: string;
+  actor: string;
+  entityId: string;
+  entityType: string;
+  message: string;
+  payload: unknown;
+  createdAt: string;
+  href: string;
+};
+
 export type ReadinessCheck = {
   id: string;
   label: string;
@@ -552,6 +564,50 @@ export const operatorTimeline: OperatorTimelineItem[] = [
     title: "Review feedback attached",
     detail: "Retry should resume from the saved event cursor.",
     createdAt: "2026-06-17 18:14",
+    href: "/runs/run-7728",
+  },
+];
+
+export const auditLog: AuditLogItem[] = [
+  {
+    id: "audit-prompt-rollback-1",
+    action: "prompt.rollback",
+    actor: "operator",
+    entityId: "component-previous",
+    entityType: "prompt_component",
+    message: "Rolled back active prompt for Development.",
+    payload: {
+      scope: "repo:crs-src",
+      version: 17,
+    },
+    createdAt: "2026-06-18 10:14",
+    href: "/prompt-components",
+  },
+  {
+    id: "audit-task-transition-1",
+    action: "task.transition",
+    actor: "operator",
+    entityId: "ACP-1057",
+    entityType: "task",
+    message: "Moved task to In Merge after review approval.",
+    payload: {
+      fromState: "Human Review",
+      nextState: "In Merge",
+    },
+    createdAt: "2026-06-18 09:58",
+    href: "/",
+  },
+  {
+    id: "audit-feedback-resolve-1",
+    action: "feedback.resolve",
+    actor: "operator",
+    entityId: "run-7728-fb-1",
+    entityType: "feedback",
+    message: "Feedback marked resolved by operator.",
+    payload: {
+      previouslyResolved: false,
+    },
+    createdAt: "2026-06-18 09:12",
     href: "/runs/run-7728",
   },
 ];

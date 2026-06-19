@@ -44,6 +44,7 @@ P0 方案固化
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
 - 已有 Run Detail feedback 表单和 feedback API，支持打回 Development。
 - 已有 Operator Timeline API/UI，聚合 run event、audit event、feedback。
+- 已有 Audit Log API/UI，支持按 action/entity type 查询 operator action 与 payload。
 - 已有 Readiness API/UI，展示 Plane/OpenHands/Langfuse/DB/Worker 配置缺口，并在 DB 配置后展示 seed baseline 状态。
 - 已有人工 task transition API 和控制台操作入口，状态跳转受 state-machine 校验。
 - 已有 feedback resolve API/UI，处理完成的反馈不会继续作为 unresolved rework context 注入后续 Development。
@@ -71,7 +72,7 @@ P0 方案固化
 
 当前完成度判定：
 
-- 本地/operator MVP：约 70%，已具备 mock worker、DB demo run、控制台、prompt 管理、timeline、readiness、feedback/rework、人工 transition。
+- 本地/operator MVP：约 72%，已具备 mock worker、DB demo run、控制台、prompt 管理、timeline、audit log、readiness、feedback/rework、人工 transition。
 - 真实任务执行闭环：未完成。关键缺口是 Plane self-host 实测、OpenHands live execution、Langfuse live trace。
 - 生产化替代 Symphony：未完成。还需要部署、权限、配置管理、备份恢复、错误恢复、长任务稳定性和操作审计完善。
 
@@ -514,7 +515,7 @@ Done              -> Terminal
 - Data migration
 - Backfill
 - Access control
-- Audit log
+- Audit log：第一版已有 `/audit` 和 `GET /api/audit?action=&entityType=`，后续补保留策略、导出、敏感字段脱敏策略。
 - Secret management
 - Backup/restore
 - Deployment

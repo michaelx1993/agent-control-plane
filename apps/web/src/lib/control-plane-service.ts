@@ -16,6 +16,7 @@ import {
 import { validateTransition } from "@agent-control-plane/state-machine";
 import { upsertSyncedTask, type DbClient } from "../../../../packages/db/src/query";
 import {
+  auditLog as mockAuditLog,
   healthSignals,
   operatorTimeline as mockOperatorTimeline,
   promptMetrics as mockPromptMetrics,
@@ -25,6 +26,7 @@ import {
   runs,
   runDetails,
   taskQueue,
+  type AuditLogItem,
   type HealthSignal,
   type OperatorTimelineItem,
   type MonitoringResponse,
@@ -72,6 +74,16 @@ export type TaskQueueFilters = {
   repo?: string;
   state?: string;
   team?: string;
+};
+
+export type AuditLogFilters = {
+  action?: string;
+  entityType?: string;
+};
+
+export type AuditLogResponse = {
+  count: number;
+  auditLog: AuditLogItem[];
 };
 
 export type RunsResponse = {
@@ -957,6 +969,49 @@ export async function getOperatorTimeline(): Promise<OperatorTimelineResponse> {
   return {
     count: timeline.length,
     timeline,
+  };
+}
+
+export async function getAuditLog(filters: AuditLogFilters = {}): Promise<AuditLogResponse> {
+  if (!shouldUseDatabase()) {
+    const auditLog = filterAuditLogItems(mockAuditLog, filters);
+    return {
+      count: auditLog.length,
+      auditLog,
+    };
+  }
+
+  const auditEvents = await prisma.auditEvent.findMany({
+    include: {
+      actorUser: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 200,
+    where: {
+      ...(filters.action ? { action: filters.action } : {}),
+      ...(filters.entityType ? { entityType: filters.entityType } : {}),
+    },
+  });
+
+  const auditLog = auditEvents.map((event): AuditLogItem => {
+    return {
+      id: event.id,
+      action: event.action,
+      actor: event.actorUser?.name ?? "operator",
+      entityId: event.entityId,
+      entityType: event.entityType,
+      message: event.message ?? "",
+      payload: event.payload,
+      createdAt: event.createdAt.toISOString(),
+      href: hrefForAuditEvent(event.entityType, event.entityId),
+    };
+  });
+
+  return {
+    count: auditLog.length,
+    auditLog,
   };
 }
 
@@ -2096,6 +2151,25 @@ function filterTaskQueueItems(tasks: TaskQueueItem[], filters: TaskQueueFilters)
       (!filters.state || task.state === filters.state)
     );
   });
+}
+
+function filterAuditLogItems(items: AuditLogItem[], filters: AuditLogFilters): AuditLogItem[] {
+  return items.filter((item) => {
+    return (
+      (!filters.action || item.action === filters.action) &&
+      (!filters.entityType || item.entityType === filters.entityType)
+    );
+  });
+}
+
+function hrefForAuditEvent(entityType: string, entityId: string): string {
+  if (entityType === "run") {
+    return `/runs/${entityId}`;
+  }
+  if (entityType.startsWith("prompt")) {
+    return "/prompt-components";
+  }
+  return "/";
 }
 
 function dbTaskStateToPlaneState(state: DbTaskState): TaskQueueItem["state"] {

@@ -13,6 +13,7 @@ import {
 import { GET as getPromptComponentDiffRoute } from "./prompt-components/diff/route";
 import { POST as postPromptComponentRollbackRoute } from "./prompt-components/[componentId]/rollback/route";
 import { GET as getMonitoringRoute } from "./monitoring/route";
+import { GET as getAuditRoute } from "./audit/route";
 import { GET as getPromptMetricsRoute } from "./prompt-metrics/route";
 import { GET as getPromptReleasesRoute } from "./prompt-releases/route";
 import { GET as getPromptScopesRoute } from "./prompt-scopes/route";
@@ -324,6 +325,34 @@ describe("new mock API routes", () => {
       detail: expect.any(String),
       href: expect.any(String),
     });
+  });
+
+  it("returns audit log JSON for operator action inspection", async () => {
+    const response = await getAuditRoute();
+    const payload = await response.json();
+
+    expect(payload.count).toBe(payload.auditLog.length);
+    expect(payload.auditLog[0]).toMatchObject({
+      id: expect.any(String),
+      action: expect.any(String),
+      actor: expect.any(String),
+      entityId: expect.any(String),
+      entityType: expect.any(String),
+      createdAt: expect.any(String),
+      href: expect.any(String),
+    });
+  });
+
+  it("filters audit log events by action", async () => {
+    const response = await getAuditRoute(
+      new Request("http://localhost/api/audit?action=task.transition"),
+    );
+    const payload = await response.json();
+
+    expect(payload.auditLog.length).toBeGreaterThan(0);
+    expect(
+      payload.auditLog.every((event: { action: string }) => event.action === "task.transition"),
+    ).toBe(true);
   });
 
   it("returns readiness checks grouped by integration", async () => {

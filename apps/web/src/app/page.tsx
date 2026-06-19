@@ -118,6 +118,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <a className="buttonLink" href="/monitoring">
             Monitoring
           </a>
+          <a className="buttonLink" href="/audit">
+            Audit Log
+          </a>
         </nav>
         <div className="topStats" aria-label="Queue summary">
           <Metric label="Eligible" value={taskQueue.summary.eligible} />

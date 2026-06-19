@@ -337,6 +337,7 @@ Trace 策略：
 - 状态同步回 Plane。
 - 基础 run 列表和详情页。
 - Operator Timeline：聚合 run event、audit event、feedback，给网页版查看 agent 接单/运行/完成/失败过程。
+- Audit Log：独立查看 operator action、actor、entity、payload，并支持 action/entity type 过滤。
 - Readiness：在控制台展示 Plane/OpenHands/Langfuse/DB/Worker 配置缺口。
 
 第二阶段：
@@ -365,6 +366,7 @@ Trace 策略：
 - Agent 完成后可以自动推动任务进入下一个状态。
 - 人类可以在 review gate 打回 Development，并且 agent 下一次能读到打回意见。
 - 人类可以在控制台看到最近 operator timeline，不需要 tail 本地日志判断 agent 是否接单。
+- 人类可以在控制台打开独立 audit log，追踪人工 transition、feedback resolve、prompt rollback 等操作。
 - 上线前可以通过 readiness 检查确认 Plane/OpenHands/Langfuse/DB/Worker 配置是否齐全。
 
 ## 关键风险

@@ -782,6 +782,22 @@ dd {
   white-space: pre-wrap;
 }
 
+.auditPayload {
+  max-height: 180px;
+  min-width: 260px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 .promptForm {
   display: grid;
   gap: 12px;

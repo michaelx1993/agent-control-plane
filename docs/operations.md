@@ -70,6 +70,7 @@ The check validates:
 - `/api/tasks`
 - `/api/runs`
 - `/api/timeline`
+- `/api/audit`
 - `/api/monitoring`
 - `/api/readiness`
 - `/api/prompt-releases`
@@ -83,6 +84,9 @@ agents:
 
 - `GET /api/timeline` aggregates recent `run_events`, `audit_events`, and `feedback_items`.
   It is the low-noise view for "did an agent claim, run, fail, or complete?"
+- `GET /api/audit` and `/audit` expose the dedicated operator audit log. Use `action=<name>`
+  and `entityType=<type>` query parameters to inspect task transitions, feedback resolution,
+  prompt rollback, and other operator actions with their stored payloads.
 - `GET /api/monitoring` and `/monitoring` expose the production-readiness monitoring surface:
   queue length, run success rate, token/cost volume, and stalled runs.
 - `GET /api/readiness` reports Plane, OpenHands, Langfuse, database, and worker configuration
