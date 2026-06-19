@@ -1,3 +1,6 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
+
 export type LiveDispatchEvidence = {
   task?: {
     id?: unknown;
@@ -34,6 +37,12 @@ export type LiveDispatchEvidence = {
 export type LiveDispatchVerification = {
   ok: boolean;
   errors: string[];
+};
+
+export type LiveDispatchEvidenceArchive = {
+  capturedAt: string;
+  evidence: unknown;
+  verification: LiveDispatchVerification;
 };
 
 export function validateLiveDispatchEvidence(input: unknown): LiveDispatchVerification {
@@ -160,6 +169,23 @@ export function parseLiveDispatchEvidence(value: string): unknown {
   }
 }
 
+export async function writeLiveDispatchEvidenceArchive(
+  path: string,
+  evidence: unknown,
+  verification: LiveDispatchVerification,
+  now: Date = new Date(),
+): Promise<LiveDispatchEvidenceArchive> {
+  const archive: LiveDispatchEvidenceArchive = {
+    capturedAt: now.toISOString(),
+    evidence,
+    verification,
+  };
+
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify(archive, null, 2)}\n`, "utf8");
+  return archive;
+}
+
 function requireString(errors: string[], value: unknown, path: string): void {
   if (typeof value !== "string" || value.trim().length === 0) {
     errors.push(`${path} is required.`);
@@ -215,16 +241,31 @@ async function readStdin(): Promise<string> {
 const isCli = process.argv[1]?.endsWith("live-verification.ts");
 if (isCli) {
   try {
+    const writePath = readWritePath(process.argv.slice(2));
     const evidence = parseLiveDispatchEvidence(await readStdin());
     const result = validateLiveDispatchEvidence(evidence);
     if (!result.ok) {
       console.error(JSON.stringify(result, null, 2));
       process.exitCode = 1;
     } else {
-      console.log(JSON.stringify(result, null, 2));
+      if (writePath) {
+        await writeLiveDispatchEvidenceArchive(writePath, evidence, result);
+      }
+      console.log(JSON.stringify({ ...result, evidencePath: writePath }, null, 2));
     }
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   }
+}
+
+function readWritePath(args: string[]): string | undefined {
+  const index = args.indexOf("--write");
+  if (index === -1) return undefined;
+
+  const value = args[index + 1];
+  if (!value || value.startsWith("--")) {
+    throw new Error("--write requires an output file path.");
+  }
+  return value;
 }

@@ -179,8 +179,9 @@ prove runtime protocol mutation before any real task dispatch.
 Use `WORKER_MODE=live pnpm live:verify-once` for the first real Development task; it runs
 preflight first, dispatches one task, prints the JSON evidence bundle, and fails if Plane,
 post-dispatch task state, Plane completion comment, workspace, OpenHands, Langfuse, or Control
-Plane Run Detail evidence is missing. Use `WORKER_MODE=live pnpm live:dispatch-once` when you only
-need the raw dispatch JSON.
+Plane Run Detail evidence is missing. On success it writes an audit archive under
+`evidence/live-dispatch/`; set `LIVE_EVIDENCE_DIR` to choose another directory. Use
+`WORKER_MODE=live pnpm live:dispatch-once` when you only need the raw dispatch JSON.
 
 ## Design Docs
 

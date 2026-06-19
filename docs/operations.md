@@ -700,6 +700,10 @@ pnpm live:verify-once
 The script refuses to run unless `WORKER_MODE=live`, runs `pnpm live:preflight`, dispatches one
 eligible task, then validates the smoke-test evidence bundle. Use `pnpm live:dispatch-once` when you
 need the raw dispatch JSON without the verifier.
+Successful verification writes a canonical JSON archive to
+`evidence/live-dispatch/live-dispatch-<UTC timestamp>-<pid>.json` by default. Set
+`LIVE_EVIDENCE_DIR` to send these audit files to an operator-controlled path; the repository ignores
+the default `evidence/` directory.
 
 - `task`: Control Plane task id, Plane task id, title, team/project/repo, and post-dispatch state.
 - `run`: run id, status, role, attempt, prompt release id, workspace path, OpenHands conversation

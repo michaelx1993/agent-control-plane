@@ -141,6 +141,8 @@ WORKER_MODE="live" pnpm live:verify-once
 It runs live preflight, dispatches exactly one task, prints the JSON evidence bundle, and validates
 that the evidence contains the required Plane/workspace/OpenHands/Langfuse/Run Detail handles. Use
 `pnpm live:dispatch-once` when you only want the raw dispatch output.
+Successful verification also writes a canonical audit archive under `evidence/live-dispatch/`; set
+`LIVE_EVIDENCE_DIR` when the archive should live outside the repository checkout.
 
 - `task`: Control Plane task id, Plane task id, team/project/repo, and post-dispatch state.
 - `run`: run id, status, role, attempt, prompt release id, OpenHands conversation id/url,
