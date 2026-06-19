@@ -4,6 +4,7 @@ import {
   GET as getPromptBindingsRoute,
   POST as postPromptBindingsRoute,
 } from "./prompt-bindings/route";
+import { POST as postPlaneWebhookRoute } from "./plane/webhook/route";
 import {
   GET as getPromptComponentsRoute,
   POST as postPromptComponentsRoute,
@@ -155,6 +156,46 @@ describe("new mock API routes", () => {
           scopeType: "team",
           scopeId: "00000000-0000-4000-8000-000000000001",
           promptComponentId: "00000000-0000-4000-8000-000000000002",
+        }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain("DATABASE_URL");
+  });
+
+  it("ignores Plane webhook payloads without a task", async () => {
+    const response = await postPlaneWebhookRoute(
+      new Request("http://localhost/api/plane/webhook", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "ping",
+          model: "workspace",
+        }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({
+      eventType: "unknown",
+      action: "ignored",
+    });
+  });
+
+  it("requires DATABASE_URL before syncing Plane task webhooks", async () => {
+    const response = await postPlaneWebhookRoute(
+      new Request("http://localhost/api/plane/webhook", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "updated",
+          model: "issue",
+          issue: {
+            id: "plane-1",
+            name: "Webhook task",
+            labels: ["repo:crs-src"],
+          },
         }),
       }),
     );

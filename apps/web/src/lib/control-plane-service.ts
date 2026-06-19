@@ -1,4 +1,12 @@
 import {
+  normalizePlaneTask,
+  parsePlaneWebhookPayload,
+  type PlaneWebhookEventType,
+  type ParsedPlaneWebhook,
+  type PlaneTaskPayload,
+  type NormalizedPlaneTask,
+} from "@agent-control-plane/plane";
+import {
   healthSignals,
   promptReleases,
   queueSummary as mockQueueSummary,
@@ -104,6 +112,15 @@ export type CreatePromptBindingInput = {
   orderIndex?: number;
   environment?: DbPromptBindingEnvironment;
   status?: DbPromptBindingStatus;
+};
+
+export type PlaneWebhookSyncResponse = {
+  eventType: PlaneWebhookEventType;
+  action: "ignored" | "upserted";
+  taskId?: string;
+  identifier?: string;
+  repositorySlug?: string;
+  blockedMissingRepo?: boolean;
 };
 
 export type SystemHealthResponse = {
@@ -354,6 +371,123 @@ export async function getSystemHealth(): Promise<SystemHealthResponse> {
     queue: taskQueueResponse.summary,
     signals: healthSignals,
   };
+}
+
+export async function syncPlaneWebhookPayload(payload: unknown): Promise<PlaneWebhookSyncResponse> {
+  const parsed = parsePlaneWebhookPayload(payload);
+  if (!parsed.task || parsed.eventType === "unknown") {
+    return {
+      eventType: parsed.eventType,
+      action: "ignored",
+    };
+  }
+
+  if (!shouldUseDatabase()) {
+    throw new Error("DATABASE_URL is required to sync Plane webhooks");
+  }
+
+  const normalized = normalizePlaneTask(parsed.task);
+  const task = await upsertPlaneWebhookTask(parsed, normalized);
+
+  return {
+    eventType: parsed.eventType,
+    action: "upserted",
+    taskId: task.id,
+    identifier: task.identifier,
+    repositorySlug: normalized.repo,
+    blockedMissingRepo: !normalized.repo,
+  };
+}
+
+async function upsertPlaneWebhookTask(parsed: ParsedPlaneWebhook, normalized: NormalizedPlaneTask) {
+  const projectSlug = process.env.CONTROL_PLANE_PROJECT_SLUG ?? "token";
+  const project = await prisma.project.findFirst({
+    where: {
+      slug: projectSlug,
+      status: "active",
+    },
+    select: {
+      id: true,
+    },
+  });
+  if (!project) {
+    throw new Error(`Project ${projectSlug} not found or inactive`);
+  }
+
+  const repository = normalized.repo
+    ? await prisma.repository.findFirst({
+        where: {
+          projectId: project.id,
+          slug: normalized.repo,
+          status: "active",
+        },
+        select: {
+          id: true,
+        },
+      })
+    : null;
+  const now = new Date();
+  const state =
+    parsed.eventType === "task.deleted" ? "Canceled" : planeStateToDbTaskState(normalized.raw);
+
+  return prisma.task.upsert({
+    where: {
+      projectId_externalTaskId: {
+        projectId: project.id,
+        externalTaskId: normalized.sourceId,
+      },
+    },
+    update: {
+      repositoryId: repository?.id ?? null,
+      identifier: normalized.identifier ?? normalized.sourceId,
+      title: normalized.title,
+      state,
+      labels: normalized.labels,
+      url: normalized.url,
+      lastSyncedAt: now,
+      syncCursor: parsed.eventType,
+    },
+    create: {
+      projectId: project.id,
+      repositoryId: repository?.id,
+      externalTaskId: normalized.sourceId,
+      identifier: normalized.identifier ?? normalized.sourceId,
+      title: normalized.title,
+      state,
+      labels: normalized.labels,
+      url: normalized.url,
+      lastSyncedAt: now,
+      syncCursor: parsed.eventType,
+    },
+  });
+}
+
+function planeStateToDbTaskState(task: PlaneTaskPayload): DbTaskState {
+  const stateName = typeof task.state === "string" ? task.state : task.state?.name;
+  const normalized = (stateName ?? "").toLowerCase().replace(/[\s_-]+/g, "");
+  const stateMap: Record<string, DbTaskState> = {
+    todo: "Todo",
+    backlog: "Todo",
+    development: "Development",
+    started: "Development",
+    inprogress: "Development",
+    codereview: "CodeReview",
+    review: "CodeReview",
+    humanreview: "HumanReview",
+    inmerge: "InMerge",
+    merged: "Merged",
+    releaseversion: "ReleaseVersion",
+    released: "Released",
+    deployment: "Deployment",
+    deployed: "Deployed",
+    done: "Done",
+    completed: "Done",
+    blocked: "Blocked",
+    canceled: "Canceled",
+    cancelled: "Canceled",
+  };
+
+  return stateMap[normalized] ?? "Todo";
 }
 
 async function nextPromptComponentVersion(

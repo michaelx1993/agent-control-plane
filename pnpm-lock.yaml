@@ -22,6 +22,9 @@ importers:
 
   apps/web:
     dependencies:
+      "@agent-control-plane/plane":
+        specifier: workspace:*
+        version: link:../../packages/plane
       "@prisma/client":
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
