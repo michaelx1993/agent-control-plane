@@ -33,6 +33,9 @@ export default async function DashboardPage() {
           <p className="eyebrow">Agent Control Plane</p>
           <h1>Runtime Operations Console</h1>
         </div>
+        <a className="buttonLink" href="/prompt-components">
+          Prompt Manager
+        </a>
         <div className="topStats" aria-label="Queue summary">
           <Metric label="Eligible" value={taskQueue.summary.eligible} />
           <Metric label="Blocked" value={taskQueue.summary.blocked} />

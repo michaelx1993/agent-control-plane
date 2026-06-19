@@ -72,11 +72,41 @@ code {
 
 .topbar {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) auto;
+  grid-template-columns: minmax(280px, 1fr) auto auto;
   gap: 20px;
   align-items: end;
   padding: 8px 0 20px;
   border-bottom: 1px solid var(--line);
+}
+
+.buttonLink,
+.primaryButton {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  padding: 7px 12px;
+}
+
+.primaryButton {
+  cursor: pointer;
+}
+
+.buttonLink:hover,
+.primaryButton:hover:not(:disabled) {
+  border-color: var(--info);
+  text-decoration: none;
+}
+
+.primaryButton:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
 }
 
 .eyebrow {
@@ -321,6 +351,85 @@ dd {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.promptGrid {
+  grid-template-columns: minmax(340px, 0.7fr) minmax(0, 1.3fr);
+}
+
+.promptForm {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.promptForm label {
+  display: grid;
+  gap: 5px;
+}
+
+.promptForm label span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.promptForm input,
+.promptForm select,
+.promptForm textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #11151b;
+  color: var(--text);
+  font: inherit;
+  padding: 9px 10px;
+}
+
+.promptForm textarea {
+  min-height: 220px;
+  resize: vertical;
+}
+
+.formError {
+  border: 1px solid var(--bad);
+  border-radius: 8px;
+  background: var(--bad-bg);
+  color: var(--bad);
+  padding: 8px 10px;
+}
+
+.promptListPanel {
+  grid-column: auto;
+}
+
+.componentGroups {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.componentGroup {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.componentGroup h3,
+.emptyState {
+  margin: 0;
+  padding: 12px;
+}
+
+.componentGroup h3 {
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.emptyState {
+  color: var(--muted);
+}
+
 .health {
   padding: 12px;
 }
@@ -348,7 +457,8 @@ dd {
   }
 
   .topbar,
-  .dashboardGrid {
+  .dashboardGrid,
+  .promptGrid {
     grid-template-columns: 1fr;
   }
 
