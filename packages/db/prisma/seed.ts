@@ -69,6 +69,8 @@ async function main() {
       activeStates: ["Todo"],
       nextStates: ["Development", "Blocked"],
       description: "Clarify task scope and route repository",
+      agentId: "00000000-0000-4000-8000-000000000001",
+      toolProfile: "default-intake",
     },
     {
       key: "development",
@@ -76,6 +78,8 @@ async function main() {
       activeStates: ["Development"],
       nextStates: ["CodeReview", "Blocked"],
       description: "Implement task changes in the routed repository",
+      agentId: "00000000-0000-4000-8000-000000000002",
+      toolProfile: "default-development",
     },
     {
       key: "code_review",
@@ -83,6 +87,8 @@ async function main() {
       activeStates: ["CodeReview"],
       nextStates: ["Development", "HumanReview", "Blocked"],
       description: "Review code changes and request fixes when needed",
+      agentId: "00000000-0000-4000-8000-000000000003",
+      toolProfile: "default-code-review",
     },
     {
       key: "merge",
@@ -90,10 +96,28 @@ async function main() {
       activeStates: ["InMerge"],
       nextStates: ["Merged", "Blocked"],
       description: "Merge approved changes",
+      agentId: "00000000-0000-4000-8000-000000000004",
+      toolProfile: "default-merge",
+    },
+    {
+      key: "release",
+      name: "Release",
+      activeStates: ["ReleaseVersion"],
+      nextStates: ["Released", "Blocked"],
+      description: "Prepare version, changelog, tag, or release artifact",
+      agentId: "00000000-0000-4000-8000-000000000005",
+      toolProfile: "default-release",
+    },
+    {
+      key: "deployment",
+      name: "Deployment",
+      activeStates: ["Deployment"],
+      nextStates: ["Deployed", "Blocked"],
+      description: "Deploy released artifacts and report deployment evidence",
+      agentId: "00000000-0000-4000-8000-000000000006",
+      toolProfile: "default-deployment",
     },
   ] as const;
-
-  let developmentRoleId: string | undefined;
 
   for (const role of roles) {
     const saved = await prisma.role.upsert({
@@ -113,39 +137,33 @@ async function main() {
       },
     });
 
-    if (role.key === "development") {
-      developmentRoleId = saved.id;
-    }
+    await prisma.agentDefinition.upsert({
+      where: {
+        id: role.agentId,
+      },
+      update: {
+        name: `Default ${role.name} Agent`,
+        roleId: saved.id,
+        runtime: "openhands",
+        model: "gpt-5.5",
+        reasoningEffort: "medium",
+        toolProfile: role.toolProfile,
+        status: "active",
+      },
+      create: {
+        id: role.agentId,
+        name: `Default ${role.name} Agent`,
+        roleId: saved.id,
+        runtime: "openhands",
+        model: "gpt-5.5",
+        reasoningEffort: "medium",
+        toolProfile: role.toolProfile,
+        maxTurns: 80,
+        timeoutSeconds: 7200,
+        status: "active",
+      },
+    });
   }
-
-  if (!developmentRoleId) {
-    throw new Error("development role was not seeded");
-  }
-
-  await prisma.agentDefinition.upsert({
-    where: {
-      id: "00000000-0000-4000-8000-000000000001",
-    },
-    update: {
-      roleId: developmentRoleId,
-      runtime: "openhands",
-      model: "gpt-5.5",
-      reasoningEffort: "medium",
-      status: "active",
-    },
-    create: {
-      id: "00000000-0000-4000-8000-000000000001",
-      name: "Default Development Agent",
-      roleId: developmentRoleId,
-      runtime: "openhands",
-      model: "gpt-5.5",
-      reasoningEffort: "medium",
-      toolProfile: "default-development",
-      maxTurns: 80,
-      timeoutSeconds: 7200,
-      status: "active",
-    },
-  });
 }
 
 main()

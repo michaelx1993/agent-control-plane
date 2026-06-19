@@ -22,13 +22,13 @@ Run a smoke query:
 
 ```bash
 DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" \
-  pnpm --filter @agent-control-plane/db exec tsx -e 'import { prisma } from "./src/index.ts"; void (async()=>{ const [teams,repos,roles]=await Promise.all([prisma.team.count(), prisma.repository.count(), prisma.role.count()]); console.log(JSON.stringify({teams,repos,roles})); await prisma.$disconnect(); })();'
+  pnpm --filter @agent-control-plane/db exec tsx -e 'import { prisma } from "./src/index.ts"; void (async()=>{ const [teams,repos,roles,agents]=await Promise.all([prisma.team.count(), prisma.repository.count(), prisma.role.count(), prisma.agentDefinition.count()]); console.log(JSON.stringify({teams,repos,roles,agents})); await prisma.$disconnect(); })();'
 ```
 
 Expected seed baseline:
 
 ```json
-{ "teams": 1, "repos": 3, "roles": 4 }
+{ "teams": 1, "repos": 3, "roles": 6, "agents": 6 }
 ```
 
 ## Validation
