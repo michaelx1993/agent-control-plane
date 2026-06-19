@@ -83,6 +83,44 @@ export type PlaneClient = {
   addComment(taskId: string, body: string): Promise<{ id: string; body: string }>;
 };
 
+export type LinearIssuePayload = {
+  id?: string;
+  issueId?: string;
+  identifier?: string;
+  key?: string;
+  number?: string | number;
+  title?: string;
+  name?: string;
+  description?: string | null;
+  state?: string | { name?: string | null } | null;
+  status?: string | null;
+  priority?: string | number | null;
+  labels?: Array<string | { name?: string | null }>;
+  labelNames?: string[];
+  project?: string | { name?: string | null; id?: string | null } | null;
+  team?: string | { name?: string | null; id?: string | null } | null;
+  assignee?: string | { name?: string | null; email?: string | null } | null;
+  url?: string | null;
+  repo?: string | null;
+  repository?: string | null;
+  [key: string]: unknown;
+};
+
+export type PlaneImportDraft = {
+  source: "linear";
+  sourceId: string;
+  identifier: string;
+  title: string;
+  description: string;
+  stateName: string;
+  priority?: string;
+  labels: string[];
+  repo?: string;
+  blockedReason?: "missing-repo";
+  sourceUrl?: string;
+  metadata: Record<string, unknown>;
+};
+
 export type HttpPlaneClientOptions = {
   baseUrl: string;
   apiKey?: string;
@@ -289,6 +327,58 @@ export function extractRepo(
   return structured ?? parseRepoFromLabels(normalizedLabels);
 }
 
+export function linearIssueToPlaneImportDraft(issue: LinearIssuePayload): PlaneImportDraft {
+  const sourceId = stringValue(issue.id) ?? stringValue(issue.issueId) ?? issueIdentifier(issue);
+  if (!sourceId) {
+    throw new Error("Linear issue is missing id or identifier");
+  }
+
+  const identifier = issueIdentifier(issue) ?? sourceId;
+  const labels = normalizeLinearLabels(issue);
+  const repo =
+    stringValue(issue.repo) ?? stringValue(issue.repository) ?? repoFromGenericLabels(labels);
+  const title = stringValue(issue.title) ?? stringValue(issue.name) ?? identifier;
+  const sourceUrl = stringValue(issue.url);
+  const description = [
+    issue.description ?? "",
+    "",
+    "----",
+    `Migrated from Linear: ${identifier}`,
+    sourceUrl ? `Source: ${sourceUrl}` : undefined,
+  ]
+    .filter((line) => line !== undefined)
+    .join("\n")
+    .trim();
+
+  return {
+    source: "linear",
+    sourceId,
+    identifier,
+    title,
+    description,
+    stateName: linearStateName(issue),
+    priority:
+      issue.priority === undefined || issue.priority === null ? undefined : String(issue.priority),
+    labels:
+      repo && !labels.some((label) => label.toLowerCase() === `repo:${repo}`.toLowerCase())
+        ? [...labels, `repo:${repo}`]
+        : labels,
+    repo,
+    blockedReason: repo ? undefined : "missing-repo",
+    sourceUrl,
+    metadata: {
+      assignee: stringValue(issue.assignee) ?? recordName(issue.assignee),
+      project: stringValue(issue.project) ?? recordName(issue.project),
+      team: stringValue(issue.team) ?? recordName(issue.team),
+    },
+  };
+}
+
+export function linearExportToPlaneImportDrafts(input: unknown): PlaneImportDraft[] {
+  const issues = extractLinearIssues(input);
+  return issues.map((issue) => linearIssueToPlaneImportDraft(issue));
+}
+
 function normalizeLabels(labels: PlaneLabel[] = []): string[] {
   return labels
     .map((label) => {
@@ -297,6 +387,58 @@ function normalizeLabels(labels: PlaneLabel[] = []): string[] {
     })
     .map((label) => label.trim())
     .filter(Boolean);
+}
+
+function normalizeLinearLabels(issue: LinearIssuePayload): string[] {
+  const labels = [...(issue.labels ?? []), ...(issue.labelNames ?? [])];
+  return labels
+    .map((label) => {
+      if (typeof label === "string") return label;
+      return label.name ?? "";
+    })
+    .map((label) => label.trim())
+    .filter(Boolean);
+}
+
+function repoFromGenericLabels(labels: string[]): string | undefined {
+  return parseRepoFromLabels(labels);
+}
+
+function issueIdentifier(issue: LinearIssuePayload): string | undefined {
+  return (
+    stringValue(issue.identifier) ??
+    stringValue(issue.key) ??
+    (issue.number === undefined ? undefined : String(issue.number))
+  );
+}
+
+function linearStateName(issue: LinearIssuePayload): string {
+  const state =
+    typeof issue.state === "string"
+      ? issue.state
+      : (issue.state?.name ?? stringValue(issue.status) ?? "Todo");
+  return state.trim() || "Todo";
+}
+
+function recordName(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  return stringValue(value.name) ?? stringValue(value.email) ?? stringValue(value.id);
+}
+
+function extractLinearIssues(input: unknown): LinearIssuePayload[] {
+  if (Array.isArray(input)) return input.filter(isRecord) as LinearIssuePayload[];
+  if (!isRecord(input)) {
+    throw new TypeError("Linear export must be an array or object");
+  }
+
+  const candidates = [input.issues, input.data, input.results, input.nodes];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate.filter(isRecord) as LinearIssuePayload[];
+    }
+  }
+
+  throw new Error("Linear export does not contain issues, data, results, or nodes array");
 }
 
 function extractTaskPayload(payload: Record<string, unknown>): PlaneTaskPayload | undefined {

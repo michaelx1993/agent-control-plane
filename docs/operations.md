@@ -66,6 +66,7 @@ The check validates:
 - `/api/tasks`
 - `/api/runs`
 - `/api/timeline`
+- `/api/monitoring`
 - `/api/readiness`
 - `/api/prompt-releases`
 - `/api/prompt-components`
@@ -244,6 +245,27 @@ Restore explicitly from a backup file:
 DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" \
   scripts/db-restore.sh backups/agent-control-plane-YYYYMMDDTHHMMSSZ.dump
 ```
+
+## Linear Migration Plan
+
+Generate an offline migration draft from a Linear JSON or CSV export before creating Plane work
+items:
+
+```bash
+pnpm linear:migration-plan ./exports/linear-open-issues.json --output ./exports/plane-draft.json
+```
+
+The output contains:
+
+- `summary.total`, `summary.ready`, and `summary.missingRepo`.
+- One draft per Linear issue with `identifier`, `title`, `description`, `stateName`, `labels`,
+  `repo`, `sourceUrl`, and source metadata.
+- `blockedReason: "missing-repo"` when the export cannot determine a target repo. These items must
+  be fixed before import because the worker requires repo routing.
+
+CSV headers are normalized for common Linear exports, including `id`, `identifier`, `key`, `title`,
+`description`, `state`, `status`, `priority`, `labels`, `repo`, `repository`, `project`, `team`,
+`assignee`, and `url`.
 
 ## Plane Fork
 

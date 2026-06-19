@@ -39,6 +39,7 @@ P0 方案固化
 - 已有 Operator Timeline API/UI，聚合 run event、audit event、feedback。
 - 已有 Readiness API/UI，展示 Plane/OpenHands/Langfuse/DB/Worker 配置缺口。
 - 已有人工 task transition API，状态跳转受 state-machine 校验。
+- 已有 Linear 离线迁移草案工具，可将 JSON/CSV export 转换为 Plane import draft，并标出缺失 repo 的任务。
 
 当前完成度判定：
 
@@ -492,6 +493,7 @@ Done              -> Terminal
 
 - 迁移现有 team/project/repo/prompt。
 - 从 Linear 导出未完成任务，导入 Plane。
+- Linear export 可先通过 `pnpm linear:migration-plan` 生成可审查的 Plane import draft。
 - 保留旧 run/log 链接。
 - 配置权限和审计。
 - 部署 Control Plane。

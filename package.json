@@ -13,6 +13,7 @@
     "format:write": "prettier --write .",
     "health": "scripts/health-check.sh",
     "lint": "pnpm -r --if-present lint",
+    "linear:migration-plan": "pnpm --filter @agent-control-plane/worker exec tsx ../../scripts/linear-to-plane-import.ts",
     "live:preflight": "pnpm --filter @agent-control-plane/worker live-preflight",
     "release:check": "scripts/release-check.sh",
     "test": "pnpm -r --if-present test",

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   HttpPlaneClient,
+  linearExportToPlaneImportDrafts,
+  linearIssueToPlaneImportDraft,
   normalizePlaneTask,
   parsePlaneWebhookPayload,
   parseRepoFromLabels,
@@ -41,6 +43,72 @@ describe("webhook parser", () => {
 
     expect(parsed.eventType).toBe("task.updated");
     expect(parsed.task?.id).toBe("issue-1");
+  });
+});
+
+describe("Linear migration draft", () => {
+  it("converts Linear issues into Plane import drafts with repo labels", () => {
+    const draft = linearIssueToPlaneImportDraft({
+      id: "lin-1",
+      identifier: "TOK-3",
+      title: "Build traffic ingestion",
+      description: "Move task execution to Plane.",
+      state: { name: "Development" },
+      priority: "High",
+      labels: [{ name: "repo:traffic" }, { name: "Feature" }],
+      assignee: { name: "bob-x" },
+      project: { name: "token" },
+      team: { name: "token-team" },
+      url: "https://linear.app/workspace/issue/TOK-3",
+    });
+
+    expect(draft).toMatchObject({
+      blockedReason: undefined,
+      identifier: "TOK-3",
+      repo: "traffic",
+      source: "linear",
+      sourceId: "lin-1",
+      stateName: "Development",
+      title: "Build traffic ingestion",
+    });
+    expect(draft.labels).toContain("repo:traffic");
+    expect(draft.description).toContain("Migrated from Linear: TOK-3");
+    expect(draft.metadata).toMatchObject({
+      assignee: "bob-x",
+      project: "token",
+      team: "token-team",
+    });
+  });
+
+  it("marks missing repo drafts as blocked for manual routing", () => {
+    const draft = linearIssueToPlaneImportDraft({
+      id: "lin-2",
+      key: "TOK-4",
+      title: "No repo yet",
+      status: "Todo",
+    });
+
+    expect(draft.blockedReason).toBe("missing-repo");
+    expect(draft.repo).toBeUndefined();
+  });
+
+  it("accepts common Linear export wrappers", () => {
+    const drafts = linearExportToPlaneImportDrafts({
+      issues: [
+        {
+          id: "lin-3",
+          identifier: "TOK-5",
+          title: "Wrapped issue",
+          repo: "crs-src",
+        },
+      ],
+    });
+
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]).toMatchObject({
+      identifier: "TOK-5",
+      repo: "crs-src",
+    });
   });
 });
 
