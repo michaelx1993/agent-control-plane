@@ -625,7 +625,7 @@ To explicitly verify PATCH and comment APIs, opt into mutation against a disposa
 ```bash
 PLANE_PROBE_MUTATE="true" \
 PLANE_PROBE_TASK_ID="task-id-from-plane" \
-PLANE_PROBE_PATCH_JSON='{"labels":["repo:crs-src","control-plane-probe"]}' \
+PLANE_PROBE_PATCH_JSON='{"state":"state-id-from-plane","labels":["label-id-from-plane"]}' \
 PLANE_PROBE_COMMENT_BODY="Agent Control Plane probe" \
 pnpm plane:probe
 ```
@@ -633,9 +633,11 @@ pnpm plane:probe
 The probe fails if listing, repo parsing, task load, PATCH, or comment checks fail. Keep the mutating
 probe pointed at a disposable spike work item.
 
-Local spike evidence on 2026-06-19: self-host Plane at `http://127.0.0.1:3200` passed non-mutating
-`pnpm plane:probe` for project `token`; project labels, work-item listing, repo parsing, and task get
-all passed, with the probe work item resolving `repo=crs-src` from a Plane label ID.
+Local spike evidence on 2026-06-19: self-host Plane at `http://127.0.0.1:3200` passed both
+non-mutating and mutating `pnpm plane:probe` for project `token`; project labels, work-item listing,
+repo parsing, task get, PATCH, and comment checks all passed. The probe work item resolved
+`repo=crs-src` from a Plane label ID, and the mutating probe used the existing state ID and label ID
+on the disposable `P0.5 smoke test` work item.
 
 ## Live Dispatch Smoke Test
 

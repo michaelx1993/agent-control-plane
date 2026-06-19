@@ -56,7 +56,8 @@ P0 方案固化
 - `pnpm live:preflight` 会校验 DB 连通性和 Control Plane seed baseline，避免空库启动 live worker。
 - `pnpm plane:probe` 可对 self-host Plane work-items API、project labels、repo 路由解析、
   可选 PATCH/comment mutation 做 spike 验证；2026-06-19 本机 self-host Plane 已通过
-  non-mutating probe，并从 Plane label ID 解析出 `repo=crs-src`。
+  non-mutating 和 mutating probe，并从 Plane label ID 解析出 `repo=crs-src`，PATCH/comment
+  写链路已在 disposable `P0.5 smoke test` 上验证。
 - `pnpm live:dispatch-once` 会先执行 live preflight，再派发一个真实任务，并输出 task/run/
   OpenHands/Langfuse/next-state evidence bundle 用于 Development run smoke test。
 - `pnpm live:verify-once` 会在 one-shot live dispatch 后校验 evidence bundle，缺少 Plane、
