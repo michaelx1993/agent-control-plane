@@ -72,7 +72,19 @@ describe("DispatchWorker", () => {
         runId: "run-1",
       }),
       startRun: vi.fn().mockResolvedValue(undefined),
-      listEvents: vi.fn().mockResolvedValue({ events: [] }),
+      listEvents: vi.fn().mockResolvedValue({
+        events: [
+          {
+            id: "event-1",
+            conversationId: "conversation-1",
+            type: "tool.call",
+            toolName: "shell",
+            input: { cmd: "pnpm test" },
+            createdAt: "2026-06-18T00:00:00.000Z",
+          },
+        ],
+        nextCursor: "event-1",
+      }),
       getResult: vi.fn().mockResolvedValue({
         conversationId: "conversation-1",
         status: "completed",
@@ -117,6 +129,16 @@ describe("DispatchWorker", () => {
       conversationId: "conversation-1",
       conversationUrl: "https://openhands.test/conversations/conversation-1",
       eventCursor: "event-42",
+      events: [
+        {
+          id: "event-1",
+          conversationId: "conversation-1",
+          type: "tool.call",
+          toolName: "shell",
+          input: { cmd: "pnpm test" },
+          createdAt: "2026-06-18T00:00:00.000Z",
+        },
+      ],
       summary: "Implemented and tested.",
     });
   });

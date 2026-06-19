@@ -7,6 +7,7 @@ import {
   markRunRunning as dbMarkRunRunning,
   prisma,
   recordRunObservabilityRefs as dbRecordRunObservabilityRefs,
+  recordRunExternalEvents as dbRecordRunExternalEvents,
   startRun as dbStartRun,
   upsertSyncedTask,
   type DbClient,
@@ -26,6 +27,7 @@ import {
 } from "@agent-control-plane/langfuse";
 import {
   HttpOpenHandsAdapter,
+  type OpenHandsEvent as OpenHandsRuntimeEvent,
   type OpenHandsAdapter as OpenHandsClient,
 } from "@agent-control-plane/openhands";
 import {
@@ -173,6 +175,7 @@ export interface OpenHandsRunResult {
   conversationId: string;
   conversationUrl?: string;
   eventCursor?: string;
+  events?: OpenHandsRuntimeEvent[];
   summary: string;
   suggestedNextState?: TaskState;
 }
@@ -739,6 +742,11 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       model: "gpt-5.5 medium",
       promptReleaseId: run.promptReleaseId,
     });
+    await dbRecordRunExternalEvents(this.db, {
+      runId,
+      source: "openhands",
+      events: (result.events ?? []).map((event) => openHandsEventToRunEventInput(event)),
+    });
 
     this.leaseOwners.delete(runId);
     return {
@@ -1131,14 +1139,21 @@ export class OpenHandsRuntimeAdapter implements OpenHandsAdapter {
     });
     await this.client.startRun(conversation.id);
 
+    let eventCursor: string | undefined;
+    const events: OpenHandsRuntimeEvent[] = [];
     for (let attempt = 0; attempt < this.options.pollAttempts; attempt += 1) {
+      const page = await this.client.listEvents(conversation.id, eventCursor);
+      events.push(...page.events);
+      eventCursor = page.nextCursor ?? eventCursor;
+
       const result = await this.client.getResult(conversation.id);
       if (result) {
         return {
           status: result.status === "completed" ? "succeeded" : "failed",
           conversationId: result.conversationId,
           conversationUrl: conversation.url,
-          eventCursor: result.eventCursor,
+          eventCursor: result.eventCursor ?? eventCursor,
+          events,
           summary: result.error ?? result.summary,
         };
       }
@@ -1152,6 +1167,8 @@ export class OpenHandsRuntimeAdapter implements OpenHandsAdapter {
       status: "failed",
       conversationId: conversation.id,
       conversationUrl: conversation.url,
+      eventCursor,
+      events,
       summary: `OpenHands run did not complete after ${this.options.pollAttempts} polling attempts.`,
     };
   }
@@ -1284,6 +1301,30 @@ function roleKeyFromRunRole(role: string): AgentRoleKey {
 
 function isAllowedWorkerTransition(from: TaskState, to: TaskState): boolean {
   return validateTransition(from as never, to as never).ok;
+}
+
+function openHandsEventToRunEventInput(event: OpenHandsRuntimeEvent) {
+  return {
+    externalId: event.id,
+    type: event.type,
+    message: openHandsEventMessage(event),
+    createdAt: event.createdAt,
+    payload: openHandsEventPayload(event),
+  };
+}
+
+function openHandsEventMessage(event: OpenHandsRuntimeEvent): string {
+  if (event.type === "agent.message") return event.message.slice(0, 500);
+  if (event.type === "tool.call") return `tool.call:${event.toolName}`;
+  if (event.type === "tool.result") return `tool.result:${event.toolName}`;
+  return `run.status:${event.status}`;
+}
+
+function openHandsEventPayload(event: OpenHandsRuntimeEvent): Record<string, unknown> {
+  if (event.type === "agent.message") return { message: event.message };
+  if (event.type === "tool.call") return { toolName: event.toolName, input: event.input };
+  if (event.type === "tool.result") return { toolName: event.toolName, output: event.output };
+  return { status: event.status };
 }
 
 function runtimePolicyConfigFromWorkerConfig(config: WorkerConfig): RuntimePolicyConfig {

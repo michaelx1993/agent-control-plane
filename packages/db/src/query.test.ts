@@ -4,6 +4,7 @@ import {
   isDispatchableTaskCandidate,
   markExpiredLeasesFailed,
   markRunRunning,
+  recordRunExternalEvents,
   recordRunObservabilityRefs,
 } from "./query.js";
 import type { DbClient } from "./query.js";
@@ -278,6 +279,54 @@ describe("isDispatchableTaskCandidate", () => {
         data: expect.objectContaining({
           runId: "run-1",
           eventType: "heartbeat",
+        }),
+      }),
+    );
+  });
+
+  it("records external OpenHands events as run event payloads", async () => {
+    const eventCreate = viLike();
+    const db = {
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+        return callback({
+          runEvent: {
+            create: async (input: unknown) => {
+              eventCreate(input);
+              return {};
+            },
+          },
+        });
+      },
+    } as unknown as DbClient;
+
+    const result = await recordRunExternalEvents(db, {
+      runId: "run-1",
+      source: "openhands",
+      events: [
+        {
+          externalId: "event-1",
+          type: "tool.call",
+          message: "shell",
+          createdAt: "2026-06-18T00:00:00.000Z",
+          payload: { toolName: "shell" },
+        },
+      ],
+    });
+
+    expect(result).toEqual({ count: 1 });
+    expect(eventCreate.calls[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          runId: "run-1",
+          eventType: "state_sync",
+          message: "shell",
+          payload: {
+            source: "openhands",
+            externalEventId: "event-1",
+            externalEventType: "tool.call",
+            externalCreatedAt: "2026-06-18T00:00:00.000Z",
+            event: { toolName: "shell" },
+          },
         }),
       }),
     );

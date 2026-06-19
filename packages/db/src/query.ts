@@ -648,6 +648,45 @@ export async function recordRunObservabilityRefs(
   });
 }
 
+export interface RecordRunExternalEventsInput {
+  runId: string;
+  source: string;
+  events: Array<{
+    externalId: string;
+    type: string;
+    message?: string;
+    createdAt?: string;
+    payload?: unknown;
+  }>;
+}
+
+export async function recordRunExternalEvents(db: DbClient, input: RecordRunExternalEventsInput) {
+  if (input.events.length === 0) {
+    return { count: 0 };
+  }
+
+  return db.$transaction(async (tx) => {
+    for (const event of input.events) {
+      await tx.runEvent.create({
+        data: {
+          runId: input.runId,
+          eventType: "state_sync",
+          message: event.message ?? `${input.source}:${event.type}`,
+          payload: {
+            source: input.source,
+            externalEventId: event.externalId,
+            externalEventType: event.type,
+            externalCreatedAt: event.createdAt ?? null,
+            event: (event.payload ?? {}) as Prisma.InputJsonValue,
+          } satisfies Prisma.InputJsonObject,
+        },
+      });
+    }
+
+    return { count: input.events.length };
+  });
+}
+
 export interface CompleteRunInput {
   runId: string;
   leaseOwner?: string;
