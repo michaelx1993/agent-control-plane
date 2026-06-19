@@ -11,6 +11,10 @@ import {
 } from "./mock-data";
 import { PrismaClient } from "@prisma/client";
 import type { RunStatus as DbRunStatus, TaskState as DbTaskState } from "@prisma/client";
+import type {
+  PromptComponentStatus as DbPromptComponentStatus,
+  PromptScopeType as DbPromptScopeType,
+} from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
   webPrisma?: PrismaClient;
@@ -36,6 +40,35 @@ export type RunsResponse = {
 export type PromptReleasesResponse = {
   count: number;
   promptReleases: PromptRelease[];
+};
+
+export type PromptComponentItem = {
+  id: string;
+  scopeType: DbPromptScopeType;
+  scopeId: string | null;
+  name: string;
+  version: number;
+  status: DbPromptComponentStatus;
+  content: string;
+  changelog: string | null;
+  author: string | null;
+  updatedAt: string;
+};
+
+export type PromptComponentsResponse = {
+  count: number;
+  promptComponents: PromptComponentItem[];
+};
+
+export type CreatePromptComponentInput = {
+  scopeType: DbPromptScopeType;
+  scopeId?: string | null;
+  name: string;
+  content: string;
+  status?: DbPromptComponentStatus;
+  changelog?: string | null;
+  author?: string | null;
+  version?: number;
 };
 
 export type SystemHealthResponse = {
@@ -98,6 +131,76 @@ export async function getPromptReleases(): Promise<PromptReleasesResponse> {
   };
 }
 
+export async function getPromptComponents(): Promise<PromptComponentsResponse> {
+  if (!shouldUseDatabase()) {
+    return {
+      count: 0,
+      promptComponents: [],
+    };
+  }
+
+  const components = await prisma.promptComponent.findMany({
+    orderBy: [{ scopeType: "asc" }, { name: "asc" }, { version: "desc" }],
+    take: 200,
+  });
+  const promptComponents = components.map((component): PromptComponentItem => {
+    return {
+      id: component.id,
+      scopeType: component.scopeType,
+      scopeId: component.scopeId,
+      name: component.name,
+      version: component.version,
+      status: component.status,
+      content: component.content,
+      changelog: component.changelog,
+      author: component.author,
+      updatedAt: component.updatedAt.toISOString(),
+    };
+  });
+
+  return {
+    count: promptComponents.length,
+    promptComponents,
+  };
+}
+
+export async function createPromptComponent(
+  input: CreatePromptComponentInput,
+): Promise<PromptComponentItem> {
+  if (!shouldUseDatabase()) {
+    throw new Error("DATABASE_URL is required to create prompt components");
+  }
+
+  const version =
+    input.version ??
+    (await nextPromptComponentVersion(input.scopeType, input.scopeId ?? null, input.name));
+  const component = await prisma.promptComponent.create({
+    data: {
+      scopeType: input.scopeType,
+      scopeId: input.scopeId ?? null,
+      name: input.name,
+      version,
+      status: input.status ?? "draft",
+      content: input.content,
+      changelog: input.changelog,
+      author: input.author,
+    },
+  });
+
+  return {
+    id: component.id,
+    scopeType: component.scopeType,
+    scopeId: component.scopeId,
+    name: component.name,
+    version: component.version,
+    status: component.status,
+    content: component.content,
+    changelog: component.changelog,
+    author: component.author,
+    updatedAt: component.updatedAt.toISOString(),
+  };
+}
+
 export async function getSystemHealth(): Promise<SystemHealthResponse> {
   const taskQueueResponse = await getTaskQueue();
 
@@ -133,6 +236,28 @@ export async function getSystemHealth(): Promise<SystemHealthResponse> {
     queue: taskQueueResponse.summary,
     signals: healthSignals,
   };
+}
+
+async function nextPromptComponentVersion(
+  scopeType: DbPromptScopeType,
+  scopeId: string | null,
+  name: string,
+): Promise<number> {
+  const latest = await prisma.promptComponent.findFirst({
+    where: {
+      scopeType,
+      scopeId,
+      name,
+    },
+    orderBy: {
+      version: "desc",
+    },
+    select: {
+      version: true,
+    },
+  });
+
+  return (latest?.version ?? 0) + 1;
 }
 
 async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {

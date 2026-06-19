@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  GET as getPromptComponentsRoute,
+  POST as postPromptComponentsRoute,
+} from "./prompt-components/route";
 import { GET as getPromptReleasesRoute } from "./prompt-releases/route";
 import { GET as getTasksRoute } from "./tasks/route";
 
@@ -42,5 +46,49 @@ describe("new mock API routes", () => {
       updatedBy: expect.any(String),
       version: expect.any(String),
     });
+  });
+
+  it("returns an empty prompt component list without a database", async () => {
+    const response = await getPromptComponentsRoute();
+    const payload = await response.json();
+
+    expect(payload).toEqual({
+      count: 0,
+      promptComponents: [],
+    });
+  });
+
+  it("validates prompt component creation payloads", async () => {
+    const response = await postPromptComponentsRoute(
+      new Request("http://localhost/api/prompt-components", {
+        method: "POST",
+        body: JSON.stringify({
+          scopeType: "invalid",
+          name: "global-base",
+          content: "Use Chinese.",
+        }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toContain("scopeType");
+  });
+
+  it("requires DATABASE_URL before creating prompt components", async () => {
+    const response = await postPromptComponentsRoute(
+      new Request("http://localhost/api/prompt-components", {
+        method: "POST",
+        body: JSON.stringify({
+          scopeType: "global",
+          name: "global-base",
+          content: "Use Chinese.",
+        }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain("DATABASE_URL");
   });
 });
