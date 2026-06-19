@@ -123,6 +123,28 @@ Operational rule:
 - Reviewers should add feedback or mark the task blocked/done after the retry cap is reached.
   This prevents failing tasks from looping silently through the worker.
 
+## Plane Polling Fallback
+
+The live worker calls Plane sync before each dispatch pass. This is a reconciliation fallback for
+missed or incomplete webhooks, not the primary event stream.
+
+Default configuration:
+
+```bash
+PLANE_SYNC_MIN_INTERVAL_MS="60000"
+PLANE_SYNC_PER_PAGE="100"
+```
+
+Operational rule:
+
+- `PLANE_SYNC_MIN_INTERVAL_MS=60000` keeps one worker to at most 60 Plane list requests per hour for
+  fallback polling.
+- `PLANE_SYNC_PER_PAGE` is clamped to `1..100`.
+- The first sync is full project reconciliation. Later syncs use the previous successful sync start
+  timestamp as `updated_since`, so changes during an in-flight sync are picked up in the next pass.
+- Keep webhooks enabled even with polling fallback; polling is for healing missed events and startup
+  reconciliation.
+
 ## Review Rework Feedback
 
 When Code Review or Human Review rejects work, use the Run Detail feedback form first. It writes

@@ -107,7 +107,8 @@ the target Plane deployment explicitly requires OAuth-compatible `Authorization`
 - [ ] state change 是否表现为 issue update 已实测并记录。
 - [x] receiver 校验 `X-Plane-Signature`。代码已支持 HMAC-SHA256 raw body 验签；仍需 self-host
       webhook delivery 实测。
-- [ ] webhook 不完整时的 polling fallback 决策已记录。
+- [x] webhook 不完整时的 polling fallback 决策已记录。worker 已实现 60s 最小间隔、
+      `updated_since` cursor 和 `per_page<=100`；仍需 self-host API 行为实测。
 - [ ] fork `michaelx1993/plane` 的同步、分支、license 策略已确认。
 - [ ] 明确 P1 是否需要 Plane 源码二开。
 

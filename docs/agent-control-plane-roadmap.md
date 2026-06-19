@@ -122,7 +122,8 @@ P0 方案固化
 风险：
 
 - Plane 原生 custom field 能力不足，需要尽早二开。
-- webhook 不完整时，P1 必须保留 polling fallback。
+- webhook 不完整时，P1 保留 polling fallback；代码策略为 60s 节流、`updated_since`
+  reconciliation cursor 和 `per_page<=100`。
 
 ## P1 Plane 任务层接入
 
@@ -141,6 +142,7 @@ P0 方案固化
 
 - 从 Plane 拉取 project/task。
 - 接收 Plane task create/update webhook。
+- webhook 漏事件时用低频 polling fallback 做 reconciliation。
 - 将 Plane task 映射成本地 `tasks`。
 - 解析 repo：优先 Plane 结构化字段，其次 label，例如 `repo:crs-src`。
 - 同步状态变更回 Plane。
@@ -160,6 +162,7 @@ P0 方案固化
 - 本地 run 完成后，能把状态和摘要写回 Plane。
 - webhook 可选 `PLANE_WEBHOOK_SECRET`，对外暴露时必须配置。
 - receiver 支持 Plane `X-Plane-Signature` HMAC-SHA256 raw body 验签。
+- polling fallback 支持 60s 最小请求间隔、`updated_since` cursor 和 `per_page<=100`。
 
 风险：
 

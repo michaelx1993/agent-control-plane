@@ -206,6 +206,16 @@ describe("DispatchWorker", () => {
     expect(loadConfig({}).mode).toBe("mock");
   });
 
+  it("loads Plane polling fallback limits from env", () => {
+    const config = loadConfig({
+      PLANE_SYNC_MIN_INTERVAL_MS: "60000",
+      PLANE_SYNC_PER_PAGE: "500",
+    });
+
+    expect(config.planeSyncMinIntervalMs).toBe(60_000);
+    expect(config.planeSyncPerPage).toBe(100);
+  });
+
   it("fails fast when live runtime integrations are not configured", () => {
     const config = loadConfig({ WORKER_MODE: "live" });
 
@@ -816,6 +826,55 @@ describe("DispatchWorker", () => {
         }),
       }),
     );
+  });
+
+  it("throttles Plane polling fallback inside the configured interval", async () => {
+    let now = new Date("2026-06-18T10:00:00.000Z");
+    const listTasks = vi.fn().mockResolvedValue([]);
+    const sync = new PlaneTaskSyncService({} as DbClient, { listTasks } as unknown as PlaneClient, {
+      projectSlug: "token",
+      workspaceSlug: "acme",
+      projectId: "project-plane-1",
+      minIntervalMs: 60_000,
+      now: () => now,
+    });
+
+    const first = await sync.sync();
+    now = new Date("2026-06-18T10:00:30.000Z");
+    const second = await sync.sync();
+
+    expect(first).toEqual({ fetched: 0, upserted: 0, blockedMissingRepo: 0 });
+    expect(second).toEqual({ fetched: 0, upserted: 0, blockedMissingRepo: 0 });
+    expect(listTasks).toHaveBeenCalledTimes(1);
+    expect(listTasks).toHaveBeenCalledWith({
+      workspaceSlug: "acme",
+      projectId: "project-plane-1",
+      perPage: 100,
+    });
+  });
+
+  it("uses the previous successful sync start as the Plane updatedSince cursor", async () => {
+    let now = new Date("2026-06-18T10:00:00.000Z");
+    const listTasks = vi.fn().mockResolvedValue([]);
+    const sync = new PlaneTaskSyncService({} as DbClient, { listTasks } as unknown as PlaneClient, {
+      projectSlug: "token",
+      workspaceSlug: "acme",
+      projectId: "project-plane-1",
+      perPage: 50,
+      minIntervalMs: 60_000,
+      now: () => now,
+    });
+
+    await sync.sync();
+    now = new Date("2026-06-18T10:01:00.000Z");
+    await sync.sync();
+
+    expect(listTasks).toHaveBeenNthCalledWith(2, {
+      workspaceSlug: "acme",
+      projectId: "project-plane-1",
+      perPage: 50,
+      updatedSince: "2026-06-18T10:00:00.000Z",
+    });
   });
 
   it("writes completed run state and summary back to Plane", async () => {

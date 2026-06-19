@@ -74,6 +74,8 @@ export interface WorkerConfig {
   planeApiKeyHeader: string;
   planeWorkspaceSlug?: string;
   planeProjectId?: string;
+  planeSyncMinIntervalMs: number;
+  planeSyncPerPage: number;
   projectSlug: string;
   defaultRepoConcurrency: number;
   defaultRoleConcurrency: number;
@@ -294,6 +296,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     planeApiKeyHeader: env.PLANE_API_KEY_HEADER ?? "X-API-Key",
     planeWorkspaceSlug: env.PLANE_WORKSPACE_SLUG,
     planeProjectId: env.PLANE_PROJECT_ID,
+    planeSyncMinIntervalMs: numberFromEnv(env.PLANE_SYNC_MIN_INTERVAL_MS, 60_000),
+    planeSyncPerPage: planePerPageFromEnv(env.PLANE_SYNC_PER_PAGE, 100),
     projectSlug: env.CONTROL_PLANE_PROJECT_SLUG ?? "token",
     defaultRepoConcurrency: numberFromEnv(env.WORKER_DEFAULT_REPO_CONCURRENCY, 1),
     defaultRoleConcurrency: numberFromEnv(env.WORKER_DEFAULT_ROLE_CONCURRENCY, 2),
@@ -563,6 +567,8 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       enabledTeams: [task.team],
       leaseMs,
       planeApiKeyHeader: "X-API-Key",
+      planeSyncMinIntervalMs: 60_000,
+      planeSyncPerPage: 100,
       projectSlug: task.project,
       defaultRepoConcurrency: 1,
       defaultRoleConcurrency: 2,
@@ -1144,6 +1150,9 @@ export type PlaneTaskSyncResult = {
 };
 
 export class PlaneTaskSyncService {
+  private lastSyncAttemptAt?: Date;
+  private updatedSinceCursor?: string;
+
   constructor(
     private readonly db: DbClient,
     private readonly plane: PlaneClient,
@@ -1152,15 +1161,25 @@ export class PlaneTaskSyncService {
       workspaceSlug?: string;
       projectId?: string;
       perPage?: number;
+      minIntervalMs?: number;
+      now?: () => Date;
     },
   ) {}
 
   async sync(): Promise<PlaneTaskSyncResult> {
-    const payloads = await this.plane.listTasks({
+    const now = this.options.now?.() ?? new Date();
+    if (this.shouldThrottle(now)) {
+      return { fetched: 0, upserted: 0, blockedMissingRepo: 0 };
+    }
+
+    this.lastSyncAttemptAt = now;
+    const listParams = {
       workspaceSlug: this.options.workspaceSlug,
       projectId: this.options.projectId,
-      perPage: this.options.perPage ?? 50,
-    });
+      perPage: this.options.perPage ?? 100,
+      ...(this.updatedSinceCursor ? { updatedSince: this.updatedSinceCursor } : {}),
+    };
+    const payloads = await this.plane.listTasks(listParams);
 
     let upserted = 0;
     let blockedMissingRepo = 0;
@@ -1177,11 +1196,22 @@ export class PlaneTaskSyncService {
       upserted += 1;
     }
 
+    this.updatedSinceCursor = now.toISOString();
+
     return {
       fetched: payloads.length,
       upserted,
       blockedMissingRepo,
     };
+  }
+
+  private shouldThrottle(now: Date): boolean {
+    const minIntervalMs = this.options.minIntervalMs ?? 0;
+    if (minIntervalMs <= 0 || !this.lastSyncAttemptAt) {
+      return false;
+    }
+
+    return now.getTime() - this.lastSyncAttemptAt.getTime() < minIntervalMs;
   }
 
   async syncRunResult(
@@ -1248,6 +1278,8 @@ export function createPlaneTaskSyncService(
       projectSlug: config.projectSlug,
       workspaceSlug: config.planeWorkspaceSlug,
       projectId: config.planeProjectId,
+      perPage: config.planeSyncPerPage,
+      minIntervalMs: config.planeSyncMinIntervalMs,
     },
   );
 }
@@ -1582,6 +1614,11 @@ function runtimePolicyConfigFromWorkerConfig(config: WorkerConfig): RuntimePolic
 function numberFromEnv(value: string | undefined, fallback: number): number {
   const parsed = optionalNumberFromEnv(value);
   return parsed ?? fallback;
+}
+
+function planePerPageFromEnv(value: string | undefined, fallback: number): number {
+  const parsed = numberFromEnv(value, fallback);
+  return Math.max(1, Math.min(100, Math.trunc(parsed)));
 }
 
 function optionalNumberFromEnv(value: string | undefined): number | undefined {
