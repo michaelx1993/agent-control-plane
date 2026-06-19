@@ -36,9 +36,13 @@ The Control Plane codebase now has a verified local/operator MVP:
 
 The full product is not finished yet. The remaining critical path is live integration:
 
-- Plane self-host must be started and validated against real API/webhook behavior.
-- Worker must run against a real OpenHands endpoint instead of the mock adapter.
-- Langfuse must receive real traces from live OpenHands/LLM execution.
+- Plane self-host API/webhook has been validated locally on 2026-06-19. Work-item
+  list/get/patch/comment, repo label fallback, state-change webhook, and comment webhook are proven.
+  Plane custom property `repo` is not reliable enough yet, so P1 uses `repo:<name>` labels.
+- Worker must still run against a real OpenHands endpoint instead of the mock adapter.
+- Langfuse must still receive real traces from live OpenHands/LLM execution.
+- One complete `Plane -> Control Plane -> OpenHands -> Langfuse -> Plane` live dispatch evidence
+  bundle is still required before calling the system production-ready.
 - Production deployment, permissions, backup/restore, and long-running ops still need hardening.
 
 ## Workspace

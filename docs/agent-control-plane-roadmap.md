@@ -96,9 +96,10 @@ P0 方案固化
 
 当前完成度判定：
 
-- 本地/operator MVP：约 72%，已具备 mock worker、DB demo run、控制台、prompt 管理、timeline、audit log、readiness、feedback/rework、人工 transition。
+- 本地/operator MVP：约 78%，已具备 mock worker、DB demo run、控制台、prompt 管理、timeline、audit log、readiness、feedback/rework、人工 transition、Plane spike 实测和 runtime protocol probe。
 - 真实任务执行闭环：未完成。Plane self-host/API/webhook 已实测；关键缺口是 OpenHands
-  live execution、Langfuse live trace 和一次完整 live dispatch 证据。
+  live execution、Langfuse live trace 和一次完整 live dispatch 证据。`runtime:probe` 只能证明
+  OpenHands/Langfuse runtime 协议能产出证据，不等价于真实 Plane 任务闭环。
 - 生产化替代 Symphony：未完成。还需要部署、权限、配置管理、备份恢复、错误恢复、长任务稳定性和操作审计完善。
 
 下一阶段优先级：
@@ -107,9 +108,10 @@ P0 方案固化
 2. 运行 `RUNTIME_PROBE_MUTATE=true pnpm runtime:probe`，确认 OpenHands conversation/run/result
    和 Langfuse trace/generation 协议能产生真实证据。
 3. 配置 `WORKER_MODE=live`，用真实 OpenHands endpoint 跑一次 Development 任务。
-4. 确认 run detail 可跳转 OpenHands conversation 和 Langfuse trace，并展示 token/cost。
-5. 将 live run 的 Plane 状态回写和低频 comment 验证通过。
-6. 固化部署/回滚/备份 runbook。
+4. 运行 `WORKER_MODE=live pnpm live:verify-once`，取得并保存一次完整 evidence bundle。
+5. 确认 run detail 可跳转 OpenHands conversation 和 Langfuse trace，并展示 token/cost。
+6. 将 live run 的 Plane 状态回写和低频 comment 验证通过。
+7. 固化部署/回滚/备份 runbook。
 
 ## P0 方案固化
 
@@ -177,7 +179,8 @@ P0 方案固化
 
 风险：
 
-- Plane 原生 custom field 能力不足，需要尽早二开。
+- Plane 原生 custom field 能力已实测不足；短期继续用 `repo:<name>` label fallback，只有当页面展示、
+  filter/order 或强类型字段成为硬需求时才进入 Plane fork 二开。
 - webhook 不完整时，P1 保留 polling fallback；代码策略为 60s 节流、`updated_since`
   reconciliation cursor 和 `per_page<=100`。
 
@@ -223,8 +226,9 @@ P0 方案固化
 
 风险：
 
-- Plane API/webhook 能力需要实测。
-- 如果 Plane 原生自定义字段不足，先用 label 承载，再进入 Plane fork 二开。
+- Plane API/webhook 已完成 P0.5 实测，但 DELETE work item 未产生 delete webhook，不能把 webhook
+  作为唯一事实源。
+- Plane 原生自定义字段不足，P1 先用 label 承载，再按需进入 Plane fork 二开。
 
 ## P2 Control Plane Runtime
 

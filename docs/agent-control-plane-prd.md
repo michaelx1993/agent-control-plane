@@ -323,8 +323,16 @@ Trace 策略：
 当前完成度说明：
 
 - 已完成的是 Control Plane 本地 MVP：数据库模型、mock worker、run/lease/heartbeat、prompt 平台、run detail、feedback/rework/resolve、Operator Timeline、Readiness、人工 transition API/UI。
-- 未完成的是完整产品：Plane self-host 实测、真实 Plane API/webhook 同步、真实 OpenHands 执行、真实 Langfuse trace、生产部署和权限治理。
-- 因此当前系统可以用于本地验证和控制台流程验收，还不能宣称已经替代 Symphony 跑生产任务。
+- 已完成 Plane self-host spike：2026-06-19 已在本机 self-host Plane 验证 work-item
+  list/get/PATCH/comment、project labels、`repo:<name>` label fallback、issue create/update
+  webhook、state-change webhook、issue_comment webhook 和 rate-limit headers。DELETE work item 未观察到
+  delete webhook，必须继续保留 polling/API reconciliation。
+- Plane custom property `repo` 已实测不足：PATCH 不报错但 GET 不回显，DB 无对应 custom field 存储列。
+  P1/P2 继续使用 `repo:<name>` label fallback；Plane fork 仅作为需要强类型字段、页面展示、filter/order
+  时的二开路径。
+- 未完成的是完整产品：真实 OpenHands live execution、真实 Langfuse trace、一次完整
+  `Plane -> Control Plane -> OpenHands -> Langfuse -> Plane` live dispatch 证据、生产部署和权限治理。
+- 因此当前系统可以用于本地验证、Plane 接入验证和控制台流程验收，还不能宣称已经替代 Symphony 跑生产任务。
 
 第一阶段：
 
@@ -371,7 +379,7 @@ Trace 策略：
 
 ## 关键风险
 
-- Plane API/webhook 能力需要验证，不足时要补 adapter 或退回 polling。
+- Plane API/webhook 已完成 P0.5 实测，但 DELETE webhook 不可靠，polling/API reconciliation 必须保留。
 - OpenHands SDK 与现有 Codex 能力边界不同，需要验证模型、工具、权限和 workspace 隔离。
 - Langfuse trace 会默认记录完整上下文，调试便利优先；只做最低限度 secret 防护。
 - Prompt 平台化后必须有发布流程，否则线上 agent 行为会被随意改坏。

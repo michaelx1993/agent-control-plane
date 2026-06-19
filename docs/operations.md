@@ -590,6 +590,17 @@ The local deployment manifest lives at `infra/docker/docker-compose.yml`.
 Before using the `app` profile in live mode, run migrations, seed baseline rows, configure Plane /
 OpenHands / Langfuse endpoints in `.env`, then run `pnpm release:check`.
 
+Live rollout gates have three different strengths:
+
+- `pnpm live:preflight` proves DB seed baseline plus Plane/OpenHands/Langfuse health and basic
+  connectivity without mutation.
+- `RUNTIME_PROBE_MUTATE=true pnpm runtime:probe` proves OpenHands conversation/run/result and
+  Langfuse trace/generation protocols against disposable runtime targets. It does not touch Plane
+  and does not prove workflow state transition.
+- `WORKER_MODE=live pnpm live:verify-once` is the first real task gate. It must produce Plane,
+  workspace, OpenHands, Langfuse, final state, completion comment, and Run Detail evidence before a
+  long-running worker is trusted.
+
 ## Operator API Token
 
 Set `CONTROL_PLANE_API_TOKEN` before exposing the web app outside localhost. When configured,

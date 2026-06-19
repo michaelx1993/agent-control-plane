@@ -57,7 +57,11 @@ Current status:
   an empty Control Plane database before live dispatch.
 - The worker can execute a mock dispatch and persist/return run state.
 - Code Review `major`/`blocker` feedback sends work back to Development.
-- Live Plane/OpenHands/Langfuse execution is the next milestone, not yet complete.
+- Plane self-host API/webhook spike is complete. The local 2026-06-19 evidence covers work-item
+  list/get/PATCH/comment, repo label fallback, state-change webhook, issue comment webhook, and
+  rate-limit headers.
+- OpenHands/Langfuse live execution and one complete live dispatch evidence bundle are the next
+  milestone, not yet complete.
 
 ## Demo Run Data
 
