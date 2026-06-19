@@ -20,6 +20,7 @@
     "live:verify-once": "scripts/live-verify-once.sh",
     "plane:probe": "pnpm --filter @agent-control-plane/worker plane-probe",
     "release:check": "scripts/release-check.sh",
+    "secrets:check": "pnpm --filter @agent-control-plane/worker exec tsx ../../scripts/secrets-check.ts",
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "worker": "pnpm --filter @agent-control-plane/worker dev",

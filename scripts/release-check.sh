@@ -12,6 +12,7 @@ fi
 
 pnpm format
 pnpm typecheck
+pnpm secrets:check
 DATABASE_URL="" pnpm test
 pnpm build
 scripts/compose-check.sh

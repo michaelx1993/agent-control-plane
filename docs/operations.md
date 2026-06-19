@@ -286,6 +286,17 @@ API key assignments, bearer tokens, OpenAI/GitHub/Slack/AWS token shapes, and pr
 This is a last-mile guardrail, not a secret manager; operators should still avoid putting real
 credentials in Plane tasks, comments, workpads, or prompt components.
 
+Run the repository secret gate before release:
+
+```bash
+pnpm secrets:check
+```
+
+The gate scans tracked text files for high-confidence committed secret patterns such as private key
+blocks, OpenAI/GitHub/Slack/AWS token shapes, and long `.env`-style secret assignments. Test files,
+build output, dependency directories, lockfiles, and backups are excluded to keep the gate focused on
+shipping sources and documentation. `pnpm release:check` runs this gate automatically.
+
 ## Prompt Rollback
 
 Use Prompt Manager to compare two prompt component versions before rolling back. Rollback never

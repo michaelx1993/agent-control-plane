@@ -111,6 +111,8 @@ it is unset, read APIs fall back to `CONTROL_PLANE_API_TOKEN`, and when both are
 open for local development.
 The console `Operator Token` panel stores the token in browser `localStorage` and attaches it to
 protected read and write actions.
+Run `pnpm secrets:check` before release; it scans tracked text files for high-confidence committed
+secret patterns and is part of `pnpm release:check`.
 
 Before turning on `WORKER_MODE=live`, run the non-mutating live preflight:
 

@@ -39,6 +39,7 @@ P0 方案固化
 - 已有 Prompt Manager、prompt component/binding/release、scope lookup API、prompt diff 和 rollback。
 - Worker 在交给 OpenHands 和保存 prompt release snapshot 前，会对运行时 prompt 执行最低限度
   secret redaction，覆盖常见 API key、bearer token 和 private key block。
+- 已有 `pnpm secrets:check` 高置信度 secret 泄露扫描，并纳入 `pnpm release:check`。
 - 已有 OpenHands adapter、workspace 记录和注入、Run Detail workspace 可视化、可配置 runtime endpoint paths、conversation refs、poll heartbeat hook。
 - 已有 Langfuse trace refs、可配置 trace/generation endpoint paths、token/cost summary 写入、prompt version metrics 和 dashboard 展示。
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
@@ -520,7 +521,8 @@ Done              -> Terminal
 - Access control
 - Audit log：已有 `/audit` 和 `GET /api/audit?action=&entityType=`，支持 retention window、
   CSV export、payload secret redaction。
-- Secret management
+- Secret management：已有 runtime redaction 和 release secret scan gate；后续可接入外部 secret
+  manager 做凭据注入与轮换。
 - Backup/restore
 - Deployment
 - Monitoring
