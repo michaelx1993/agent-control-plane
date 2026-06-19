@@ -47,16 +47,16 @@ erDiagram
 
 业务团队。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| external_provider | text | `plane` 等 |
-| external_team_id | text | 外部 team id |
-| key | text | 例如 `TOK` |
-| name | text | 例如 `token-team` |
-| description | text | 团队说明 |
-| created_at | timestamptz | 创建时间 |
-| updated_at | timestamptz | 更新时间 |
+| 字段              | 类型        | 说明              |
+| ----------------- | ----------- | ----------------- |
+| id                | uuid        | 主键              |
+| external_provider | text        | `plane` 等        |
+| external_team_id  | text        | 外部 team id      |
+| key               | text        | 例如 `TOK`        |
+| name              | text        | 例如 `token-team` |
+| description       | text        | 团队说明          |
+| created_at        | timestamptz | 创建时间          |
+| updated_at        | timestamptz | 更新时间          |
 
 唯一约束：
 
@@ -67,17 +67,17 @@ erDiagram
 
 产品/业务项目。token-team 下 crs/sub2/traffic 合并后，应只有一个 `token` project，通过 repo 路由。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| team_id | uuid | 关联 teams |
-| external_project_id | text | Plane project id |
-| slug | text | 例如 `token` |
-| name | text | 项目名 |
-| description | text | 项目背景 |
-| status | text | active / archived |
-| created_at | timestamptz | 创建时间 |
-| updated_at | timestamptz | 更新时间 |
+| 字段                | 类型        | 说明              |
+| ------------------- | ----------- | ----------------- |
+| id                  | uuid        | 主键              |
+| team_id             | uuid        | 关联 teams        |
+| external_project_id | text        | Plane project id  |
+| slug                | text        | 例如 `token`      |
+| name                | text        | 项目名            |
+| description         | text        | 项目背景          |
+| status              | text        | active / archived |
+| created_at          | timestamptz | 创建时间          |
+| updated_at          | timestamptz | 更新时间          |
 
 唯一约束：
 
@@ -88,18 +88,18 @@ erDiagram
 
 项目下的代码仓库。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| project_id | uuid | 关联 projects |
-| slug | text | `crs-src` / `sub3` / `traffic` |
-| git_url | text | git ssh/http 地址 |
-| default_branch | text | 默认分支 |
-| local_path | text | 本地 checkout 路径 |
-| status | text | active / archived |
-| description | text | 仓库背景 |
-| created_at | timestamptz | 创建时间 |
-| updated_at | timestamptz | 更新时间 |
+| 字段           | 类型        | 说明                           |
+| -------------- | ----------- | ------------------------------ |
+| id             | uuid        | 主键                           |
+| project_id     | uuid        | 关联 projects                  |
+| slug           | text        | `crs-src` / `sub3` / `traffic` |
+| git_url        | text        | git ssh/http 地址              |
+| default_branch | text        | 默认分支                       |
+| local_path     | text        | 本地 checkout 路径             |
+| status         | text        | active / archived              |
+| description    | text        | 仓库背景                       |
+| created_at     | timestamptz | 创建时间                       |
+| updated_at     | timestamptz | 更新时间                       |
 
 唯一约束：
 
@@ -110,23 +110,23 @@ erDiagram
 
 从 Plane 同步来的任务镜像。正文和评论不做长期事实源，只缓存必要摘要和同步游标。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| project_id | uuid | 关联 projects |
-| repository_id | uuid | 关联 repositories，可为空 |
-| external_task_id | text | Plane work item id |
-| identifier | text | 人类可读编号 |
-| title | text | 标题 |
-| state | text | 当前状态 |
-| priority | int | 优先级 |
-| labels | jsonb | 标签缓存 |
-| assignee | text | 负责人缓存 |
-| url | text | Plane URL |
-| last_synced_at | timestamptz | 最近同步时间 |
-| sync_cursor | text | 评论/事件同步游标 |
-| created_at | timestamptz | 创建时间 |
-| updated_at | timestamptz | 更新时间 |
+| 字段             | 类型        | 说明                      |
+| ---------------- | ----------- | ------------------------- |
+| id               | uuid        | 主键                      |
+| project_id       | uuid        | 关联 projects             |
+| repository_id    | uuid        | 关联 repositories，可为空 |
+| external_task_id | text        | Plane work item id        |
+| identifier       | text        | 人类可读编号              |
+| title            | text        | 标题                      |
+| state            | text        | 当前状态                  |
+| priority         | int         | 优先级                    |
+| labels           | jsonb       | 标签缓存                  |
+| assignee         | text        | 负责人缓存                |
+| url              | text        | Plane URL                 |
+| last_synced_at   | timestamptz | 最近同步时间              |
+| sync_cursor      | text        | 评论/事件同步游标         |
+| created_at       | timestamptz | 创建时间                  |
+| updated_at       | timestamptz | 更新时间                  |
 
 唯一约束：
 
@@ -142,16 +142,16 @@ erDiagram
 
 Agent 角色。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| key | text | intake / development / code_review / merge |
-| name | text | 展示名 |
-| active_states | text[] | 可接单状态 |
-| next_states | text[] | 允许推进的状态 |
-| description | text | 职责说明 |
-| created_at | timestamptz | 创建时间 |
-| updated_at | timestamptz | 更新时间 |
+| 字段          | 类型        | 说明                                       |
+| ------------- | ----------- | ------------------------------------------ |
+| id            | uuid        | 主键                                       |
+| key           | text        | intake / development / code_review / merge |
+| name          | text        | 展示名                                     |
+| active_states | text[]      | 可接单状态                                 |
+| next_states   | text[]      | 允许推进的状态                             |
+| description   | text        | 职责说明                                   |
+| created_at    | timestamptz | 创建时间                                   |
+| updated_at    | timestamptz | 更新时间                                   |
 
 唯一约束：
 
@@ -161,38 +161,38 @@ Agent 角色。
 
 平台里可配置的 agent。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| name | text | agent 名称 |
-| role_id | uuid | 默认角色 |
-| runtime | text | `openhands` |
-| model | text | 模型名 |
-| reasoning_effort | text | low / medium / high |
-| tool_profile | text | 工具权限配置 |
-| max_turns | int | 最大轮数 |
-| timeout_seconds | int | 超时 |
-| status | text | active / disabled |
-| created_at | timestamptz | 创建时间 |
-| updated_at | timestamptz | 更新时间 |
+| 字段             | 类型        | 说明                |
+| ---------------- | ----------- | ------------------- |
+| id               | uuid        | 主键                |
+| name             | text        | agent 名称          |
+| role_id          | uuid        | 默认角色            |
+| runtime          | text        | `openhands`         |
+| model            | text        | 模型名              |
+| reasoning_effort | text        | low / medium / high |
+| tool_profile     | text        | 工具权限配置        |
+| max_turns        | int         | 最大轮数            |
+| timeout_seconds  | int         | 超时                |
+| status           | text        | active / disabled   |
+| created_at       | timestamptz | 创建时间            |
+| updated_at       | timestamptz | 更新时间            |
 
 ### prompt_components
 
 Prompt 片段。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| scope_type | text | global / team / project / repo / role |
-| scope_id | uuid | 对应 scope id，global 可为空 |
-| name | text | prompt 名称 |
-| version | int | 版本号 |
-| status | text | draft / active / archived |
-| content | text | Markdown prompt |
-| changelog | text | 修改说明 |
-| author | text | 作者 |
-| created_at | timestamptz | 创建时间 |
-| updated_at | timestamptz | 更新时间 |
+| 字段       | 类型        | 说明                                  |
+| ---------- | ----------- | ------------------------------------- |
+| id         | uuid        | 主键                                  |
+| scope_type | text        | global / team / project / repo / role |
+| scope_id   | uuid        | 对应 scope id，global 可为空          |
+| name       | text        | prompt 名称                           |
+| version    | int         | 版本号                                |
+| status     | text        | draft / active / archived             |
+| content    | text        | Markdown prompt                       |
+| changelog  | text        | 修改说明                              |
+| author     | text        | 作者                                  |
+| created_at | timestamptz | 创建时间                              |
+| updated_at | timestamptz | 更新时间                              |
 
 唯一约束：
 
@@ -202,46 +202,46 @@ Prompt 片段。
 
 声明某个 scope 当前使用哪个 prompt component。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| scope_type | text | team / project / repo / role / agent |
-| scope_id | uuid | 对应 scope id |
-| prompt_component_id | uuid | 绑定的 prompt component |
-| order_index | int | 装配顺序 |
-| environment | text | dev / staging / prod |
-| status | text | active / disabled |
-| created_at | timestamptz | 创建时间 |
-| updated_at | timestamptz | 更新时间 |
+| 字段                | 类型        | 说明                                 |
+| ------------------- | ----------- | ------------------------------------ |
+| id                  | uuid        | 主键                                 |
+| scope_type          | text        | team / project / repo / role / agent |
+| scope_id            | uuid        | 对应 scope id                        |
+| prompt_component_id | uuid        | 绑定的 prompt component              |
+| order_index         | int         | 装配顺序                             |
+| environment         | text        | dev / staging / prod                 |
+| status              | text        | active / disabled                    |
+| created_at          | timestamptz | 创建时间                             |
+| updated_at          | timestamptz | 更新时间                             |
 
 ### prompt_releases
 
 一次实际装配后的 prompt 快照。Run 必须引用它。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| task_id | uuid | 关联 tasks |
-| repository_id | uuid | 关联 repositories |
-| role_id | uuid | 关联 roles |
-| agent_definition_id | uuid | 关联 agent_definitions |
-| langfuse_prompt_id | text | Langfuse prompt id |
-| langfuse_prompt_version | text | Langfuse prompt version/label |
-| content_hash | text | 最终 prompt hash |
-| rendered_content | text | 最终装配结果，默认落库，便于追溯 |
-| created_at | timestamptz | 创建时间 |
+| 字段                    | 类型        | 说明                             |
+| ----------------------- | ----------- | -------------------------------- |
+| id                      | uuid        | 主键                             |
+| task_id                 | uuid        | 关联 tasks                       |
+| repository_id           | uuid        | 关联 repositories                |
+| role_id                 | uuid        | 关联 roles                       |
+| agent_definition_id     | uuid        | 关联 agent_definitions           |
+| langfuse_prompt_id      | text        | Langfuse prompt id               |
+| langfuse_prompt_version | text        | Langfuse prompt version/label    |
+| content_hash            | text        | 最终 prompt hash                 |
+| rendered_content        | text        | 最终装配结果，默认落库，便于追溯 |
+| created_at              | timestamptz | 创建时间                         |
 
 ### prompt_release_components
 
 记录 prompt release 由哪些组件组成。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| prompt_release_id | uuid | 关联 prompt_releases |
+| 字段                | 类型 | 说明                   |
+| ------------------- | ---- | ---------------------- |
+| id                  | uuid | 主键                   |
+| prompt_release_id   | uuid | 关联 prompt_releases   |
 | prompt_component_id | uuid | 关联 prompt_components |
-| order_index | int | 装配顺序 |
-| content_hash | text | 组件内容 hash |
+| order_index         | int  | 装配顺序               |
+| content_hash        | text | 组件内容 hash          |
 
 唯一约束：
 
@@ -251,30 +251,30 @@ Prompt 片段。
 
 一次 agent 执行。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| task_id | uuid | 关联 tasks |
-| repository_id | uuid | 关联 repositories |
-| role_id | uuid | 关联 roles |
-| agent_definition_id | uuid | 关联 agent_definitions |
-| prompt_release_id | uuid | 关联 prompt_releases |
-| status | text | queued / claimed / running / succeeded / blocked / failed / canceled |
-| lease_owner | text | 当前执行者 |
-| lease_expires_at | timestamptz | lease 到期时间 |
-| heartbeat_at | timestamptz | 最近 heartbeat |
-| attempt | int | 第几次尝试 |
-| started_at | timestamptz | 开始时间 |
-| finished_at | timestamptz | 结束时间 |
-| result_summary | text | 结果摘要 |
-| failure_reason | text | 失败原因 |
-| next_state | text | 建议推进状态 |
-| token_input | bigint | 输入 token |
-| token_output | bigint | 输出 token |
-| token_total | bigint | 总 token |
-| cost_usd | numeric | 成本 |
-| created_at | timestamptz | 创建时间 |
-| updated_at | timestamptz | 更新时间 |
+| 字段                | 类型        | 说明                                                                 |
+| ------------------- | ----------- | -------------------------------------------------------------------- |
+| id                  | uuid        | 主键                                                                 |
+| task_id             | uuid        | 关联 tasks                                                           |
+| repository_id       | uuid        | 关联 repositories                                                    |
+| role_id             | uuid        | 关联 roles                                                           |
+| agent_definition_id | uuid        | 关联 agent_definitions                                               |
+| prompt_release_id   | uuid        | 关联 prompt_releases                                                 |
+| status              | text        | queued / claimed / running / succeeded / blocked / failed / canceled |
+| lease_owner         | text        | 当前执行者                                                           |
+| lease_expires_at    | timestamptz | lease 到期时间                                                       |
+| heartbeat_at        | timestamptz | 最近 heartbeat                                                       |
+| attempt             | int         | 第几次尝试                                                           |
+| started_at          | timestamptz | 开始时间                                                             |
+| finished_at         | timestamptz | 结束时间                                                             |
+| result_summary      | text        | 结果摘要                                                             |
+| failure_reason      | text        | 失败原因                                                             |
+| next_state          | text        | 建议推进状态                                                         |
+| token_input         | bigint      | 输入 token                                                           |
+| token_output        | bigint      | 输出 token                                                           |
+| token_total         | bigint      | 总 token                                                             |
+| cost_usd            | numeric     | 成本                                                                 |
+| created_at          | timestamptz | 创建时间                                                             |
+| updated_at          | timestamptz | 更新时间                                                             |
 
 索引：
 
@@ -286,18 +286,18 @@ Prompt 片段。
 
 一次 run 使用的代码工作区。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| run_id | uuid | 关联 runs |
-| repository_id | uuid | 关联 repositories |
-| strategy | text | clone / worktree / existing |
-| path | text | 本地 workspace 路径 |
-| base_ref | text | 基准分支或 commit |
-| head_ref | text | 工作分支或 commit |
-| status | text | preparing / ready / dirty / archived / cleaned |
-| created_at | timestamptz | 创建时间 |
-| cleaned_at | timestamptz | 清理时间 |
+| 字段          | 类型        | 说明                                           |
+| ------------- | ----------- | ---------------------------------------------- |
+| id            | uuid        | 主键                                           |
+| run_id        | uuid        | 关联 runs                                      |
+| repository_id | uuid        | 关联 repositories                              |
+| strategy      | text        | clone / worktree / existing                    |
+| path          | text        | 本地 workspace 路径                            |
+| base_ref      | text        | 基准分支或 commit                              |
+| head_ref      | text        | 工作分支或 commit                              |
+| status        | text        | preparing / ready / dirty / archived / cleaned |
+| created_at    | timestamptz | 创建时间                                       |
+| cleaned_at    | timestamptz | 清理时间                                       |
 
 唯一约束：
 
@@ -309,17 +309,17 @@ Prompt 片段。
 
 OpenHands conversation 引用。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| run_id | uuid | 关联 runs |
-| provider | text | `openhands` |
-| conversation_id | text | OpenHands conversation id |
-| event_log_uri | text | event log 地址或本地路径 |
-| event_cursor | text | 已消费 event cursor |
-| ui_url | text | OpenHands UI 地址 |
-| created_at | timestamptz | 创建时间 |
-| updated_at | timestamptz | 更新时间 |
+| 字段            | 类型        | 说明                      |
+| --------------- | ----------- | ------------------------- |
+| id              | uuid        | 主键                      |
+| run_id          | uuid        | 关联 runs                 |
+| provider        | text        | `openhands`               |
+| conversation_id | text        | OpenHands conversation id |
+| event_log_uri   | text        | event log 地址或本地路径  |
+| event_cursor    | text        | 已消费 event cursor       |
+| ui_url          | text        | OpenHands UI 地址         |
+| created_at      | timestamptz | 创建时间                  |
+| updated_at      | timestamptz | 更新时间                  |
 
 唯一约束：
 
@@ -330,21 +330,21 @@ OpenHands conversation 引用。
 
 Langfuse trace 引用。一次 run 可包含多个 trace/generation。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| run_id | uuid | 关联 runs |
-| provider | text | `langfuse` |
-| trace_id | text | Langfuse trace id |
-| generation_id | text | Langfuse generation id |
-| model | text | 模型名 |
-| prompt_release_id | uuid | 使用的 prompt release |
-| input_tokens | bigint | 输入 token |
-| output_tokens | bigint | 输出 token |
-| cost_usd | numeric | 成本 |
-| latency_ms | int | 延迟 |
-| ui_url | text | Langfuse URL |
-| created_at | timestamptz | 创建时间 |
+| 字段              | 类型        | 说明                   |
+| ----------------- | ----------- | ---------------------- |
+| id                | uuid        | 主键                   |
+| run_id            | uuid        | 关联 runs              |
+| provider          | text        | `langfuse`             |
+| trace_id          | text        | Langfuse trace id      |
+| generation_id     | text        | Langfuse generation id |
+| model             | text        | 模型名                 |
+| prompt_release_id | uuid        | 使用的 prompt release  |
+| input_tokens      | bigint      | 输入 token             |
+| output_tokens     | bigint      | 输出 token             |
+| cost_usd          | numeric     | 成本                   |
+| latency_ms        | int         | 延迟                   |
+| ui_url            | text        | Langfuse URL           |
+| created_at        | timestamptz | 创建时间               |
 
 索引：
 
@@ -356,14 +356,14 @@ Langfuse trace 引用。一次 run 可包含多个 trace/generation。
 
 Control Plane 自己的轻量事件，不替代 OpenHands event log。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| run_id | uuid | 关联 runs |
-| event_type | text | claimed / heartbeat / state_sync / blocked / completed |
-| message | text | 简短摘要 |
-| payload | jsonb | 结构化数据 |
-| created_at | timestamptz | 创建时间 |
+| 字段       | 类型        | 说明                                                   |
+| ---------- | ----------- | ------------------------------------------------------ |
+| id         | uuid        | 主键                                                   |
+| run_id     | uuid        | 关联 runs                                              |
+| event_type | text        | claimed / heartbeat / state_sync / blocked / completed |
+| message    | text        | 简短摘要                                               |
+| payload    | jsonb       | 结构化数据                                             |
+| created_at | timestamptz | 创建时间                                               |
 
 索引：
 
@@ -374,17 +374,17 @@ Control Plane 自己的轻量事件，不替代 OpenHands event log。
 
 来自 reviewer、人类、PR comment 或 agent 自检的返工反馈。Development agent 下一次启动前必须读取 unresolved feedback。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| task_id | uuid | 关联 tasks |
-| run_id | uuid | 关联发现问题的 runs，可为空 |
-| source | text | human / code_review / pr_review / agent / plane_comment |
-| severity | text | info / minor / major / blocker |
-| body | text | 反馈内容 |
-| external_url | text | Plane comment、PR comment 或 check URL |
-| resolved_at | timestamptz | 解决时间 |
-| created_at | timestamptz | 创建时间 |
+| 字段         | 类型        | 说明                                                    |
+| ------------ | ----------- | ------------------------------------------------------- |
+| id           | uuid        | 主键                                                    |
+| task_id      | uuid        | 关联 tasks                                              |
+| run_id       | uuid        | 关联发现问题的 runs，可为空                             |
+| source       | text        | human / code_review / pr_review / agent / plane_comment |
+| severity     | text        | info / minor / major / blocker                          |
+| body         | text        | 反馈内容                                                |
+| external_url | text        | Plane comment、PR comment 或 check URL                  |
+| resolved_at  | timestamptz | 解决时间                                                |
+| created_at   | timestamptz | 创建时间                                                |
 
 索引：
 
@@ -395,30 +395,30 @@ Control Plane 自己的轻量事件，不替代 OpenHands event log。
 
 第一版按个人/小团队内部系统设计，但仍保留最小用户模型用于审计。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| external_provider | text | github / plane / local |
-| external_user_id | text | 外部用户 id |
-| name | text | 展示名 |
-| email | text | 邮箱 |
-| created_at | timestamptz | 创建时间 |
-| updated_at | timestamptz | 更新时间 |
+| 字段              | 类型        | 说明                   |
+| ----------------- | ----------- | ---------------------- |
+| id                | uuid        | 主键                   |
+| external_provider | text        | github / plane / local |
+| external_user_id  | text        | 外部用户 id            |
+| name              | text        | 展示名                 |
+| email             | text        | 邮箱                   |
+| created_at        | timestamptz | 创建时间               |
+| updated_at        | timestamptz | 更新时间               |
 
 ### audit_events
 
 记录 prompt 发布、状态强改、destructive action 等关键动作。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | 主键 |
-| actor_user_id | uuid | 操作用户，可为空 |
-| action | text | 操作名 |
-| entity_type | text | 实体类型 |
-| entity_id | uuid | 实体 id |
-| message | text | 摘要 |
-| payload | jsonb | 结构化详情 |
-| created_at | timestamptz | 创建时间 |
+| 字段          | 类型        | 说明             |
+| ------------- | ----------- | ---------------- |
+| id            | uuid        | 主键             |
+| actor_user_id | uuid        | 操作用户，可为空 |
+| action        | text        | 操作名           |
+| entity_type   | text        | 实体类型         |
+| entity_id     | uuid        | 实体 id          |
+| message       | text        | 摘要             |
+| payload       | jsonb       | 结构化详情       |
+| created_at    | timestamptz | 创建时间         |
 
 索引：
 
