@@ -24,7 +24,11 @@ import {
   type TaskQueueItem,
 } from "./mock-data";
 import { PrismaClient } from "@prisma/client";
-import type { RunStatus as DbRunStatus, TaskState as DbTaskState } from "@prisma/client";
+import type {
+  PromptComponent as DbPromptComponent,
+  RunStatus as DbRunStatus,
+  TaskState as DbTaskState,
+} from "@prisma/client";
 import type {
   FeedbackSeverity as DbFeedbackSeverity,
   FeedbackSource as DbFeedbackSource,
@@ -82,6 +86,22 @@ export type PromptComponentsResponse = {
   promptComponents: PromptComponentItem[];
 };
 
+export type PromptComponentDiffLine = {
+  type: "unchanged" | "added" | "removed";
+  text: string;
+};
+
+export type PromptComponentDiffResponse = {
+  left: PromptComponentItem;
+  right: PromptComponentItem;
+  summary: {
+    added: number;
+    removed: number;
+    unchanged: number;
+  };
+  lines: PromptComponentDiffLine[];
+};
+
 export type CreatePromptComponentInput = {
   scopeType: DbPromptScopeType;
   scopeId?: string | null;
@@ -91,6 +111,11 @@ export type CreatePromptComponentInput = {
   changelog?: string | null;
   author?: string | null;
   version?: number;
+};
+
+export type RollbackPromptComponentInput = {
+  author?: string | null;
+  changelog?: string | null;
 };
 
 export type PromptBindingItem = {
@@ -362,20 +387,7 @@ export async function getPromptComponents(): Promise<PromptComponentsResponse> {
     orderBy: [{ scopeType: "asc" }, { name: "asc" }, { version: "desc" }],
     take: 200,
   });
-  const promptComponents = components.map((component): PromptComponentItem => {
-    return {
-      id: component.id,
-      scopeType: component.scopeType,
-      scopeId: component.scopeId,
-      name: component.name,
-      version: component.version,
-      status: component.status,
-      content: component.content,
-      changelog: component.changelog,
-      author: component.author,
-      updatedAt: component.updatedAt.toISOString(),
-    };
-  });
+  const promptComponents = components.map(promptComponentToItem);
 
   return {
     count: promptComponents.length,
@@ -418,6 +430,105 @@ export async function createPromptComponent(
     author: component.author,
     updatedAt: component.updatedAt.toISOString(),
   };
+}
+
+export async function getPromptComponentDiff(
+  leftId: string,
+  rightId: string,
+): Promise<PromptComponentDiffResponse> {
+  if (!shouldUseDatabase()) {
+    throw new Error("DATABASE_URL is required to diff prompt components");
+  }
+
+  const [left, right] = await Promise.all([
+    prisma.promptComponent.findUnique({ where: { id: leftId } }),
+    prisma.promptComponent.findUnique({ where: { id: rightId } }),
+  ]);
+  if (!left) {
+    throw new Error(`Prompt component ${leftId} not found`);
+  }
+  if (!right) {
+    throw new Error(`Prompt component ${rightId} not found`);
+  }
+
+  const lines = diffLines(left.content, right.content);
+  return {
+    left: promptComponentToItem(left),
+    right: promptComponentToItem(right),
+    summary: {
+      added: lines.filter((line) => line.type === "added").length,
+      removed: lines.filter((line) => line.type === "removed").length,
+      unchanged: lines.filter((line) => line.type === "unchanged").length,
+    },
+    lines,
+  };
+}
+
+export async function rollbackPromptComponent(
+  sourceId: string,
+  input: RollbackPromptComponentInput = {},
+): Promise<PromptComponentItem> {
+  if (!shouldUseDatabase()) {
+    throw new Error("DATABASE_URL is required to rollback prompt components");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const source = await tx.promptComponent.findUnique({
+      where: { id: sourceId },
+    });
+    if (!source) {
+      throw new Error(`Prompt component ${sourceId} not found`);
+    }
+
+    const version = await nextPromptComponentVersionTx(
+      tx,
+      source.scopeType,
+      source.scopeId,
+      source.name,
+    );
+    await tx.promptComponent.updateMany({
+      where: {
+        scopeType: source.scopeType,
+        scopeId: source.scopeId,
+        name: source.name,
+        status: "active",
+      },
+      data: {
+        status: "archived",
+      },
+    });
+    const rollback = await tx.promptComponent.create({
+      data: {
+        scopeType: source.scopeType,
+        scopeId: source.scopeId,
+        name: source.name,
+        version,
+        status: "active",
+        content: source.content,
+        changelog:
+          input.changelog ?? `Rollback to ${source.name}@v${source.version} from ${source.id}`,
+        author: input.author ?? source.author,
+      },
+    });
+    await tx.auditEvent.create({
+      data: {
+        action: "prompt.rollback",
+        entityType: "prompt_component",
+        entityId: rollback.id,
+        message: `Rolled back ${source.name} to v${source.version}`,
+        payload: {
+          sourceId: source.id,
+          sourceVersion: source.version,
+          newVersion: rollback.version,
+          scopeType: rollback.scopeType,
+          scopeId: rollback.scopeId,
+          name: rollback.name,
+        },
+      },
+    });
+
+    return promptComponentToItem(rollback);
+  });
 }
 
 export async function getPromptBindings(): Promise<PromptBindingsResponse> {
@@ -940,6 +1051,89 @@ async function nextPromptComponentVersion(
   });
 
   return (latest?.version ?? 0) + 1;
+}
+
+async function nextPromptComponentVersionTx(
+  tx: Pick<typeof prisma, "promptComponent">,
+  scopeType: DbPromptScopeType,
+  scopeId: string | null,
+  name: string,
+): Promise<number> {
+  const latest = await tx.promptComponent.findFirst({
+    where: {
+      scopeType,
+      scopeId,
+      name,
+    },
+    orderBy: {
+      version: "desc",
+    },
+    select: {
+      version: true,
+    },
+  });
+
+  return (latest?.version ?? 0) + 1;
+}
+
+function promptComponentToItem(component: DbPromptComponent): PromptComponentItem {
+  return {
+    id: component.id,
+    scopeType: component.scopeType,
+    scopeId: component.scopeId,
+    name: component.name,
+    version: component.version,
+    status: component.status,
+    content: component.content,
+    changelog: component.changelog,
+    author: component.author,
+    updatedAt: component.updatedAt.toISOString(),
+  };
+}
+
+function diffLines(leftContent: string, rightContent: string): PromptComponentDiffLine[] {
+  const left = leftContent.split(/\r?\n/);
+  const right = rightContent.split(/\r?\n/);
+  const table = Array.from({ length: left.length + 1 }, () =>
+    Array.from({ length: right.length + 1 }, () => 0),
+  );
+
+  for (let leftIndex = left.length - 1; leftIndex >= 0; leftIndex -= 1) {
+    for (let rightIndex = right.length - 1; rightIndex >= 0; rightIndex -= 1) {
+      table[leftIndex][rightIndex] =
+        left[leftIndex] === right[rightIndex]
+          ? table[leftIndex + 1][rightIndex + 1] + 1
+          : Math.max(table[leftIndex + 1][rightIndex], table[leftIndex][rightIndex + 1]);
+    }
+  }
+
+  const lines: PromptComponentDiffLine[] = [];
+  let leftIndex = 0;
+  let rightIndex = 0;
+  while (leftIndex < left.length && rightIndex < right.length) {
+    if (left[leftIndex] === right[rightIndex]) {
+      lines.push({ type: "unchanged", text: left[leftIndex] });
+      leftIndex += 1;
+      rightIndex += 1;
+    } else if (table[leftIndex + 1][rightIndex] >= table[leftIndex][rightIndex + 1]) {
+      lines.push({ type: "removed", text: left[leftIndex] });
+      leftIndex += 1;
+    } else {
+      lines.push({ type: "added", text: right[rightIndex] });
+      rightIndex += 1;
+    }
+  }
+
+  while (leftIndex < left.length) {
+    lines.push({ type: "removed", text: left[leftIndex] });
+    leftIndex += 1;
+  }
+  while (rightIndex < right.length) {
+    lines.push({ type: "added", text: right[rightIndex] });
+    rightIndex += 1;
+  }
+
+  return lines;
 }
 
 async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {

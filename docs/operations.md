@@ -174,6 +174,13 @@ The Development worker reads unresolved feedback as task comments before assembl
 Code Review closure also reads unresolved feedback severities. `major` and `blocker` feedback sends
 the task back to Development instead of advancing to Human Review.
 
+## Prompt Rollback
+
+Use Prompt Manager to compare two prompt component versions before rolling back. Rollback never
+edits an existing prompt component or historical prompt release. It creates a new `active` prompt
+component version from the selected source version, archives other active versions with the same
+scope/name, and records a `prompt.rollback` audit event.
+
 ## Manual Workflow Transitions
 
 Human gates are intentionally explicit. Use the task transition API when review decides the next

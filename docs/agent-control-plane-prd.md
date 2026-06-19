@@ -229,6 +229,8 @@ global prompt
 - 创建 prompt component。
 - 创建 prompt binding。
 - 从平台列出 team/project/repo/role/agent scope，避免手填 UUID。
+- 对比两个 prompt component 版本的行级 diff。
+- 将旧 prompt component 版本回滚为新的 active 版本，并归档同 scope/name 下旧 active 版本。
 - 每次 worker run 按 global/team/project/repo/role/agent 顺序装配 active prompt。
 
 ## OpenHands 集成

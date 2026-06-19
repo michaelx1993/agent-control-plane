@@ -25,6 +25,22 @@ type PromptComponentsResponse = {
   promptComponents: PromptComponentItem[];
 };
 
+type PromptComponentDiffLine = {
+  type: "unchanged" | "added" | "removed";
+  text: string;
+};
+
+type PromptComponentDiffResponse = {
+  left: PromptComponentItem;
+  right: PromptComponentItem;
+  summary: {
+    added: number;
+    removed: number;
+    unchanged: number;
+  };
+  lines: PromptComponentDiffLine[];
+};
+
 type PromptBindingItem = {
   id: string;
   scopeType: Exclude<PromptScopeType, "global">;
@@ -107,6 +123,11 @@ export function PromptComponentsClient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [bindingSaving, setBindingSaving] = useState(false);
+  const [diffLeftId, setDiffLeftId] = useState("");
+  const [diffRightId, setDiffRightId] = useState("");
+  const [diff, setDiff] = useState<PromptComponentDiffResponse | undefined>();
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [rollbackComponentId, setRollbackComponentId] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
 
   useEffect(() => {
@@ -210,6 +231,51 @@ export function PromptComponentsClient() {
       setError(saveError instanceof Error ? saveError.message : String(saveError));
     } finally {
       setBindingSaving(false);
+    }
+  }
+
+  async function loadDiff() {
+    if (!diffLeftId || !diffRightId) return;
+    setDiffLoading(true);
+    setError(undefined);
+    try {
+      const response = await fetch(
+        `/api/prompt-components/diff?left=${encodeURIComponent(diffLeftId)}&right=${encodeURIComponent(diffRightId)}`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as PromptComponentDiffResponse | { error?: string };
+      if (!response.ok) {
+        throw new Error("error" in payload && payload.error ? payload.error : "Diff failed");
+      }
+      setDiff(payload as PromptComponentDiffResponse);
+    } catch (diffError) {
+      setError(diffError instanceof Error ? diffError.message : String(diffError));
+    } finally {
+      setDiffLoading(false);
+    }
+  }
+
+  async function rollbackComponent(component: PromptComponentItem) {
+    setRollbackComponentId(component.id);
+    setError(undefined);
+    try {
+      const response = await fetch(`/api/prompt-components/${component.id}/rollback`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          author: "operator",
+          changelog: `Rollback active prompt to ${component.name}@v${component.version}`,
+        }),
+      });
+      const payload = (await response.json()) as PromptComponentItem | { error?: string };
+      if (!response.ok) {
+        throw new Error("error" in payload && payload.error ? payload.error : "Rollback failed");
+      }
+      await loadComponents();
+    } catch (rollbackError) {
+      setError(rollbackError instanceof Error ? rollbackError.message : String(rollbackError));
+    } finally {
+      setRollbackComponentId(undefined);
     }
   }
 
@@ -470,6 +536,30 @@ export function PromptComponentsClient() {
                       <small>
                         {component.author ?? "unknown"} · {component.changelog ?? "no changelog"}
                       </small>
+                      <div className="componentActions">
+                        <button
+                          className="primaryButton"
+                          type="button"
+                          onClick={() => setDiffLeftId(component.id)}
+                        >
+                          Diff left
+                        </button>
+                        <button
+                          className="primaryButton"
+                          type="button"
+                          onClick={() => setDiffRightId(component.id)}
+                        >
+                          Diff right
+                        </button>
+                        <button
+                          className="primaryButton"
+                          type="button"
+                          disabled={rollbackComponentId === component.id}
+                          onClick={() => void rollbackComponent(component)}
+                        >
+                          {rollbackComponentId === component.id ? "Rolling back" : "Rollback"}
+                        </button>
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -479,6 +569,69 @@ export function PromptComponentsClient() {
               <div className="emptyState">No prompt components</div>
             ) : null}
           </div>
+        </section>
+
+        <section className="panel panelWide promptListPanel">
+          <div className="panelHead">
+            <h2>Diff / Rollback</h2>
+            <span>{diffLoading ? "loading" : diff ? "ready" : "select versions"}</span>
+          </div>
+          <div className="diffControls">
+            <label>
+              <span>Left</span>
+              <select value={diffLeftId} onChange={(event) => setDiffLeftId(event.target.value)}>
+                <option value="">select component</option>
+                {components.map((component) => (
+                  <option key={component.id} value={component.id}>
+                    {component.scopeType}/{component.name}@v{component.version}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Right</span>
+              <select value={diffRightId} onChange={(event) => setDiffRightId(event.target.value)}>
+                <option value="">select component</option>
+                {components.map((component) => (
+                  <option key={component.id} value={component.id}>
+                    {component.scopeType}/{component.name}@v{component.version}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="primaryButton"
+              type="button"
+              disabled={!diffLeftId || !diffRightId || diffLoading}
+              onClick={() => void loadDiff()}
+            >
+              {diffLoading ? "Comparing" : "Compare"}
+            </button>
+          </div>
+          {diff ? (
+            <div className="diffViewer">
+              <div className="diffSummary">
+                <strong>
+                  {diff.left.name}@v{diff.left.version} {"->"} {diff.right.name}@v
+                  {diff.right.version}
+                </strong>
+                <span>
+                  +{diff.summary.added} / -{diff.summary.removed} / {diff.summary.unchanged} same
+                </span>
+              </div>
+              <pre>
+                {diff.lines
+                  .map((line) => {
+                    const prefix =
+                      line.type === "added" ? "+ " : line.type === "removed" ? "- " : "  ";
+                    return `${prefix}${line.text}`;
+                  })
+                  .join("\n")}
+              </pre>
+            </div>
+          ) : (
+            <div className="emptyState">Select two prompt component versions to compare.</div>
+          )}
         </section>
 
         <section className="panel panelWide promptListPanel">

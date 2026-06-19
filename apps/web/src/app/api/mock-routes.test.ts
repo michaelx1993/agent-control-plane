@@ -10,6 +10,8 @@ import {
   GET as getPromptComponentsRoute,
   POST as postPromptComponentsRoute,
 } from "./prompt-components/route";
+import { GET as getPromptComponentDiffRoute } from "./prompt-components/diff/route";
+import { POST as postPromptComponentRollbackRoute } from "./prompt-components/[componentId]/rollback/route";
 import { GET as getPromptReleasesRoute } from "./prompt-releases/route";
 import { GET as getPromptScopesRoute } from "./prompt-scopes/route";
 import { GET as getRunDetailRoute } from "./runs/[runId]/route";
@@ -276,6 +278,43 @@ describe("new mock API routes", () => {
           content: "Use Chinese.",
         }),
       }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain("DATABASE_URL");
+  });
+
+  it("validates prompt component diff query params", async () => {
+    const response = await getPromptComponentDiffRoute(
+      new Request("http://localhost/api/prompt-components/diff?left=component-1"),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toContain("left and right");
+  });
+
+  it("requires DATABASE_URL before diffing prompt components", async () => {
+    const response = await getPromptComponentDiffRoute(
+      new Request("http://localhost/api/prompt-components/diff?left=component-1&right=component-2"),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain("DATABASE_URL");
+  });
+
+  it("requires DATABASE_URL before rolling back prompt components", async () => {
+    const response = await postPromptComponentRollbackRoute(
+      new Request("http://localhost/api/prompt-components/component-1/rollback", {
+        method: "POST",
+        body: JSON.stringify({
+          author: "operator",
+          changelog: "Rollback after bad prompt.",
+        }),
+      }),
+      { params: Promise.resolve({ componentId: "component-1" }) },
     );
     const payload = await response.json();
 

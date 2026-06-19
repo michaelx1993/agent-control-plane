@@ -31,7 +31,7 @@ P0 方案固化
 - 已有 PostgreSQL/Prisma 数据模型、seed、demo run。
 - 已有 Plane task webhook receiver、task mirror、repo label 兜底解析。
 - 已有 run/lease/heartbeat、expired lease stalled blocking、OpenHands event summary persistence。
-- 已有 Prompt Manager、prompt component/binding/release、scope lookup API。
+- 已有 Prompt Manager、prompt component/binding/release、scope lookup API、prompt diff 和 rollback。
 - 已有 OpenHands adapter skeleton、conversation refs、poll heartbeat hook。
 - 已有 Langfuse trace refs、token/cost summary 写入和 dashboard 展示。
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
@@ -257,6 +257,8 @@ global
 - 创建/编辑 prompt component。
 - 将 prompt component 绑定到 team/project/repo/role/agent。
 - 通过 scope lookup 选择绑定对象，避免手填 UUID。
+- 对比两个 prompt component 版本的行级 diff。
+- 将旧 prompt component 版本回滚为新的 active 版本，并归档同 scope/name 下旧 active 版本。
 - 每次 run 前生成不可变 prompt release。
 - 记录 prompt release 组成和 hash。
 - 支持回滚 active prompt。

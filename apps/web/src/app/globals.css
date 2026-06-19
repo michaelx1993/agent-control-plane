@@ -722,6 +722,78 @@ dd {
   color: var(--muted);
 }
 
+.componentActions,
+.diffControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.componentActions .primaryButton {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.diffControls {
+  align-items: end;
+  padding: 14px;
+}
+
+.diffControls label {
+  display: grid;
+  min-width: min(260px, 100%);
+  flex: 1;
+  gap: 5px;
+}
+
+.diffControls label span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.diffControls select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #11151b;
+  color: var(--text);
+  font: inherit;
+  padding: 9px 10px;
+}
+
+.diffViewer {
+  display: grid;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+
+.diffSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.diffViewer pre {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
 .health {
   padding: 12px;
 }
