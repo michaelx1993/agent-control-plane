@@ -42,7 +42,7 @@ describe("new mock API routes", () => {
       labels: expect.any(Array),
       lease: expect.any(String),
       attempt: expect.any(Number),
-      dispatchStatus: expect.stringMatching(/^(eligible|gated|retry_capped)$/),
+      dispatchStatus: expect.stringMatching(/^(eligible|gated|retry_capped|budget_blocked)$/),
       maxAttempts: expect.any(Number),
       planeTask: expect.any(String),
       priority: expect.stringMatching(/^P[0-2]$/),

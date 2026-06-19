@@ -24,7 +24,7 @@ export type TaskQueueItem = {
   priority: "P0" | "P1" | "P2";
   labels: string[];
   eligible: boolean;
-  dispatchStatus: "eligible" | "gated" | "retry_capped";
+  dispatchStatus: "eligible" | "gated" | "retry_capped" | "budget_blocked";
   attempt: number;
   maxAttempts: number;
   lease: string;
@@ -182,14 +182,14 @@ export const taskQueue: TaskQueueItem[] = [
     planeTask: "Review prompt rollback semantics",
     project: "token",
     repo: "sub3",
-    state: "Human Review",
+    state: "Blocked",
     priority: "P1",
-    labels: ["repo:sub3", "human-required"],
+    labels: ["repo:sub3", "human-required", "cost:12"],
     eligible: false,
-    dispatchStatus: "gated",
+    dispatchStatus: "budget_blocked",
     attempt: 0,
     maxAttempts: 3,
-    lease: "blocked by human gate",
+    lease: "blocked by cost budget policy",
   },
   {
     id: "ACP-1057",

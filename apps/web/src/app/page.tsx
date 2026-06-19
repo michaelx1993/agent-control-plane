@@ -40,12 +40,14 @@ const readinessClass: Record<ReadinessCheck["status"], string> = {
 };
 
 const dispatchStatusClass: Record<TaskQueueItem["dispatchStatus"], string> = {
+  budget_blocked: "pill statusBad",
   eligible: "pill statusGood",
   gated: "pill statusAttention",
   retry_capped: "pill statusBad",
 };
 
 const dispatchStatusLabel: Record<TaskQueueItem["dispatchStatus"], string> = {
+  budget_blocked: "budget blocked",
   eligible: "eligible",
   gated: "gated",
   retry_capped: "retry capped",

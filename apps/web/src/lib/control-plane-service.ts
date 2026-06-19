@@ -1244,6 +1244,26 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
     }),
     getRunsFromDb(),
   ]);
+  const budgetBlockedTaskIds = new Set(
+    (
+      await prisma.auditEvent.findMany({
+        where: {
+          action: "task.budget_blocked",
+          entityId: {
+            in: tasks.map((task) => task.id),
+          },
+          entityType: "task",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        distinct: ["entityId"],
+        select: {
+          entityId: true,
+        },
+      })
+    ).map((event) => event.entityId),
+  );
   const now = new Date();
   const maxAttempts = getWorkerMaxTaskAttempts();
   const responseTasks = tasks.map((task): TaskQueueItem => {
@@ -1263,7 +1283,14 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
       task.state !== "Blocked" &&
       !hasActiveLease &&
       !retryCapped;
-    const dispatchStatus = eligible ? "eligible" : retryCapped ? "retry_capped" : "gated";
+    const budgetBlocked = task.state === "Blocked" && budgetBlockedTaskIds.has(task.id);
+    const dispatchStatus = eligible
+      ? "eligible"
+      : retryCapped
+        ? "retry_capped"
+        : budgetBlocked
+          ? "budget_blocked"
+          : "gated";
 
     return {
       id: task.identifier,
@@ -1281,9 +1308,11 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
         ? `held by ${activeRun.id}`
         : retryCapped
           ? `retry capped at ${displayAttempt}/${maxAttempts}`
-          : task.repository?.slug
-            ? "available"
-            : "blocked: missing repo",
+          : budgetBlocked
+            ? "blocked by cost budget policy"
+            : task.repository?.slug
+              ? "available"
+              : "blocked: missing repo",
     };
   });
   const summary = summarizeQueue(responseTasks, runsResponse.runs);

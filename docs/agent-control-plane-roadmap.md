@@ -465,7 +465,8 @@ Done              -> Terminal
 - repo prompt 能正确注入。
 - role prompt 能正确注入。
 - 超过并发限制的任务保持 queued。
-- 超过预算的任务进入 blocked 或 waiting-approval；blocked 模式必须在 Task Queue 可见。
+- 超过预算的任务进入 blocked 或 waiting-approval；blocked 模式必须在 Task Queue 显示为
+  `budget blocked`。
 
 风险：
 

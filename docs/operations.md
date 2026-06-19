@@ -146,6 +146,9 @@ Operational rule:
   `WORKER_COST_BUDGET_LIMIT`.
 - `WORKER_COST_BUDGET_EXCEEDED_ACTION=blocked` moves the task to `Blocked` and writes a
   `task.budget_blocked` audit event.
+- The Task Queue shows these tasks as `budget blocked` with lease detail
+  `blocked by cost budget policy`, so operators can distinguish budget gates from generic human
+  gates.
 - `waiting-approval` keeps the task out of the dispatch result without changing state in this first
   version; use `blocked` when the operator needs an explicit visible gate.
 
