@@ -32,6 +32,19 @@ describe("repo parsing", () => {
     expect(task.isDispatchable).toBe(false);
     expect(task.blockedReason).toBe("missing-repo");
   });
+
+  it("normalizes priority and assignee fields for task sync", () => {
+    const task = normalizePlaneTask({
+      id: "task-3",
+      name: "Prioritized work",
+      labels: ["repo:traffic"],
+      priority: "P0",
+      assignee: { name: "bob-x" },
+    });
+
+    expect(task.priority).toBe(0);
+    expect(task.assignee).toBe("bob-x");
+  });
 });
 
 describe("webhook parser", () => {

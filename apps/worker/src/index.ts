@@ -1364,7 +1364,9 @@ export function normalizedPlaneTaskToDbInput(
     title: task.title,
     state: planeStateNameToDbTaskState(task.stateName),
     repositorySlug: task.repo,
+    priority: task.priority,
     labels: task.labels,
+    assignee: task.assignee,
     url: task.url,
   };
 }

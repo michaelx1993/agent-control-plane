@@ -31,6 +31,8 @@ P0 方案固化
 - 已有 PostgreSQL/Prisma 数据模型、seed、demo run。
 - 已有 Plane task webhook receiver、task mirror、repo label 兜底解析。
 - 已有 Plane polling fallback cursor 分页 reconciliation，避免 live worker 只同步第一页任务。
+- Plane webhook 与 polling fallback 复用同一 DB upsert 语义，同步 repo、priority、assignee、
+  labels、state 和 sync cursor。
 - 已有 run/lease/heartbeat、expired lease stalled blocking、OpenHands event summary persistence。
 - 已有 Prompt Manager、prompt component/binding/release、scope lookup API、prompt diff 和 rollback。
 - 已有 OpenHands adapter skeleton、conversation refs、poll heartbeat hook。

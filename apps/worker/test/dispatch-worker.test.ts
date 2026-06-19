@@ -824,6 +824,8 @@ describe("DispatchWorker", () => {
           stateName: "Development",
           repo: "crs-src",
           labels: ["repo:crs-src", "Feature"],
+          priority: 0,
+          assignee: "bob-x",
           url: "https://plane.test/TOK-1",
           isDispatchable: true,
           raw: { id: "plane-1" },
@@ -837,7 +839,9 @@ describe("DispatchWorker", () => {
       title: "Implement sync",
       state: "Development",
       repositorySlug: "crs-src",
+      priority: 0,
       labels: ["repo:crs-src", "Feature"],
+      assignee: "bob-x",
       url: "https://plane.test/TOK-1",
     });
   });

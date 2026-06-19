@@ -7,6 +7,7 @@ import {
   type NormalizedPlaneTask,
 } from "@agent-control-plane/plane";
 import { validateTransition } from "@agent-control-plane/state-machine";
+import { upsertSyncedTask, type DbClient } from "../../../../packages/db/src/query";
 import {
   healthSignals,
   operatorTimeline as mockOperatorTimeline,
@@ -1113,64 +1114,21 @@ export async function syncPlaneWebhookPayload(payload: unknown): Promise<PlaneWe
 
 async function upsertPlaneWebhookTask(parsed: ParsedPlaneWebhook, normalized: NormalizedPlaneTask) {
   const projectSlug = process.env.CONTROL_PLANE_PROJECT_SLUG ?? "token";
-  const project = await prisma.project.findFirst({
-    where: {
-      slug: projectSlug,
-      status: "active",
-    },
-    select: {
-      id: true,
-    },
-  });
-  if (!project) {
-    throw new Error(`Project ${projectSlug} not found or inactive`);
-  }
-
-  const repository = normalized.repo
-    ? await prisma.repository.findFirst({
-        where: {
-          projectId: project.id,
-          slug: normalized.repo,
-          status: "active",
-        },
-        select: {
-          id: true,
-        },
-      })
-    : null;
-  const now = new Date();
   const state =
     parsed.eventType === "task.deleted" ? "Canceled" : planeStateToDbTaskState(normalized.raw);
 
-  return prisma.task.upsert({
-    where: {
-      projectId_externalTaskId: {
-        projectId: project.id,
-        externalTaskId: normalized.sourceId,
-      },
-    },
-    update: {
-      repositoryId: repository?.id ?? null,
-      identifier: normalized.identifier ?? normalized.sourceId,
-      title: normalized.title,
-      state,
-      labels: normalized.labels,
-      url: normalized.url,
-      lastSyncedAt: now,
-      syncCursor: parsed.eventType,
-    },
-    create: {
-      projectId: project.id,
-      repositoryId: repository?.id,
-      externalTaskId: normalized.sourceId,
-      identifier: normalized.identifier ?? normalized.sourceId,
-      title: normalized.title,
-      state,
-      labels: normalized.labels,
-      url: normalized.url,
-      lastSyncedAt: now,
-      syncCursor: parsed.eventType,
-    },
+  return upsertSyncedTask(prisma as DbClient, {
+    projectSlug,
+    externalTaskId: normalized.sourceId,
+    identifier: normalized.identifier ?? normalized.sourceId,
+    title: normalized.title,
+    state,
+    repositorySlug: normalized.repo,
+    priority: normalized.priority,
+    labels: normalized.labels,
+    assignee: normalized.assignee,
+    url: normalized.url,
+    syncCursor: parsed.eventType,
   });
 }
 

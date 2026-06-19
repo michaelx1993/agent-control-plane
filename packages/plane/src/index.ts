@@ -22,6 +22,8 @@ export type PlaneTaskPayload = {
   custom_fields?: Record<string, unknown> | null;
   customFields?: Record<string, unknown> | null;
   labels?: PlaneLabel[];
+  priority?: string | number | null;
+  assignee?: string | { name?: string | null; email?: string | null } | null;
   url?: string | null;
   html_url?: string | null;
   [key: string]: unknown;
@@ -38,6 +40,8 @@ export type NormalizedPlaneTask = {
   projectId?: string;
   repo?: string;
   labels: string[];
+  priority?: number;
+  assignee?: string;
   url?: string;
   isDispatchable: boolean;
   blockedReason?: string;
@@ -324,6 +328,8 @@ export function normalizePlaneTask(task: PlaneTaskPayload): NormalizedPlaneTask 
     projectId: task.project_id,
     repo,
     labels,
+    priority: normalizePlanePriority(task.priority),
+    assignee: stringValue(task.assignee) ?? recordName(task.assignee),
     url: task.url ?? task.html_url ?? undefined,
     isDispatchable: !blockedReason,
     blockedReason,
@@ -364,6 +370,30 @@ export function extractRepo(
     stringValue(customFields.repoName);
 
   return structured ?? parseRepoFromLabels(normalizedLabels);
+}
+
+function normalizePlanePriority(priority: PlaneTaskPayload["priority"]): number | undefined {
+  if (priority === undefined || priority === null) return undefined;
+  if (typeof priority === "number" && Number.isFinite(priority)) return Math.max(0, priority);
+
+  const normalized = String(priority).trim().toLowerCase();
+  const pMatch = /^p(?<level>[0-9]+)$/.exec(normalized);
+  if (pMatch?.groups?.level) return Number(pMatch.groups.level);
+
+  const numeric = Number(normalized);
+  if (Number.isFinite(numeric)) return Math.max(0, numeric);
+
+  const priorityMap: Record<string, number> = {
+    urgent: 0,
+    critical: 0,
+    high: 0,
+    medium: 1,
+    normal: 1,
+    low: 2,
+    none: 2,
+  };
+
+  return priorityMap[normalized];
 }
 
 export function linearIssueToPlaneImportDraft(issue: LinearIssuePayload): PlaneImportDraft {

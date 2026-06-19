@@ -204,6 +204,12 @@ The Development worker reads unresolved feedback as task comments before assembl
 Code Review closure also reads unresolved feedback severities. `major` and `blocker` feedback sends
 the task back to Development instead of advancing to Human Review.
 
+## Plane Task Field Sync
+
+Plane webhook sync and polling fallback both use the same task upsert path. They mirror task
+identifier, title, state, repo, priority, assignee, labels, URL, and sync cursor into Control Plane.
+This keeps webhook-driven updates and reconciliation-driven updates from drifting.
+
 ## Prompt Rollback
 
 Use Prompt Manager to compare two prompt component versions before rolling back. Rollback never
