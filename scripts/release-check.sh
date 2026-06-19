@@ -14,6 +14,7 @@ pnpm format
 pnpm typecheck
 DATABASE_URL="" pnpm test
 pnpm build
+scripts/compose-check.sh
 DATABASE_URL="" pnpm worker:dry-run
 pnpm --filter @agent-control-plane/db exec prisma migrate status --schema prisma/schema.prisma
 pnpm --filter @agent-control-plane/db exec tsx -e 'import { prisma } from "./src/index.ts"; void (async()=>{ const [teams,repos,roles,agents,tasks,runs]=await Promise.all([prisma.team.count(), prisma.repository.count(), prisma.role.count(), prisma.agentDefinition.count(), prisma.task.count(), prisma.run.count()]); console.log(JSON.stringify({teams,repos,roles,agents,tasks,runs})); await prisma.$disconnect(); })();'

@@ -189,6 +189,63 @@ describe("new mock API routes", () => {
     expect(payload.error).toContain("body");
   });
 
+  it("requires operator auth for mutating Control Plane APIs when configured", async () => {
+    const previousToken = process.env.CONTROL_PLANE_API_TOKEN;
+    process.env.CONTROL_PLANE_API_TOKEN = "operator-token";
+
+    try {
+      const response = await postRunFeedbackRoute(
+        new Request("http://localhost/api/runs/run-1/feedback", {
+          method: "POST",
+          body: JSON.stringify({
+            body: "Please fix the review feedback.",
+          }),
+        }),
+        { params: Promise.resolve({ runId: "run-1" }) },
+      );
+      const payload = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(payload.error).toContain("Unauthorized");
+    } finally {
+      if (previousToken === undefined) {
+        delete process.env.CONTROL_PLANE_API_TOKEN;
+      } else {
+        process.env.CONTROL_PLANE_API_TOKEN = previousToken;
+      }
+    }
+  });
+
+  it("accepts bearer operator auth for mutating Control Plane APIs", async () => {
+    const previousToken = process.env.CONTROL_PLANE_API_TOKEN;
+    process.env.CONTROL_PLANE_API_TOKEN = "operator-token";
+
+    try {
+      const response = await postRunFeedbackRoute(
+        new Request("http://localhost/api/runs/run-1/feedback", {
+          method: "POST",
+          headers: {
+            authorization: "Bearer operator-token",
+          },
+          body: JSON.stringify({
+            body: "Please fix the review feedback.",
+          }),
+        }),
+        { params: Promise.resolve({ runId: "run-1" }) },
+      );
+      const payload = await response.json();
+
+      expect(response.status).toBe(503);
+      expect(payload.error).toContain("DATABASE_URL");
+    } finally {
+      if (previousToken === undefined) {
+        delete process.env.CONTROL_PLANE_API_TOKEN;
+      } else {
+        process.env.CONTROL_PLANE_API_TOKEN = previousToken;
+      }
+    }
+  });
+
   it("requires DATABASE_URL before creating run feedback", async () => {
     const response = await postRunFeedbackRoute(
       new Request("http://localhost/api/runs/run-1/feedback", {

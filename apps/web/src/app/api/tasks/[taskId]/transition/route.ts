@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireOperatorAuth } from "../../../../../lib/api-auth";
 import { transitionTask, type TransitionTaskInput } from "../../../../../lib/control-plane-service";
 
 const allowedStates = new Set<TransitionTaskInput["nextState"]>([
@@ -25,6 +26,9 @@ type RouteContext = {
 };
 
 export async function POST(request: Request, context: RouteContext) {
+  const unauthorized = requireOperatorAuth(request);
+  if (unauthorized) return unauthorized;
+
   const { taskId } = await context.params;
   const payload = (await request.json().catch(() => ({}))) as Partial<TransitionTaskInput>;
 

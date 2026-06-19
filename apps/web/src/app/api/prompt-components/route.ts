@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireOperatorAuth } from "../../../lib/api-auth";
 import {
   createPromptComponent,
   getPromptComponents,
@@ -15,6 +16,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = requireOperatorAuth(request);
+  if (unauthorized) return unauthorized;
+
   let body: unknown;
   try {
     body = await request.json();

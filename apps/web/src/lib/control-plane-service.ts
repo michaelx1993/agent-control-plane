@@ -999,6 +999,12 @@ export async function getSystemReadiness(): Promise<SystemReadinessResponse> {
       "Retry cap per task",
       { warningWhenMissing: "defaults to 3" },
     ),
+    envCheck(
+      "CONTROL_PLANE_API_TOKEN",
+      process.env.CONTROL_PLANE_API_TOKEN,
+      "Operator write API token",
+      { optional: true },
+    ),
   ];
   if (shouldUseDatabase()) {
     controlPlaneChecks.push(await databaseBaselineReadinessCheck());

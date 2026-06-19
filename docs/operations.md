@@ -385,11 +385,25 @@ https://github.com/michaelx1993/plane
 The first production decision is whether repo routing can be implemented with Plane custom
 properties or requires a small Plane schema/UI patch.
 
+## Operator API Access
+
+Set `CONTROL_PLANE_API_TOKEN` before exposing the web console outside localhost. When configured,
+operator write APIs require either:
+
+- `Authorization: Bearer <CONTROL_PLANE_API_TOKEN>`
+- `X-Control-Plane-Token: <CONTROL_PLANE_API_TOKEN>`
+
+This guards manual transition, retry release, feedback creation, prompt component creation, prompt
+binding creation, and prompt rollback routes. Read-only dashboard APIs remain readable. Plane
+webhook auth is separate and continues to use `PLANE_WEBHOOK_SECRET` plus `X-Plane-Signature` or the
+configured Plane webhook secret header.
+
 ## Release Gate
 
 Before using the worker against live systems:
 
 - Plane self-host URL and API token are configured.
+- `CONTROL_PLANE_API_TOKEN` is configured when the web console is reachable beyond localhost.
 - `PLANE_WEBHOOK_SECRET` is configured when exposing `/api/plane/webhook` beyond localhost.
   The receiver verifies Plane `X-Plane-Signature` as HMAC-SHA256 over the raw request body.
 - `PLANE_WORKSPACE_SLUG` and `PLANE_PROJECT_ID` are known.
@@ -459,9 +473,27 @@ The local deployment manifest lives at `infra/docker/docker-compose.yml`.
   `WORKER_LOOP_INTERVAL_MS` between passes.
 - Both app services read `../../.env`; the compose file overrides `DATABASE_URL` to use the
   internal `postgres` hostname.
+- `pnpm compose:check` validates the app profile with `docker compose config`; `release:check`
+  runs the same check when Docker Compose is available.
 
 Before using the `app` profile in live mode, run migrations, seed baseline rows, configure Plane /
 OpenHands / Langfuse endpoints in `.env`, then run `pnpm release:check`.
+
+## Operator API Token
+
+Set `CONTROL_PLANE_API_TOKEN` before exposing the web app outside localhost. When configured,
+operator write APIs require either `Authorization: Bearer <token>` or `X-Control-Plane-Token:
+<token>`.
+
+Protected write paths include:
+
+- prompt component create / rollback
+- prompt binding create
+- run feedback create
+- task retry release
+- manual task transition
+
+Read-only dashboard APIs remain open in this first personal-ops version.
 
 ## Plane API Probe
 

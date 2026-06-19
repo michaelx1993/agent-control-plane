@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireOperatorAuth } from "../../../../../lib/api-auth";
 import {
   releaseTaskRetry,
   type ReleaseTaskRetryInput,
@@ -12,6 +13,9 @@ type RouteContext = {
 };
 
 export async function POST(request: Request, context: RouteContext) {
+  const unauthorized = requireOperatorAuth(request);
+  if (unauthorized) return unauthorized;
+
   const { taskId } = await context.params;
   let body: unknown = {};
   try {
