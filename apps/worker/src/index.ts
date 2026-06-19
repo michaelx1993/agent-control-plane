@@ -71,6 +71,7 @@ export interface WorkerConfig {
   langfuseSecretKey?: string;
   planeBaseUrl?: string;
   planeApiKey?: string;
+  planeApiKeyHeader: string;
   planeWorkspaceSlug?: string;
   planeProjectId?: string;
   projectSlug: string;
@@ -290,6 +291,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     langfuseSecretKey: env.LANGFUSE_SECRET_KEY,
     planeBaseUrl: env.PLANE_BASE_URL,
     planeApiKey: env.PLANE_API_KEY,
+    planeApiKeyHeader: env.PLANE_API_KEY_HEADER ?? "X-API-Key",
     planeWorkspaceSlug: env.PLANE_WORKSPACE_SLUG,
     planeProjectId: env.PLANE_PROJECT_ID,
     projectSlug: env.CONTROL_PLANE_PROJECT_SLUG ?? "token",
@@ -560,6 +562,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       workerId,
       enabledTeams: [task.team],
       leaseMs,
+      planeApiKeyHeader: "X-API-Key",
       projectSlug: task.project,
       defaultRepoConcurrency: 1,
       defaultRoleConcurrency: 2,
@@ -1237,6 +1240,7 @@ export function createPlaneTaskSyncService(
     new HttpPlaneClient({
       baseUrl: config.planeBaseUrl,
       apiKey: config.planeApiKey,
+      apiKeyHeader: config.planeApiKeyHeader,
       workspaceSlug: config.planeWorkspaceSlug,
       projectId: config.planeProjectId,
     }),

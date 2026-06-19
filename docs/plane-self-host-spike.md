@@ -55,6 +55,9 @@ curl -X GET \
   -H "X-API-Key: $PLANE_API_KEY"
 ```
 
+Control Plane uses `PLANE_API_KEY_HEADER=X-API-Key` by default. Do not switch to bearer auth unless
+the target Plane deployment explicitly requires OAuth-compatible `Authorization` headers.
+
 最小读取字段建议：
 
 - `id`

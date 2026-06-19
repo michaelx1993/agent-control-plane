@@ -86,6 +86,8 @@ configured:
 - `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY`
 
 The worker uses mock OpenHands and mock tracing only when `WORKER_MODE=mock`.
+Plane API key auth defaults to `X-API-Key`, matching self-host Personal Access Tokens. Use
+`PLANE_API_KEY_HEADER=Authorization` only when a deployment expects bearer auth.
 
 Run `pnpm live:preflight` before enabling live mode. It performs non-mutating probes:
 

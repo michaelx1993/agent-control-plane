@@ -86,6 +86,7 @@ export type PlaneClient = {
 export type HttpPlaneClientOptions = {
   baseUrl: string;
   apiKey?: string;
+  apiKeyHeader?: string;
   workspaceSlug?: string;
   projectId?: string;
   basePath?: string;
@@ -96,6 +97,7 @@ export type HttpPlaneClientOptions = {
 export class HttpPlaneClient implements PlaneClient {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
+  private readonly apiKeyHeader: string;
   private readonly workspaceSlug?: string;
   private readonly projectId?: string;
   private readonly basePath?: string;
@@ -105,6 +107,7 @@ export class HttpPlaneClient implements PlaneClient {
   constructor(options: HttpPlaneClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
+    this.apiKeyHeader = options.apiKeyHeader ?? "X-API-Key";
     this.workspaceSlug = options.workspaceSlug;
     this.projectId = options.projectId;
     this.basePath = options.basePath?.replace(/\/+$/, "");
@@ -169,7 +172,8 @@ export class HttpPlaneClient implements PlaneClient {
     };
 
     if (this.apiKey) {
-      headers.Authorization = `Bearer ${this.apiKey}`;
+      headers[this.apiKeyHeader] =
+        this.apiKeyHeader.toLowerCase() === "authorization" ? `Bearer ${this.apiKey}` : this.apiKey;
     }
 
     const response = await this.fetchImpl(`${this.baseUrl}${path}`, {

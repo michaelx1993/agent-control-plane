@@ -162,6 +162,7 @@ async function checkPlane(
     const client = new HttpPlaneClient({
       baseUrl: env.PLANE_BASE_URL,
       apiKey: env.PLANE_API_KEY,
+      apiKeyHeader: env.PLANE_API_KEY_HEADER ?? "X-API-Key",
       workspaceSlug: env.PLANE_WORKSPACE_SLUG,
       projectId: env.PLANE_PROJECT_ID,
       fetch: fetchImpl,

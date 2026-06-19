@@ -45,7 +45,7 @@ describe("webhook parser", () => {
 });
 
 describe("HTTP client skeleton", () => {
-  it("sends bearer auth and JSON updates through fetch", async () => {
+  it("sends Plane API key auth and JSON updates through fetch", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify({ id: "task-1", name: "Updated" }), {
         status: 200,
@@ -69,6 +69,33 @@ describe("HTTP client skeleton", () => {
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({ stateName: "Development" }),
+        headers: expect.objectContaining({ "X-API-Key": "secret" }),
+      }),
+    );
+  });
+
+  it("can use Authorization bearer auth when explicitly configured", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ results: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const client = new HttpPlaneClient({
+      baseUrl: "https://plane.example",
+      apiKey: "secret",
+      apiKeyHeader: "Authorization",
+      workspaceSlug: "bob-x-space",
+      projectId: "token",
+      fetch: fetchMock,
+    });
+
+    await client.listTasks({ perPage: 1 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://plane.example/api/v1/workspaces/bob-x-space/projects/token/work-items?per_page=1",
+      expect.objectContaining({
         headers: expect.objectContaining({ Authorization: "Bearer secret" }),
       }),
     );

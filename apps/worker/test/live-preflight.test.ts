@@ -70,6 +70,50 @@ describe("runLivePreflight", () => {
       "https://plane.example/api/v1/workspaces/workspace/projects/project/work-items?per_page=1",
       expect.objectContaining({
         headers: expect.objectContaining({
+          "X-API-Key": "plane-key",
+        }),
+      }),
+    );
+  });
+
+  it("supports Authorization bearer auth for Plane when configured", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/work-items?per_page=1")) {
+        return jsonResponse({ results: [] });
+      }
+      if (url === "https://openhands.example/health") {
+        return jsonResponse({ status: "ok" });
+      }
+      if (url === "https://langfuse.example/api/public/health") {
+        return jsonResponse({ status: "ok" });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await runLivePreflight({
+      env: {
+        DATABASE_URL: "postgresql://agent:agent@localhost:54329/agent_control_plane",
+        PLANE_BASE_URL: "https://plane.example",
+        PLANE_WORKSPACE_SLUG: "workspace",
+        PLANE_PROJECT_ID: "project",
+        PLANE_API_KEY: "plane-key",
+        PLANE_API_KEY_HEADER: "Authorization",
+        OPENHANDS_BASE_URL: "https://openhands.example",
+        LANGFUSE_BASE_URL: "https://langfuse.example",
+        LANGFUSE_PUBLIC_KEY: "pk",
+        LANGFUSE_SECRET_KEY: "sk",
+      },
+      fetch: fetchMock,
+      db: {
+        $queryRawUnsafe: vi.fn().mockResolvedValue([{ "?column?": 1 }]),
+      },
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://plane.example/api/v1/workspaces/workspace/projects/project/work-items?per_page=1",
+      expect.objectContaining({
+        headers: expect.objectContaining({
           Authorization: "Bearer plane-key",
         }),
       }),

@@ -222,6 +222,7 @@ PLANE_BASE_URL="https://plane.example" \
 PLANE_WORKSPACE_SLUG="workspace" \
 PLANE_PROJECT_ID="project" \
 PLANE_API_KEY="..." \
+PLANE_API_KEY_HEADER="X-API-Key" \
 OPENHANDS_BASE_URL="https://openhands.example" \
 LANGFUSE_BASE_URL="https://langfuse.example" \
 LANGFUSE_PUBLIC_KEY="..." \
@@ -234,6 +235,8 @@ Checks:
 - Required live env vars are present.
 - PostgreSQL responds to `SELECT 1`.
 - Plane work-items API can list one item from the configured project.
+- Plane API key auth defaults to `X-API-Key`; set `PLANE_API_KEY_HEADER=Authorization` only for
+  bearer-compatible deployments.
 - OpenHands health endpoint responds. Default path: `/health`; override with
   `OPENHANDS_HEALTH_PATH`.
 - Langfuse health endpoint responds. Default path: `/api/public/health`; override with

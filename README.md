@@ -99,6 +99,7 @@ DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schem
 PLANE_BASE_URL="https://plane.example" \
 PLANE_WORKSPACE_SLUG="workspace" \
 PLANE_PROJECT_ID="project" \
+PLANE_API_KEY="..." \
 OPENHANDS_BASE_URL="https://openhands.example" \
 LANGFUSE_BASE_URL="https://langfuse.example" \
 LANGFUSE_PUBLIC_KEY="pk" \
@@ -108,6 +109,8 @@ pnpm live:preflight
 
 The preflight checks DB connectivity, Plane work item listing, OpenHands health, and Langfuse
 health without creating tasks, conversations, or traces.
+Plane self-host Personal Access Tokens use `X-API-Key` by default; set
+`PLANE_API_KEY_HEADER=Authorization` only for OAuth/bearer-compatible deployments.
 
 ## Design Docs
 
