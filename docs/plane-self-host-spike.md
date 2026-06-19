@@ -102,7 +102,9 @@ the target Plane deployment explicitly requires OAuth-compatible `Authorization`
       对 disposable `P0.5 smoke test` 实测通过；PATCH 使用现有 state ID 和 label ID，避免改变业务状态。
 - [x] comment API 可写入 run 摘要。2026-06-19 用 `PLANE_PROBE_COMMENT_BODY` 对 disposable
       `P0.5 smoke test` 实测通过。
-- [ ] API rate limit 60 req/min 已在 self-host 实例实测或确认行为一致。
+- [x] API rate limit 60 req/min 已在 self-host 实例实测或确认行为一致。2026-06-19 本机
+      API 返回 `X-Ratelimit-Remaining`/`X-Ratelimit-Reset`，HEAD/GET 探测后 remaining 从 59
+      递减到 58；P1 polling 继续按 60 req/min 预算设计。
 - [x] custom property `repo` 已实测。2026-06-19 对 disposable `P0.5 smoke test` PATCH
       `custom_fields.repo=crs-src`：API 不报错，但 PATCH/GET 均不回显，DB `issues` 表也无
       custom field 存储列；P1 不依赖该能力，repo routing 继续使用 `repo:<name>` label fallback。
@@ -129,6 +131,7 @@ the target Plane deployment explicitly requires OAuth-compatible `Authorization`
 - custom property `repo` PATCH/GET 已实测不足以作为 P1 repo routing 字段；P1 使用 label fallback，
   后续若需要页面展示、filter/order 或强类型字段，再进入 Plane fork 二开字段。
 - self-host Community Edition 与 Plane Cloud API 行为可能存在差异，尤其是 custom property、webhook、rate limit。
-- 60 req/min 对多 project polling 偏紧，P1 必须做分页、退避、reconciliation 窗口和 token 预算。
+- 60 req/min 已在 self-host API header 中确认，对多 project polling 偏紧；P1 必须继续保持分页、
+  退避、reconciliation 窗口和 token 预算。
 - AGPLv3 对服务端二开有合规约束，生产化前要补 license checklist。
 - 目前未执行真实 self-host 部署、API 调用和 webhook receiver 测试；本文是 P0.5 执行清单，不是实测报告。

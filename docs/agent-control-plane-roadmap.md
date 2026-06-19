@@ -62,6 +62,8 @@ P0 方案固化
   custom field 存储列。P1 repo routing 决策为继续使用 `repo:<name>` label fallback；
   Plane fork `michaelx1993/plane` 已存在，默认分支 `preview`，正式字段二开延后到需要页面展示、
   filter/order 或强类型字段时。
+- Plane self-host API 已确认返回 rate-limit headers，`X-Ratelimit-Remaining` 从 59 递减到 58；
+  P1 polling 继续按 60 req/min 预算执行。
 - `pnpm live:dispatch-once` 会先执行 live preflight，再派发一个真实任务，并输出 task/run/
   OpenHands/Langfuse/next-state evidence bundle 用于 Development run smoke test。
 - `pnpm live:verify-once` 会在 one-shot live dispatch 后校验 evidence bundle，缺少 Plane、
