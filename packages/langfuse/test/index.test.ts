@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { MockLangfuseAdapter, costBreakdown, tokenUsage } from "../src/index.js";
+import {
+  LangfuseHttpAdapter,
+  MockLangfuseAdapter,
+  costBreakdown,
+  tokenUsage,
+} from "../src/index.js";
 
 describe("MockLangfuseAdapter", () => {
   it("stores trace refs and aggregates token/cost summaries", async () => {
@@ -34,3 +39,117 @@ describe("MockLangfuseAdapter", () => {
     await expect(adapter.getTraceSummary(trace.traceId)).resolves.toEqual(summary);
   });
 });
+
+describe("LangfuseHttpAdapter", () => {
+  it("uses basic auth and sends trace/generation task payloads", async () => {
+    const requests: Array<{
+      input: string;
+      init?: { method?: string; headers?: Record<string, string>; body?: string };
+    }> = [];
+    const fetch = async (
+      input: string,
+      init?: { method?: string; headers?: Record<string, string>; body?: string },
+    ) => {
+      requests.push({ input, init });
+
+      if (input === "https://langfuse.example/api/public/traces") {
+        return jsonResponse({
+          id: "trace-1",
+          url: "https://langfuse.example/trace/trace-1",
+        });
+      }
+
+      if (input === "https://langfuse.example/api/public/generations") {
+        return jsonResponse({ id: "generation-1" });
+      }
+
+      if (input === "https://langfuse.example/api/public/traces/trace-1") {
+        return jsonResponse({ ok: true });
+      }
+
+      throw new Error(`Unexpected request: ${input}`);
+    };
+    const adapter = new LangfuseHttpAdapter({
+      baseUrl: "https://langfuse.example/",
+      publicKey: "pk",
+      secretKey: "sk",
+      fetch,
+    });
+
+    const trace = await adapter.createTrace({
+      name: "development-run",
+      metadata: {
+        taskId: "task-1",
+        runId: "run-1",
+        conversationId: "conversation-1",
+        promptReleaseId: "prompt-release-1",
+        repo: "traffic",
+        role: "Development",
+        model: "gpt-5.5",
+      },
+    });
+    await adapter.createGeneration({
+      traceId: trace.traceId,
+      name: "llm-call",
+      model: "gpt-5.5",
+      input: { prompt: "Fix" },
+      output: { text: "Done" },
+      usage: tokenUsage(11, 7),
+      cost: costBreakdown(0.01, 0.02),
+      latencyMs: 1234,
+    });
+    const summary = await adapter.finishTrace(trace.traceId, { status: "completed" });
+
+    expect(
+      requests.every((request) => request.init?.headers?.authorization === "Basic cGs6c2s="),
+    ).toBe(true);
+    expect(JSON.parse(requests[0].init?.body ?? "{}")).toMatchObject({
+      name: "development-run",
+      metadata: {
+        promptReleaseId: "prompt-release-1",
+        task: "task-1",
+        run: "run-1",
+        repo: "traffic",
+        role: "Development",
+      },
+    });
+    expect(JSON.parse(requests[1].init?.body ?? "{}")).toMatchObject({
+      traceId: "trace-1",
+      model: "gpt-5.5",
+      usage: {
+        inputTokens: 11,
+        outputTokens: 7,
+        totalTokens: 18,
+        tokens: 18,
+      },
+      cost: {
+        inputCostUsd: 0.01,
+        outputCostUsd: 0.02,
+        totalCostUsd: 0.03,
+      },
+      metadata: {
+        promptReleaseId: "prompt-release-1",
+        task: "task-1",
+        run: "run-1",
+        repo: "traffic",
+        role: "Development",
+      },
+    });
+    expect(JSON.parse(requests[2].init?.body ?? "{}")).toEqual({
+      output: { status: "completed" },
+    });
+    expect(summary).toMatchObject({
+      trace: { traceId: "trace-1" },
+      usage: { inputTokens: 11, outputTokens: 7, totalTokens: 18 },
+      generationCount: 1,
+    });
+  });
+});
+
+function jsonResponse(body: unknown) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => body,
+  };
+}

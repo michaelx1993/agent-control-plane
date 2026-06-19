@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addSeconds,
   err,
+  FEEDBACK_SEVERITIES,
   isErr,
   isIsoDateTime,
   isOk,
@@ -19,6 +20,12 @@ describe("Result helpers", () => {
     expect(isErr(bad)).toBe(true);
     if (isOk(good)) expect(good.value).toBe("sealed");
     if (isErr(bad)) expect(bad.error.code).toBe("BROKEN");
+  });
+});
+
+describe("feedback severity helpers", () => {
+  it("defines shared feedback severity ordering", () => {
+    expect(FEEDBACK_SEVERITIES).toEqual(["info", "minor", "major", "blocker"]);
   });
 });
 

@@ -1,4 +1,4 @@
-import type { AgentRoleKey, Result, TaskState } from "../../shared/src/index";
+import type { AgentRoleKey, FeedbackSeverity, Result, TaskState } from "../../shared/src/index";
 import { controlPlaneError, err, ok, TASK_STATES } from "../../shared/src/index";
 
 export const MAIN_STATE_CHAIN: readonly TaskState[] = [
@@ -63,6 +63,31 @@ export interface TransitionValidation {
   from: TaskState;
   to: TaskState;
   kind: "main-chain" | "shortcut" | "rework";
+}
+
+export type WorkflowRunStatus = "completed" | "failed" | "stuck";
+
+export interface WorkflowRunResult {
+  status: WorkflowRunStatus;
+}
+
+export interface WorkflowFeedback {
+  severity: FeedbackSeverity;
+}
+
+export interface WorkflowClosureInput {
+  taskState: string;
+  role: AgentRoleKey;
+  openHandsResult?: WorkflowRunResult;
+  unresolvedFeedback?: readonly WorkflowFeedback[];
+}
+
+export interface WorkflowClosurePlan {
+  allowedTransition: boolean;
+  nextState: TaskState;
+  requiresHuman: boolean;
+  reason: string;
+  transition?: TransitionValidation;
 }
 
 export function isTaskState(value: string): value is TaskState {
@@ -137,4 +162,116 @@ export function nextMainState(state: TaskState): Result<TaskState> {
     );
   }
   return ok(next);
+}
+
+export function planWorkflowClosure(input: WorkflowClosureInput): Result<WorkflowClosurePlan> {
+  if (!isTaskState(input.taskState)) {
+    return err(
+      controlPlaneError("STATE_INVALID", `Unknown task state '${input.taskState}'.`, {
+        state: input.taskState,
+      }),
+    );
+  }
+
+  const state = input.taskState;
+
+  if (isTerminalState(state)) {
+    return ok(stayInState(state, false, `State '${state}' is terminal and cannot auto-advance.`));
+  }
+
+  if (isHumanState(state)) {
+    return ok(stayInState(state, true, `State '${state}' requires human action before advancing.`));
+  }
+
+  const expectedRole = roleForState(state);
+  if (!expectedRole.ok) {
+    return err(expectedRole.error);
+  }
+
+  if (expectedRole.value !== input.role) {
+    return err(
+      controlPlaneError(
+        "STATE_ROLE_MISMATCH",
+        `Role '${input.role}' cannot close workflow state '${state}'.`,
+        { state, role: input.role, expectedRole: expectedRole.value },
+      ),
+    );
+  }
+
+  if (input.openHandsResult === undefined) {
+    return ok(stayInState(state, false, `State '${state}' has no OpenHands result to close.`));
+  }
+
+  if (input.openHandsResult.status !== "completed") {
+    return ok(
+      stayInState(
+        state,
+        false,
+        `OpenHands result '${input.openHandsResult.status}' does not allow auto-advance.`,
+      ),
+    );
+  }
+
+  const nextState = nextStateForClosedWorkflow(state, input.unresolvedFeedback ?? []);
+  if (!nextState.ok) {
+    return nextState;
+  }
+
+  return buildTransitionPlan(state, nextState.value);
+}
+
+function nextStateForClosedWorkflow(
+  state: TaskState,
+  unresolvedFeedback: readonly WorkflowFeedback[],
+): Result<TaskState> {
+  if (state === "Code Review" && hasMajorOrBlockerFeedback(unresolvedFeedback)) {
+    return ok("Development");
+  }
+
+  return nextMainState(state);
+}
+
+function hasMajorOrBlockerFeedback(unresolvedFeedback: readonly WorkflowFeedback[]): boolean {
+  return unresolvedFeedback.some(
+    (feedback) => feedback.severity === "major" || feedback.severity === "blocker",
+  );
+}
+
+function buildTransitionPlan(from: TaskState, to: TaskState): Result<WorkflowClosurePlan> {
+  const transition = validateTransition(from, to);
+  if (!transition.ok) {
+    return err(transition.error);
+  }
+
+  const requiresHuman = isHumanState(to);
+  return ok({
+    allowedTransition: true,
+    nextState: to,
+    requiresHuman,
+    reason: reasonForTransition(from, to),
+    transition: transition.value,
+  });
+}
+
+function stayInState(
+  state: TaskState,
+  requiresHuman: boolean,
+  reason: string,
+): WorkflowClosurePlan {
+  return {
+    allowedTransition: false,
+    nextState: state,
+    requiresHuman,
+    reason,
+  };
+}
+
+function reasonForTransition(from: TaskState, to: TaskState): string {
+  if (from === "Code Review" && to === "Development") {
+    return "Code review has unresolved major or blocker feedback; returning to Development.";
+  }
+  if (isHumanState(to)) {
+    return `Workflow can advance from '${from}' to human-gated state '${to}'.`;
+  }
+  return `Workflow can advance from '${from}' to '${to}'.`;
 }

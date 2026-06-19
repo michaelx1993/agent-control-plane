@@ -43,6 +43,10 @@ export type AgentRoleKey =
   | "release"
   | "deployment";
 
+export const FEEDBACK_SEVERITIES = ["info", "minor", "major", "blocker"] as const;
+
+export type FeedbackSeverity = (typeof FEEDBACK_SEVERITIES)[number];
+
 export interface ControlPlaneError {
   code: string;
   message: string;

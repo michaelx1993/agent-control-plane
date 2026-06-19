@@ -6,6 +6,7 @@ import {
   isHumanState,
   isTerminalState,
   nextMainState,
+  planWorkflowClosure,
   roleForState,
   TERMINAL_STATES,
   validateTransition,
@@ -80,5 +81,118 @@ describe("roleForState", () => {
 describe("nextMainState", () => {
   it("returns the next PRD chain state", () => {
     expect(nextMainState("In Merge")).toEqual({ ok: true, value: "Merged" });
+  });
+});
+
+describe("planWorkflowClosure", () => {
+  it("advances Development to Code Review after a completed OpenHands result", () => {
+    expect(
+      planWorkflowClosure({
+        taskState: "Development",
+        role: "development",
+        openHandsResult: { status: "completed" },
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        allowedTransition: true,
+        nextState: "Code Review",
+        requiresHuman: false,
+        reason: "Workflow can advance from 'Development' to 'Code Review'.",
+        transition: { from: "Development", to: "Code Review", kind: "main-chain" },
+      },
+    });
+  });
+
+  it("advances successful Code Review to Human Review", () => {
+    expect(
+      planWorkflowClosure({
+        taskState: "Code Review",
+        role: "code_review",
+        openHandsResult: { status: "completed" },
+        unresolvedFeedback: [{ severity: "minor" }],
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        allowedTransition: true,
+        nextState: "Human Review",
+        requiresHuman: true,
+        reason: "Workflow can advance from 'Code Review' to human-gated state 'Human Review'.",
+        transition: { from: "Code Review", to: "Human Review", kind: "main-chain" },
+      },
+    });
+  });
+
+  it("returns Code Review with major or blocker feedback to Development", () => {
+    expect(
+      planWorkflowClosure({
+        taskState: "Code Review",
+        role: "code_review",
+        openHandsResult: { status: "completed" },
+        unresolvedFeedback: [{ severity: "major" }, { severity: "blocker" }],
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        allowedTransition: true,
+        nextState: "Development",
+        requiresHuman: false,
+        reason: "Code review has unresolved major or blocker feedback; returning to Development.",
+        transition: { from: "Code Review", to: "Development", kind: "rework" },
+      },
+    });
+  });
+
+  it("advances merge, release, and deployment closure states", () => {
+    expect(
+      planWorkflowClosure({
+        taskState: "In Merge",
+        role: "merge",
+        openHandsResult: { status: "completed" },
+      }),
+    ).toMatchObject({ ok: true, value: { allowedTransition: true, nextState: "Merged" } });
+    expect(
+      planWorkflowClosure({
+        taskState: "Release Version",
+        role: "release",
+        openHandsResult: { status: "completed" },
+      }),
+    ).toMatchObject({ ok: true, value: { allowedTransition: true, nextState: "Released" } });
+    expect(
+      planWorkflowClosure({
+        taskState: "Deployment",
+        role: "deployment",
+        openHandsResult: { status: "completed" },
+      }),
+    ).toMatchObject({ ok: true, value: { allowedTransition: true, nextState: "Deployed" } });
+  });
+
+  it("does not auto-advance human-gated states", () => {
+    expect(
+      planWorkflowClosure({
+        taskState: "Human Review",
+        role: "code_review",
+        openHandsResult: { status: "completed" },
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        allowedTransition: false,
+        nextState: "Human Review",
+        requiresHuman: true,
+        reason: "State 'Human Review' requires human action before advancing.",
+      },
+    });
+  });
+
+  it("rejects illegal states", () => {
+    const result = planWorkflowClosure({
+      taskState: "Blocked",
+      role: "development",
+      openHandsResult: { status: "completed" },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("STATE_INVALID");
   });
 });
