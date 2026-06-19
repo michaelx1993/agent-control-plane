@@ -76,9 +76,20 @@ export type PlaneTaskUpdate = {
   [key: string]: unknown;
 };
 
+export type PlaneTaskCreate = {
+  name: string;
+  description?: string;
+  stateName?: string;
+  labels?: string[];
+  priority?: string;
+  custom_fields?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
 export type PlaneClient = {
   getTask(taskId: string): Promise<PlaneTaskPayload>;
   listTasks(params?: ListPlaneTasksParams): Promise<PlaneTaskPayload[]>;
+  createTask(input: PlaneTaskCreate): Promise<PlaneTaskPayload>;
   updateTask(taskId: string, update: PlaneTaskUpdate): Promise<PlaneTaskPayload>;
   addComment(taskId: string, body: string): Promise<{ id: string; body: string }>;
 };
@@ -179,6 +190,13 @@ export class HttpPlaneClient implements PlaneClient {
     );
 
     return Array.isArray(response) ? response : (response.results ?? []);
+  }
+
+  async createTask(input: PlaneTaskCreate): Promise<PlaneTaskPayload> {
+    return this.request<PlaneTaskPayload>(this.workItemsPath(), {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
   }
 
   async updateTask(taskId: string, update: PlaneTaskUpdate): Promise<PlaneTaskPayload> {
@@ -377,6 +395,28 @@ export function linearIssueToPlaneImportDraft(issue: LinearIssuePayload): PlaneI
 export function linearExportToPlaneImportDrafts(input: unknown): PlaneImportDraft[] {
   const issues = extractLinearIssues(input);
   return issues.map((issue) => linearIssueToPlaneImportDraft(issue));
+}
+
+export function planeImportDraftToCreatePayload(draft: PlaneImportDraft): PlaneTaskCreate {
+  if (draft.blockedReason) {
+    throw new Error(`Cannot create Plane task for ${draft.identifier}: ${draft.blockedReason}`);
+  }
+
+  return {
+    name: draft.title,
+    description: draft.description,
+    stateName: draft.stateName,
+    labels: draft.labels,
+    priority: draft.priority,
+    custom_fields: {
+      repo: draft.repo,
+      source: draft.source,
+      sourceId: draft.sourceId,
+      sourceIdentifier: draft.identifier,
+      sourceUrl: draft.sourceUrl,
+      ...draft.metadata,
+    },
+  };
 }
 
 function normalizeLabels(labels: PlaneLabel[] = []): string[] {

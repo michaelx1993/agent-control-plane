@@ -255,6 +255,24 @@ items:
 pnpm linear:migration-plan ./exports/linear-open-issues.json --output ./exports/plane-draft.json
 ```
 
+Preview the import execution without writing to Plane:
+
+```bash
+pnpm linear:migration-plan ./exports/plane-draft.json --apply --dry-run \
+  --output ./exports/plane-import-preview.json
+```
+
+Apply ready items to Plane after review:
+
+```bash
+PLANE_BASE_URL="https://plane.example" \
+PLANE_WORKSPACE_SLUG="workspace" \
+PLANE_PROJECT_ID="project" \
+PLANE_API_KEY="..." \
+pnpm linear:migration-plan ./exports/plane-draft.json --apply \
+  --output ./exports/plane-import-result.json
+```
+
 The output contains:
 
 - `summary.total`, `summary.ready`, and `summary.missingRepo`.
@@ -262,6 +280,8 @@ The output contains:
   `repo`, `sourceUrl`, and source metadata.
 - `blockedReason: "missing-repo"` when the export cannot determine a target repo. These items must
   be fixed before import because the worker requires repo routing.
+- `--apply` skips blocked drafts and creates only ready Plane work items. Use `--dry-run` first to
+  inspect the exact create/skip plan.
 
 CSV headers are normalized for common Linear exports, including `id`, `identifier`, `key`, `title`,
 `description`, `state`, `status`, `priority`, `labels`, `repo`, `repository`, `project`, `team`,

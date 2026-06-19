@@ -3,8 +3,11 @@ import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  HttpPlaneClient,
   linearExportToPlaneImportDrafts,
+  planeImportDraftToCreatePayload,
   type LinearIssuePayload,
+  type PlaneImportDraft,
 } from "../packages/plane/src/index.ts";
 
 type MigrationOutput = {
@@ -15,7 +18,24 @@ type MigrationOutput = {
     ready: number;
     missingRepo: number;
   };
-  tasks: ReturnType<typeof linearExportToPlaneImportDrafts>;
+  tasks: PlaneImportDraft[];
+};
+
+type ImportResult = {
+  generatedAt: string;
+  sourceFile: string;
+  dryRun: boolean;
+  summary: MigrationOutput["summary"] & {
+    created: number;
+    skipped: number;
+    failed: number;
+  };
+  results: Array<{
+    identifier: string;
+    status: "created" | "skipped" | "failed";
+    planeTaskId?: string;
+    reason?: string;
+  }>;
 };
 
 async function main() {
@@ -28,7 +48,7 @@ async function main() {
 
   const raw = await readFile(args.input, "utf8");
   const input = parseInput(raw, args.input);
-  const tasks = linearExportToPlaneImportDrafts(input);
+  const tasks = extractDrafts(input);
   const output: MigrationOutput = {
     generatedAt: new Date().toISOString(),
     sourceFile: args.input,
@@ -39,6 +59,21 @@ async function main() {
     },
     tasks,
   };
+
+  if (args.apply) {
+    const result = await applyImport(output, args.dryRun);
+    const serializedResult = `${JSON.stringify(result, null, 2)}\n`;
+    if (args.output) {
+      await writeFile(args.output, serializedResult, "utf8");
+      console.log(`wrote ${args.output}`);
+      console.log(JSON.stringify(result.summary));
+      return;
+    }
+
+    process.stdout.write(serializedResult);
+    return;
+  }
+
   const serialized = `${JSON.stringify(output, null, 2)}\n`;
 
   if (args.output) {
@@ -52,12 +87,19 @@ async function main() {
 }
 
 function parseArgs(args: string[]) {
-  const parsed: { input?: string; output?: string } = {};
+  const parsed: { apply: boolean; dryRun: boolean; input?: string; output?: string } = {
+    apply: false,
+    dryRun: false,
+  };
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--output" || arg === "-o") {
       parsed.output = args[index + 1];
       index += 1;
+    } else if (arg === "--apply") {
+      parsed.apply = true;
+    } else if (arg === "--dry-run") {
+      parsed.dryRun = true;
     } else if (!parsed.input) {
       parsed.input = arg;
     }
@@ -73,6 +115,84 @@ function parseInput(raw: string, filename: string): unknown {
   }
 
   return JSON.parse(raw) as unknown;
+}
+
+function extractDrafts(input: unknown): PlaneImportDraft[] {
+  if (isMigrationOutput(input)) {
+    return input.tasks;
+  }
+
+  return linearExportToPlaneImportDrafts(input);
+}
+
+async function applyImport(output: MigrationOutput, dryRun: boolean): Promise<ImportResult> {
+  const client = dryRun ? undefined : createPlaneClientFromEnv();
+  const results: ImportResult["results"] = [];
+
+  for (const task of output.tasks) {
+    if (task.blockedReason) {
+      results.push({
+        identifier: task.identifier,
+        status: "skipped",
+        reason: task.blockedReason,
+      });
+      continue;
+    }
+
+    if (dryRun) {
+      results.push({
+        identifier: task.identifier,
+        status: "skipped",
+        reason: "dry-run",
+      });
+      continue;
+    }
+
+    try {
+      const created = await client!.createTask(planeImportDraftToCreatePayload(task));
+      results.push({
+        identifier: task.identifier,
+        status: "created",
+        planeTaskId: created.id ?? created.work_item_id ?? created.issue_id,
+      });
+    } catch (error) {
+      results.push({
+        identifier: task.identifier,
+        status: "failed",
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    sourceFile: output.sourceFile,
+    dryRun,
+    summary: {
+      ...output.summary,
+      created: results.filter((result) => result.status === "created").length,
+      skipped: results.filter((result) => result.status === "skipped").length,
+      failed: results.filter((result) => result.status === "failed").length,
+    },
+    results,
+  };
+}
+
+function createPlaneClientFromEnv(): HttpPlaneClient {
+  const baseUrl = process.env.PLANE_BASE_URL;
+  const workspaceSlug = process.env.PLANE_WORKSPACE_SLUG;
+  const projectId = process.env.PLANE_PROJECT_ID;
+  if (!baseUrl || !workspaceSlug || !projectId) {
+    throw new Error("PLANE_BASE_URL, PLANE_WORKSPACE_SLUG, and PLANE_PROJECT_ID are required");
+  }
+
+  return new HttpPlaneClient({
+    apiKey: process.env.PLANE_API_KEY,
+    apiKeyHeader: process.env.PLANE_API_KEY_HEADER,
+    baseUrl,
+    projectId,
+    workspaceSlug,
+  });
 }
 
 function parseCsv(raw: string): LinearIssuePayload[] {
@@ -99,6 +219,14 @@ function parseCsv(raw: string): LinearIssuePayload[] {
     });
     return record as LinearIssuePayload;
   });
+}
+
+function isMigrationOutput(value: unknown): value is MigrationOutput {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Array.isArray((value as { tasks?: unknown }).tasks)
+  );
 }
 
 function normalizeCsvHeader(header: string): string {
@@ -164,7 +292,9 @@ function parseCsvRows(raw: string): string[][] {
 }
 
 function printUsage() {
-  console.error("usage: pnpm linear:migration-plan <linear-export.json|csv> [--output draft.json]");
+  console.error(
+    "usage: pnpm linear:migration-plan <linear-export.json|csv|draft.json> [--output out.json] [--apply] [--dry-run]",
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

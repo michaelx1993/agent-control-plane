@@ -4,6 +4,7 @@ import {
   linearExportToPlaneImportDrafts,
   linearIssueToPlaneImportDraft,
   normalizePlaneTask,
+  planeImportDraftToCreatePayload,
   parsePlaneWebhookPayload,
   parseRepoFromLabels,
 } from "../src/index.js";
@@ -110,6 +111,31 @@ describe("Linear migration draft", () => {
       repo: "crs-src",
     });
   });
+
+  it("builds Plane create payloads and refuses blocked drafts", () => {
+    const draft = linearIssueToPlaneImportDraft({
+      id: "lin-4",
+      identifier: "TOK-6",
+      title: "Ready issue",
+      repo: "traffic",
+    });
+    const payload = planeImportDraftToCreatePayload(draft);
+
+    expect(payload).toMatchObject({
+      name: "Ready issue",
+      custom_fields: {
+        repo: "traffic",
+        source: "linear",
+        sourceIdentifier: "TOK-6",
+      },
+    });
+
+    expect(() =>
+      planeImportDraftToCreatePayload(
+        linearIssueToPlaneImportDraft({ id: "lin-5", identifier: "TOK-7", title: "Blocked" }),
+      ),
+    ).toThrow("missing-repo");
+  });
 });
 
 describe("HTTP client skeleton", () => {
@@ -137,6 +163,35 @@ describe("HTTP client skeleton", () => {
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({ stateName: "Development" }),
+        headers: expect.objectContaining({ "X-API-Key": "secret" }),
+      }),
+    );
+  });
+
+  it("creates Plane work items with POST", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ id: "task-2", name: "Created" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const client = new HttpPlaneClient({
+      baseUrl: "https://plane.example",
+      apiKey: "secret",
+      workspaceSlug: "bob-x-space",
+      projectId: "token",
+      fetch: fetchMock,
+    });
+
+    const task = await client.createTask({ name: "Created", labels: ["repo:traffic"] });
+
+    expect(task.name).toBe("Created");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://plane.example/api/v1/workspaces/bob-x-space/projects/token/work-items",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "Created", labels: ["repo:traffic"] }),
         headers: expect.objectContaining({ "X-API-Key": "secret" }),
       }),
     );
