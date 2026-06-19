@@ -18,6 +18,7 @@ export type RunStatus = "queued" | "claimed" | "running" | "blocked" | "complete
 export type TaskQueueItem = {
   id: string;
   planeTask: string;
+  team: string;
   project: string;
   repo: string;
   state: PlaneState;
@@ -207,6 +208,7 @@ export const taskQueue: TaskQueueItem[] = [
   {
     id: "ACP-1042",
     planeTask: "Implement repo-aware dispatch loop",
+    team: "token-team",
     project: "token",
     repo: "crs-src",
     state: "Development",
@@ -221,6 +223,7 @@ export const taskQueue: TaskQueueItem[] = [
   {
     id: "ACP-1045",
     planeTask: "Backfill Plane webhook receiver coverage",
+    team: "token-team",
     project: "token",
     repo: "traffic",
     state: "Todo",
@@ -235,6 +238,7 @@ export const taskQueue: TaskQueueItem[] = [
   {
     id: "ACP-1051",
     planeTask: "Review prompt rollback semantics",
+    team: "token-team",
     project: "token",
     repo: "sub3",
     state: "Blocked",
@@ -249,6 +253,7 @@ export const taskQueue: TaskQueueItem[] = [
   {
     id: "ACP-1057",
     planeTask: "Merge retry policy migration",
+    team: "token-team",
     project: "token",
     repo: "crs-src",
     state: "In Merge",
@@ -263,6 +268,7 @@ export const taskQueue: TaskQueueItem[] = [
   {
     id: "ACP-1060",
     planeTask: "Tune traffic workspace prompts",
+    team: "token-team",
     project: "token",
     repo: "traffic",
     state: "Development",

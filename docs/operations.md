@@ -502,6 +502,10 @@ Protected write paths include:
 
 Read-only dashboard APIs remain open in this first personal-ops version.
 
+The Task Queue supports read-only filtering in both the dashboard and `GET /api/tasks`:
+`team=<key>`, `project=<slug>`, `repo=<slug>`, and `state=<display-state>`. The dashboard uses the
+same query parameters, so filtered views can be shared by URL.
+
 The Task Queue table exposes manual task transitions for operator gates. It offers the next main
 workflow state, rework back to `Development` where the state machine allows it, `Blocked`, `Done`,
 and `Canceled`. The API still validates every requested transition with the shared state machine.

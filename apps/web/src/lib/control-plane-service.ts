@@ -67,6 +67,13 @@ export type TaskQueueResponse = {
   tasks: TaskQueueItem[];
 };
 
+export type TaskQueueFilters = {
+  project?: string;
+  repo?: string;
+  state?: string;
+  team?: string;
+};
+
 export type RunsResponse = {
   count: number;
   runs: Run[];
@@ -251,15 +258,16 @@ const roleByDbState: Partial<Record<DbTaskState, string>> = {
   Deployment: "Deploy Agent",
 };
 
-export async function getTaskQueue(): Promise<TaskQueueResponse> {
+export async function getTaskQueue(filters: TaskQueueFilters = {}): Promise<TaskQueueResponse> {
   if (shouldUseDatabase()) {
-    return getTaskQueueFromDb();
+    return getTaskQueueFromDb(filters);
   }
 
+  const filteredTasks = filterTaskQueueItems(taskQueue, filters);
   return {
-    count: taskQueue.length,
-    summary: mockQueueSummary,
-    tasks: taskQueue,
+    count: filteredTasks.length,
+    summary: summarizeQueue(filteredTasks, runs),
+    tasks: filteredTasks,
   };
 }
 
@@ -1387,12 +1395,16 @@ function diffLines(leftContent: string, rightContent: string): PromptComponentDi
   return lines;
 }
 
-async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
+async function getTaskQueueFromDb(filters: TaskQueueFilters = {}): Promise<TaskQueueResponse> {
   const [tasks, runsResponse, activeRuns] = await Promise.all([
     prisma.task.findMany({
       include: {
         repository: true,
-        project: true,
+        project: {
+          include: {
+            team: true,
+          },
+        },
         runs: {
           select: {
             id: true,
@@ -1500,6 +1512,7 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
     return {
       id: task.identifier,
       planeTask: task.title,
+      team: task.project.team.key,
       project: task.project.slug,
       repo: task.repository?.slug ?? "",
       state: dbTaskStateToPlaneState(task.state),
@@ -1521,12 +1534,13 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
       }),
     };
   });
-  const summary = summarizeQueue(responseTasks, runsResponse.runs);
+  const filteredTasks = filterTaskQueueItems(responseTasks, filters);
+  const summary = summarizeQueue(filteredTasks, runsResponse.runs);
 
   return {
-    count: responseTasks.length,
+    count: filteredTasks.length,
     summary,
-    tasks: responseTasks,
+    tasks: filteredTasks,
   };
 }
 
@@ -2071,6 +2085,17 @@ function summarizeQueue(tasks: TaskQueueItem[], runsResponse: Run[]): QueueSumma
     running: runsResponse.filter((run) => run.status === "running").length,
     failed: runsResponse.filter((run) => run.status === "failed").length,
   };
+}
+
+function filterTaskQueueItems(tasks: TaskQueueItem[], filters: TaskQueueFilters): TaskQueueItem[] {
+  return tasks.filter((task) => {
+    return (
+      (!filters.team || task.team === filters.team) &&
+      (!filters.project || task.project === filters.project) &&
+      (!filters.repo || task.repo === filters.repo) &&
+      (!filters.state || task.state === filters.state)
+    );
+  });
 }
 
 function dbTaskStateToPlaneState(state: DbTaskState): TaskQueueItem["state"] {

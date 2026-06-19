@@ -264,9 +264,44 @@ small,
   overflow-x: auto;
 }
 
+.queueFilters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.queueFilters label {
+  display: grid;
+  gap: 5px;
+}
+
+.queueFilters label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.queueFilters select {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font: inherit;
+  padding: 7px 10px;
+}
+
+.queueFilterActions {
+  display: flex;
+  gap: 8px;
+}
+
 table {
   width: 100%;
-  min-width: 1040px;
+  min-width: 1160px;
   border-collapse: collapse;
 }
 
@@ -961,7 +996,8 @@ dd {
   .topbar,
   .dashboardGrid,
   .detailGrid,
-  .promptGrid {
+  .promptGrid,
+  .queueFilters {
     grid-template-columns: 1fr;
   }
 

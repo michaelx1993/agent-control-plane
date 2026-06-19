@@ -54,7 +54,22 @@ describe("new mock API routes", () => {
       project: expect.any(String),
       repo: expect.any(String),
       state: expect.any(String),
+      team: expect.any(String),
     });
+  });
+
+  it("filters task queue by repo and state", async () => {
+    const response = await getTasksRoute(
+      new Request("http://localhost/api/tasks?repo=crs-src&state=Development"),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.tasks.length).toBeGreaterThan(0);
+    expect(payload.tasks.every((task: { repo: string }) => task.repo === "crs-src")).toBe(true);
+    expect(payload.tasks.every((task: { state: string }) => task.state === "Development")).toBe(
+      true,
+    );
   });
 
   it("returns prompt release JSON with stable run binding fields", async () => {

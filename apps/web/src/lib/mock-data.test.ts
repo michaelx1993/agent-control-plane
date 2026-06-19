@@ -14,6 +14,7 @@ describe("control plane mock service", () => {
     const taskQueue = await getTaskQueue();
 
     expect(taskQueue.count).toBe(taskQueue.tasks.length);
+    expect(taskQueue.tasks.every((task) => task.team.length > 0)).toBe(true);
     expect(taskQueue.tasks.every((task) => task.repo.length > 0)).toBe(true);
     expect(taskQueue.tasks.some((task) => task.labels.includes(`repo:${task.repo}`))).toBe(true);
     expect(taskQueue.tasks.every((task) => task.maxAttempts >= task.attempt)).toBe(true);

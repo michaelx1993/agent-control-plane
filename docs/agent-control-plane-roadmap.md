@@ -63,6 +63,7 @@ P0 方案固化
   feedback 和 prompt 写操作。
 - 控制台已有 `Operator Token` 面板，浏览器侧会把 token 附加到受保护写操作。
 - 控制台 Task Queue 已支持人工推进下一状态、打回 Development、转 Blocked、Done 或 Canceled。
+- 控制台 Task Queue 和 `/api/tasks` 已支持按 team/project/repo/state 过滤。
 - Run Detail 已支持将 feedback 标记 resolved，减少返工上下文重复注入。
 - Run Detail 已有 Progress / Workpad 面板，将 run events 派生成 operator 可读进度和当前工作摘要。
 - Task Queue 可区分 repo concurrency、role concurrency、retry capped、budget blocked 和普通 gate。
@@ -581,6 +582,7 @@ Done              -> Terminal
 
 - run/lease/heartbeat/retry 可用。
 - 可从 API 查看运行状态。
+- Task Queue 可按 team/project/repo/state 过滤。
 - Plane comment 只承载低频状态，不承载高频 heartbeat。
 
 ### M3: Prompt Platform 可用

@@ -75,7 +75,19 @@ const formatCost = (costUsd: string) => {
   }).format(parsed);
 };
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+type QueueFilters = {
+  team: string;
+  project: string;
+  repo: string;
+  state: string;
+};
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : {};
   const [taskQueue, runs, promptReleases, systemHealth, operatorTimeline, readiness] =
     await Promise.all([
       getTaskQueue(),
@@ -85,6 +97,9 @@ export default async function DashboardPage() {
       getOperatorTimeline(),
       getSystemReadiness(),
     ]);
+  const queueFilters = normalizeQueueFilters(resolvedSearchParams);
+  const filteredTasks = filterTasks(taskQueue.tasks, queueFilters);
+  const filterOptions = queueFilterOptions(taskQueue.tasks);
 
   return (
     <main className="shell">
@@ -115,12 +130,51 @@ export default async function DashboardPage() {
       <OperatorTokenPanel />
 
       <section className="dashboardGrid" aria-label="Admin console sections">
-        <Panel title="Task Queue" meta={`${taskQueue.count} mirrored Plane tasks`} wide>
+        <Panel
+          title="Task Queue"
+          meta={`${filteredTasks.length}/${taskQueue.count} mirrored Plane tasks`}
+          wide
+        >
+          <form className="queueFilters" aria-label="Task queue filters">
+            <FilterSelect
+              label="Team"
+              name="team"
+              options={filterOptions.teams}
+              value={queueFilters.team}
+            />
+            <FilterSelect
+              label="Project"
+              name="project"
+              options={filterOptions.projects}
+              value={queueFilters.project}
+            />
+            <FilterSelect
+              label="Repo"
+              name="repo"
+              options={filterOptions.repos}
+              value={queueFilters.repo}
+            />
+            <FilterSelect
+              label="State"
+              name="state"
+              options={filterOptions.states}
+              value={queueFilters.state}
+            />
+            <div className="queueFilterActions">
+              <button className="primaryButton" type="submit">
+                Apply
+              </button>
+              <a className="buttonLink" href="/">
+                Clear
+              </a>
+            </div>
+          </form>
           <div className="tableWrap">
             <table>
               <thead>
                 <tr>
                   <th>Plane task</th>
+                  <th>Team / Project</th>
                   <th>Repo</th>
                   <th>State</th>
                   <th>Priority</th>
@@ -131,11 +185,15 @@ export default async function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {taskQueue.tasks.map((task) => (
+                {filteredTasks.map((task) => (
                   <tr key={task.id}>
                     <td>
                       <strong>{task.id}</strong>
                       <span>{task.planeTask}</span>
+                    </td>
+                    <td>
+                      <strong>{task.team}</strong>
+                      <span>{task.project}</span>
                     </td>
                     <td>
                       <code>{task.repo}</code>
@@ -161,6 +219,13 @@ export default async function DashboardPage() {
                     </td>
                   </tr>
                 ))}
+                {filteredTasks.length === 0 ? (
+                  <tr>
+                    <td colSpan={9}>
+                      <span className="emptyText">No tasks match the selected filters.</span>
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -303,6 +368,74 @@ export default async function DashboardPage() {
         </Panel>
       </section>
     </main>
+  );
+}
+
+function normalizeQueueFilters(
+  params: Record<string, string | string[] | undefined>,
+): QueueFilters {
+  return {
+    team: firstParam(params.team),
+    project: firstParam(params.project),
+    repo: firstParam(params.repo),
+    state: firstParam(params.state),
+  };
+}
+
+function firstParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+  return value ?? "";
+}
+
+function filterTasks(tasks: TaskQueueItem[], filters: QueueFilters): TaskQueueItem[] {
+  return tasks.filter((task) => {
+    return (
+      (!filters.team || task.team === filters.team) &&
+      (!filters.project || task.project === filters.project) &&
+      (!filters.repo || task.repo === filters.repo) &&
+      (!filters.state || task.state === filters.state)
+    );
+  });
+}
+
+function queueFilterOptions(tasks: TaskQueueItem[]) {
+  return {
+    projects: uniqueSorted(tasks.map((task) => task.project)),
+    repos: uniqueSorted(tasks.map((task) => task.repo).filter(Boolean)),
+    states: uniqueSorted(tasks.map((task) => task.state)),
+    teams: uniqueSorted(tasks.map((task) => task.team)),
+  };
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values)).sort((left, right) => left.localeCompare(right));
+}
+
+function FilterSelect({
+  label,
+  name,
+  options,
+  value,
+}: {
+  label: string;
+  name: keyof QueueFilters;
+  options: string[];
+  value: string;
+}) {
+  return (
+    <label>
+      <span>{label}</span>
+      <select name={name} defaultValue={value}>
+        <option value="">All</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
