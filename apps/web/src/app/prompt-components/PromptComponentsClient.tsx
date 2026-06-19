@@ -43,6 +43,18 @@ type PromptBindingsResponse = {
   promptBindings: PromptBindingItem[];
 };
 
+type PromptScopeItem = {
+  scopeType: Exclude<PromptScopeType, "global">;
+  id: string;
+  label: string;
+  detail: string;
+};
+
+type PromptScopesResponse = {
+  count: number;
+  scopes: PromptScopeItem[];
+};
+
 type ComponentFormState = {
   scopeType: PromptScopeType;
   scopeId: string;
@@ -81,9 +93,15 @@ const initialBindingFormState: BindingFormState = {
   status: "active",
 };
 
+function scopesFor(scopes: PromptScopeItem[], scopeType: PromptScopeType): PromptScopeItem[] {
+  if (scopeType === "global") return [];
+  return scopes.filter((scope) => scope.scopeType === scopeType);
+}
+
 export function PromptComponentsClient() {
   const [components, setComponents] = useState<PromptComponentItem[]>([]);
   const [bindings, setBindings] = useState<PromptBindingItem[]>([]);
+  const [scopes, setScopes] = useState<PromptScopeItem[]>([]);
   const [form, setForm] = useState<ComponentFormState>(initialComponentFormState);
   const [bindingForm, setBindingForm] = useState<BindingFormState>(initialBindingFormState);
   const [loading, setLoading] = useState(true);
@@ -103,18 +121,30 @@ export function PromptComponentsClient() {
     }, {});
   }, [components]);
 
+  const componentScopes = useMemo(
+    () => scopesFor(scopes, form.scopeType),
+    [form.scopeType, scopes],
+  );
+  const bindingScopes = useMemo(
+    () => scopesFor(scopes, bindingForm.scopeType),
+    [bindingForm.scopeType, scopes],
+  );
+
   async function loadComponents() {
     setLoading(true);
     setError(undefined);
     try {
-      const [componentsResponse, bindingsResponse] = await Promise.all([
+      const [componentsResponse, bindingsResponse, scopesResponse] = await Promise.all([
         fetch("/api/prompt-components", { cache: "no-store" }),
         fetch("/api/prompt-bindings", { cache: "no-store" }),
+        fetch("/api/prompt-scopes", { cache: "no-store" }),
       ]);
       const componentsPayload = (await componentsResponse.json()) as PromptComponentsResponse;
       const bindingsPayload = (await bindingsResponse.json()) as PromptBindingsResponse;
+      const scopesPayload = (await scopesResponse.json()) as PromptScopesResponse;
       setComponents(componentsPayload.promptComponents);
       setBindings(bindingsPayload.promptBindings);
+      setScopes(scopesPayload.scopes);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
@@ -210,6 +240,7 @@ export function PromptComponentsClient() {
                   setForm((current) => ({
                     ...current,
                     scopeType: event.target.value as PromptScopeType,
+                    scopeId: "",
                   }))
                 }
               >
@@ -223,12 +254,24 @@ export function PromptComponentsClient() {
             </label>
             <label>
               <span>Scope ID</span>
-              <input
-                value={form.scopeId}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, scopeId: event.target.value }))
-                }
-              />
+              {form.scopeType === "global" ? (
+                <input value="" disabled />
+              ) : (
+                <select
+                  required
+                  value={form.scopeId}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, scopeId: event.target.value }))
+                  }
+                >
+                  <option value="">select {form.scopeType}</option>
+                  {componentScopes.map((scope) => (
+                    <option key={scope.id} value={scope.id}>
+                      {scope.label} · {scope.detail}
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
             <label>
               <span>Name</span>
@@ -306,6 +349,7 @@ export function PromptComponentsClient() {
                   setBindingForm((current) => ({
                     ...current,
                     scopeType: event.target.value as BindingFormState["scopeType"],
+                    scopeId: "",
                   }))
                 }
               >
@@ -318,13 +362,20 @@ export function PromptComponentsClient() {
             </label>
             <label>
               <span>Scope ID</span>
-              <input
+              <select
                 required
                 value={bindingForm.scopeId}
                 onChange={(event) =>
                   setBindingForm((current) => ({ ...current, scopeId: event.target.value }))
                 }
-              />
+              >
+                <option value="">select {bindingForm.scopeType}</option>
+                {bindingScopes.map((scope) => (
+                  <option key={scope.id} value={scope.id}>
+                    {scope.label} · {scope.detail}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               <span>Component</span>

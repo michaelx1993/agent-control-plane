@@ -10,6 +10,7 @@ import {
   POST as postPromptComponentsRoute,
 } from "./prompt-components/route";
 import { GET as getPromptReleasesRoute } from "./prompt-releases/route";
+import { GET as getPromptScopesRoute } from "./prompt-scopes/route";
 import { GET as getRunDetailRoute } from "./runs/[runId]/route";
 import { GET as getTasksRoute } from "./tasks/route";
 
@@ -128,6 +129,16 @@ describe("new mock API routes", () => {
     expect(payload).toEqual({
       count: 0,
       promptBindings: [],
+    });
+  });
+
+  it("returns an empty prompt scope list without a database", async () => {
+    const response = await getPromptScopesRoute();
+    const payload = await response.json();
+
+    expect(payload).toEqual({
+      count: 0,
+      scopes: [],
     });
   });
 

@@ -62,6 +62,7 @@ The check validates:
 - `/api/runs`
 - `/api/prompt-releases`
 - `/api/prompt-components`
+- `/api/prompt-scopes`
 
 ## Worker Heartbeats
 

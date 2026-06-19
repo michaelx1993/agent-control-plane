@@ -19,5 +19,6 @@ check_endpoint "/api/tasks"
 check_endpoint "/api/runs"
 check_endpoint "/api/prompt-releases"
 check_endpoint "/api/prompt-components"
+check_endpoint "/api/prompt-scopes"
 
 echo "health-check passed for ${BASE_URL}"

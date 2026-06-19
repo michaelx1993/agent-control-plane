@@ -105,6 +105,18 @@ export type PromptBindingsResponse = {
   promptBindings: PromptBindingItem[];
 };
 
+export type PromptScopeItem = {
+  scopeType: Exclude<DbPromptScopeType, "global">;
+  id: string;
+  label: string;
+  detail: string;
+};
+
+export type PromptScopesResponse = {
+  count: number;
+  scopes: PromptScopeItem[];
+};
+
 export type CreatePromptBindingInput = {
   scopeType: DbPromptScopeType;
   scopeId: string;
@@ -333,6 +345,81 @@ export async function createPromptBinding(
     environment: binding.environment,
     status: binding.status,
     updatedAt: binding.updatedAt.toISOString(),
+  };
+}
+
+export async function getPromptScopes(): Promise<PromptScopesResponse> {
+  if (!shouldUseDatabase()) {
+    return {
+      count: 0,
+      scopes: [],
+    };
+  }
+
+  const [teams, projects, repositories, roles, agents] = await Promise.all([
+    prisma.team.findMany({
+      orderBy: { name: "asc" },
+      take: 100,
+    }),
+    prisma.project.findMany({
+      include: { team: true },
+      orderBy: [{ slug: "asc" }],
+      take: 100,
+    }),
+    prisma.repository.findMany({
+      include: {
+        project: true,
+      },
+      orderBy: [{ slug: "asc" }],
+      take: 200,
+    }),
+    prisma.role.findMany({
+      orderBy: { key: "asc" },
+      take: 100,
+    }),
+    prisma.agentDefinition.findMany({
+      include: { role: true },
+      orderBy: [{ name: "asc" }],
+      take: 100,
+    }),
+  ]);
+
+  const scopes: PromptScopeItem[] = [
+    ...teams.map((team) => ({
+      scopeType: "team" as const,
+      id: team.id,
+      label: `${team.name} (${team.key})`,
+      detail: team.description ?? team.externalTeamId,
+    })),
+    ...projects.map((project) => ({
+      scopeType: "project" as const,
+      id: project.id,
+      label: `${project.slug} (${project.name})`,
+      detail: `team:${project.team.key}`,
+    })),
+    ...repositories.map((repository) => ({
+      scopeType: "repo" as const,
+      id: repository.id,
+      label: repository.slug,
+      detail: `${repository.project.slug} · ${repository.gitUrl}`,
+    })),
+    ...roles.map((role) => ({
+      scopeType: "role" as const,
+      id: role.id,
+      label: `${role.key} (${role.name})`,
+      detail: role.description ?? role.activeStates.join(", "),
+    })),
+    ...agents.map((agent) => ({
+      scopeType: "agent" as const,
+      id: agent.id,
+      label: agent.name,
+      detail: `${agent.role.name} · ${agent.model} · ${agent.reasoningEffort}`,
+    })),
+  ];
+
+  return {
+    count: scopes.length,
+    scopes,
   };
 }
 
