@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import {
   completeRun as dbCompleteRun,
   findDispatchableTasks as dbFindDispatchableTasks,
+  heartbeatRun as dbHeartbeatRun,
   markExpiredLeasesFailed as dbMarkExpiredLeasesFailed,
   markRunRunning as dbMarkRunRunning,
   prisma,
@@ -63,6 +64,7 @@ export interface WorkerConfig {
   openHandsApiKey?: string;
   openHandsPollIntervalMs: number;
   openHandsPollAttempts: number;
+  workerHeartbeatIntervalMs: number;
   langfuseBaseUrl?: string;
   langfusePublicKey?: string;
   langfuseSecretKey?: string;
@@ -142,6 +144,7 @@ export interface ControlPlaneStore {
     prompt: string,
     components?: PromptAssemblyComponent[],
   ): Promise<Run>;
+  heartbeatRun(runId: string, leaseMs: number, message?: string): Promise<Run>;
   completeRun(
     runId: string,
     result: OpenHandsRunResult,
@@ -168,6 +171,15 @@ export interface OpenHandsRunInput {
   run: Run;
   prompt: string;
   workspaceRepo: string;
+  onHeartbeat?: (heartbeat: OpenHandsHeartbeat) => Promise<void> | void;
+}
+
+export interface OpenHandsHeartbeat {
+  conversationId: string;
+  attempt: number;
+  eventCursor?: string;
+  eventsSeen: number;
+  newEvents: number;
 }
 
 export interface OpenHandsRunResult {
@@ -268,6 +280,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     openHandsApiKey: env.OPENHANDS_API_KEY,
     openHandsPollIntervalMs: numberFromEnv(env.OPENHANDS_POLL_INTERVAL_MS, 1000),
     openHandsPollAttempts: numberFromEnv(env.OPENHANDS_POLL_ATTEMPTS, 300),
+    workerHeartbeatIntervalMs: numberFromEnv(env.WORKER_HEARTBEAT_INTERVAL_MS, 30_000),
     langfuseBaseUrl: env.LANGFUSE_BASE_URL,
     langfusePublicKey: env.LANGFUSE_PUBLIC_KEY,
     langfuseSecretKey: env.LANGFUSE_SECRET_KEY,
@@ -314,6 +327,7 @@ export class DispatchWorker {
       promptAssembly.content,
       promptAssembly.components,
     );
+    const heartbeat = this.createHeartbeatReporter(runningRun.id);
 
     try {
       const openHandsResult = await this.openHands.run({
@@ -321,6 +335,7 @@ export class DispatchWorker {
         run: runningRun,
         prompt: promptAssembly.content,
         workspaceRepo: task.repo ?? "",
+        onHeartbeat: heartbeat,
       });
 
       if (openHandsResult.status !== "succeeded") {
@@ -435,6 +450,35 @@ export class DispatchWorker {
       );
     }
   }
+
+  private createHeartbeatReporter(runId: string) {
+    let lastHeartbeatAt = 0;
+
+    return async (heartbeat: OpenHandsHeartbeat): Promise<void> => {
+      const now = Date.now();
+      if (
+        this.config.workerHeartbeatIntervalMs > 0 &&
+        now - lastHeartbeatAt < this.config.workerHeartbeatIntervalMs
+      ) {
+        return;
+      }
+      lastHeartbeatAt = now;
+
+      try {
+        await this.store.heartbeatRun(
+          runId,
+          this.config.leaseMs,
+          `OpenHands poll ${heartbeat.attempt}: ${heartbeat.eventsSeen} events seen, ${heartbeat.newEvents} new`,
+        );
+      } catch (error) {
+        console.warn(
+          `Failed to heartbeat run ${runId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    };
+  }
 }
 
 export class InMemoryControlPlaneStore implements ControlPlaneStore {
@@ -490,6 +534,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       defaultRoleConcurrency: 2,
       openHandsPollIntervalMs: 1000,
       openHandsPollAttempts: 300,
+      workerHeartbeatIntervalMs: 30_000,
       costBudgetExceededAction: "waiting-approval",
     });
 
@@ -526,6 +571,16 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     run.promptReleaseId = promptReleaseId;
     run.promptSnapshot = prompt;
     run.updatedAt = new Date();
+    return { ...run };
+  }
+
+  async heartbeatRun(runId: string, leaseMs: number, message = "Run heartbeat"): Promise<Run> {
+    const run = this.requireRun(runId);
+    const now = new Date();
+    run.status = "running";
+    run.leaseExpiresAt = new Date(now.getTime() + leaseMs);
+    run.updatedAt = now;
+    run.summary = message;
     return { ...run };
   }
 
@@ -718,6 +773,22 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       leaseOwner,
       renderedPrompt: prompt,
       components,
+    });
+
+    return this.toWorkerRun(run);
+  }
+
+  async heartbeatRun(runId: string, leaseMs: number, message?: string): Promise<Run> {
+    const leaseOwner = this.leaseOwners.get(runId);
+    if (!leaseOwner) {
+      throw new Error(`Run ${runId} has no lease owner in this worker`);
+    }
+
+    const run = await dbHeartbeatRun(this.db, {
+      runId,
+      leaseOwner,
+      leaseSeconds: Math.ceil(leaseMs / 1000),
+      message,
     });
 
     return this.toWorkerRun(run);
@@ -1157,6 +1228,13 @@ export class OpenHandsRuntimeAdapter implements OpenHandsAdapter {
       const page = await this.client.listEvents(conversation.id, eventCursor);
       events.push(...page.events);
       eventCursor = page.nextCursor ?? eventCursor;
+      await input.onHeartbeat?.({
+        conversationId: conversation.id,
+        attempt: attempt + 1,
+        eventCursor,
+        eventsSeen: events.length,
+        newEvents: page.events.length,
+      });
 
       const result = await this.client.getResult(conversation.id);
       if (result) {

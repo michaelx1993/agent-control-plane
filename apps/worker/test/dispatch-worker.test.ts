@@ -49,6 +49,48 @@ describe("DispatchWorker", () => {
     expect(runs[0].promptSnapshot).toContain("Role: Development Agent");
   });
 
+  it("records throttled OpenHands poll heartbeats while a run is active", async () => {
+    const task = createMockTask({ state: "Development" });
+    const store = new InMemoryControlPlaneStore([task]);
+    const heartbeatRun = vi.spyOn(store, "heartbeatRun");
+    const worker = new DispatchWorker(
+      loadConfig({
+        WORKER_MODE: "mock",
+        WORKER_ENABLED_TEAMS: "token-team",
+        WORKER_HEARTBEAT_INTERVAL_MS: "0",
+      }),
+      store,
+      {
+        run: async (input) => {
+          await input.onHeartbeat?.({
+            conversationId: "conversation-1",
+            attempt: 1,
+            eventCursor: "event-1",
+            eventsSeen: 2,
+            newEvents: 2,
+          });
+          return {
+            status: "succeeded",
+            conversationId: "conversation-1",
+            summary: "Implemented and tested.",
+            suggestedNextState: "Code Review",
+          };
+        },
+      },
+      new MockTraceRecorder(),
+    );
+
+    await worker.dispatchOnce();
+
+    const [run] = [...store.runs.values()];
+    expect(run.summary).toBe("Implemented and tested.");
+    expect(heartbeatRun).toHaveBeenCalledWith(
+      run.id,
+      900000,
+      "OpenHands poll 1: 2 events seen, 2 new",
+    );
+  });
+
   it("keeps WORKER_MODE=mock on the in-memory path", () => {
     expect(loadConfig({ WORKER_MODE: "mock" }).mode).toBe("mock");
     expect(loadConfig({ WORKER_MODE: "live" }).mode).toBe("live");
@@ -96,6 +138,7 @@ describe("DispatchWorker", () => {
       pollAttempts: 1,
       pollIntervalMs: 0,
     });
+    const onHeartbeat = vi.fn().mockResolvedValue(undefined);
 
     const result = await adapter.run({
       task: createMockTask({ id: "task-1" }),
@@ -110,6 +153,7 @@ describe("DispatchWorker", () => {
       },
       prompt: "Implement task",
       workspaceRepo: "crs-src",
+      onHeartbeat,
     });
 
     expect(client.createConversation).toHaveBeenCalledWith(
@@ -124,6 +168,13 @@ describe("DispatchWorker", () => {
       }),
     );
     expect(client.startRun).toHaveBeenCalledWith("conversation-1");
+    expect(onHeartbeat).toHaveBeenCalledWith({
+      conversationId: "conversation-1",
+      attempt: 1,
+      eventCursor: "event-1",
+      eventsSeen: 1,
+      newEvents: 1,
+    });
     expect(result).toEqual({
       status: "succeeded",
       conversationId: "conversation-1",

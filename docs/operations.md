@@ -63,6 +63,26 @@ The check validates:
 - `/api/prompt-releases`
 - `/api/prompt-components`
 
+## Worker Heartbeats
+
+Worker heartbeats refresh the local Control Plane run lease while OpenHands is still executing.
+They are not written to Plane, so they do not consume Plane API quota.
+
+Default configuration:
+
+```bash
+WORKER_LEASE_MS="900000"
+WORKER_HEARTBEAT_INTERVAL_MS="30000"
+OPENHANDS_POLL_INTERVAL_MS="1000"
+OPENHANDS_POLL_ATTEMPTS="300"
+```
+
+Operational rule:
+
+- Keep `WORKER_HEARTBEAT_INTERVAL_MS` lower than `WORKER_LEASE_MS`.
+- Set it high enough to avoid noisy `run_events`; `30000` means at most two heartbeat events per minute per active run.
+- Use run detail and dashboard heartbeat age to distinguish active long-running work from a stale lease.
+
 ## Backup And Restore
 
 Create a PostgreSQL custom-format backup:
