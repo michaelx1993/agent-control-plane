@@ -138,6 +138,14 @@ export interface DispatchResult {
   task: Task;
   run: Run;
   prompt: string;
+  planeSync?: PlaneSyncEvidence;
+}
+
+export interface PlaneSyncEvidence {
+  taskId: string;
+  stateName: string;
+  commentId?: string;
+  commentBody?: string;
 }
 
 export interface PromptAssemblyComponent {
@@ -174,7 +182,7 @@ export interface ControlPlaneStore {
     result: OpenHandsRunResult,
     traceRef: TraceRef,
     nextState: TaskState,
-  ): Promise<void>;
+  ): Promise<PlaneSyncEvidence | undefined>;
   syncRunStatus(task: Task, run: Run, status: "Claimed" | "Running" | "Failed"): Promise<void>;
   failRun(runId: string, error: Error, result?: OpenHandsRunResult): Promise<Run>;
   updateTaskState(taskId: string, nextState: TaskState): Promise<Task>;
@@ -391,9 +399,10 @@ export class DispatchWorker {
       });
 
       const nextState = this.decideNextState(task, runningRun, openHandsResult);
+      let planeSync: PlaneSyncEvidence | undefined;
       if (this.config.mode === "live") {
         try {
-          await this.store.syncRunResult(task, openHandsResult, traceRef, nextState);
+          planeSync = await this.store.syncRunResult(task, openHandsResult, traceRef, nextState);
         } catch (error) {
           const syncError =
             error instanceof Error
@@ -414,13 +423,14 @@ export class DispatchWorker {
       );
       await this.store.updateTaskState(task.id, nextState);
       if (this.config.mode !== "live") {
-        await this.syncRunResultBestEffort(task, openHandsResult, traceRef, nextState);
+        planeSync = await this.syncRunResultBestEffort(task, openHandsResult, traceRef, nextState);
       }
 
       return {
         task: (await this.store.getTask(task.id)) ?? task,
         run: completedRun,
         prompt: promptAssembly.content,
+        planeSync,
       };
     } catch (error) {
       if (!failureRecorded) {
@@ -500,15 +510,16 @@ export class DispatchWorker {
     result: OpenHandsRunResult,
     traceRef: TraceRef,
     nextState: TaskState,
-  ): Promise<void> {
+  ): Promise<PlaneSyncEvidence | undefined> {
     try {
-      await this.store.syncRunResult(task, result, traceRef, nextState);
+      return await this.store.syncRunResult(task, result, traceRef, nextState);
     } catch (error) {
       console.warn(
         `Failed to sync run result for task ${task.id}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
+      return undefined;
     }
   }
 
@@ -700,8 +711,16 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     return { ...run };
   }
 
-  async syncRunResult(): Promise<void> {
-    return;
+  async syncRunResult(
+    task: Task,
+    _result: OpenHandsRunResult,
+    _traceRef: TraceRef,
+    nextState: TaskState,
+  ): Promise<PlaneSyncEvidence> {
+    return {
+      taskId: task.planeId,
+      stateName: workerTaskStateToPlaneStateName(nextState),
+    };
   }
 
   async syncRunStatus(): Promise<void> {
@@ -1027,8 +1046,8 @@ export class DbControlPlaneStore implements ControlPlaneStore {
     result: OpenHandsRunResult,
     traceRef: TraceRef,
     nextState: TaskState,
-  ): Promise<void> {
-    await this.planeSync?.syncRunResult(task, result, traceRef, nextState);
+  ): Promise<PlaneSyncEvidence | undefined> {
+    return this.planeSync?.syncRunResult(task, result, traceRef, nextState);
   }
 
   async syncRunStatus(task: Task, run: Run, status: "Claimed" | "Running" | "Failed") {
@@ -1364,24 +1383,30 @@ export class PlaneTaskSyncService {
     result: OpenHandsRunResult,
     traceRef: TraceRef,
     nextState: TaskState,
-  ): Promise<void> {
-    await this.plane.updateTask(task.planeId, {
-      stateName: workerTaskStateToPlaneStateName(nextState),
+  ): Promise<PlaneSyncEvidence> {
+    const requestedStateName = workerTaskStateToPlaneStateName(nextState);
+    const updatedTask = await this.plane.updateTask(task.planeId, {
+      stateName: requestedStateName,
       summary: result.summary,
     });
+    const updatedStateName = normalizePlaneTask(updatedTask).stateName ?? requestedStateName;
+    const commentBody = [
+      "Agent Status: Completed",
+      "",
+      `Next State: ${requestedStateName}`,
+      `Conversation: ${result.conversationId}`,
+      `Trace: ${traceRef.url ?? traceRef.traceId}`,
+      "",
+      result.summary,
+    ].join("\n");
+    const comment = await this.plane.addComment(task.planeId, commentBody);
 
-    await this.plane.addComment(
-      task.planeId,
-      [
-        "Agent Status: Completed",
-        "",
-        `Next State: ${workerTaskStateToPlaneStateName(nextState)}`,
-        `Conversation: ${result.conversationId}`,
-        `Trace: ${traceRef.url ?? traceRef.traceId}`,
-        "",
-        result.summary,
-      ].join("\n"),
-    );
+    return {
+      taskId: task.planeId,
+      stateName: updatedStateName,
+      commentId: comment.id,
+      commentBody: comment.body ?? commentBody,
+    };
   }
 
   async syncRunStatus(task: Task, run: Run, status: "Claimed" | "Running" | "Failed") {
@@ -1940,6 +1965,8 @@ export function formatLiveDispatchResult(result: DispatchResult) {
     verification: {
       runDetailPath: `/runs/${result.run.id}`,
       planeEvidence: result.task.planeId,
+      planeStateEvidence: result.planeSync?.stateName ?? null,
+      planeCommentEvidence: result.planeSync?.commentId ?? null,
       openHandsEvidence: result.run.conversationUrl ?? result.run.conversationId ?? null,
       langfuseEvidence: result.run.langfuseTraceUrl ?? result.run.langfuseTraceId ?? null,
       expectedNextState: result.run.nextState ?? null,

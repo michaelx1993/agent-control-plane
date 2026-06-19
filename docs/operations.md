@@ -644,15 +644,16 @@ need the raw dispatch JSON without the verifier.
 - `task`: Control Plane task id, Plane task id, title, team/project/repo, and post-dispatch state.
 - `run`: run id, status, role, attempt, prompt release id, workspace path, OpenHands conversation
   id/url, Langfuse trace id/url, next state, summary, and error if present.
-- `verification`: `/runs/<run_id>`, Plane task id, OpenHands evidence, Langfuse evidence, and the
-  expected next state.
+- `verification`: `/runs/<run_id>`, Plane task id, Plane final state evidence, Plane completion
+  comment evidence, OpenHands evidence, Langfuse evidence, and the expected next state.
 
 The verifier fails successful runs if the evidence is missing Run Detail, Plane, post-dispatch task
-state, workspace, OpenHands conversation id/url, or Langfuse trace id/url. Successful evidence must
-show `task.state == run.nextState == verification.expectedNextState`, and the verification
-OpenHands/Langfuse links must match the run refs. Failed or blocked runs may lack Langfuse evidence,
-but must still include a Run Detail path, Plane evidence, workspace path, and OpenHands/debug
-context.
+state, Plane completion comment id, workspace, OpenHands conversation id/url, or Langfuse trace
+id/url. Successful evidence must show
+`task.state == run.nextState == verification.expectedNextState == verification.planeStateEvidence`,
+and the verification OpenHands/Langfuse links must match the run refs. Failed or blocked runs may
+lack Langfuse evidence, but must still include a Run Detail path, Plane evidence, workspace path,
+and OpenHands/debug context.
 
 Verify the Run Detail workspace metadata, OpenHands conversation, Langfuse trace, and Plane status
 comment before enabling a long-running worker.
@@ -660,4 +661,5 @@ comment before enabling a long-running worker.
 In live mode, final Plane result sync is mandatory: the worker writes the Plane state and completion
 comment before marking the local run succeeded and advancing the local task mirror. If that final
 Plane update/comment fails, the run is marked failed and the task remains in its previous state for
-operator inspection. Mock mode keeps final Plane sync best-effort for local development.
+operator inspection. Successful live evidence includes the Plane completion comment id returned by
+the Plane API. Mock mode keeps final Plane sync best-effort for local development.

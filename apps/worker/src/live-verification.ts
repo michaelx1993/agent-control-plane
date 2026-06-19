@@ -23,6 +23,8 @@ export type LiveDispatchEvidence = {
   verification?: {
     runDetailPath?: unknown;
     planeEvidence?: unknown;
+    planeStateEvidence?: unknown;
+    planeCommentEvidence?: unknown;
     openHandsEvidence?: unknown;
     langfuseEvidence?: unknown;
     expectedNextState?: unknown;
@@ -71,6 +73,16 @@ export function validateLiveDispatchEvidence(input: unknown): LiveDispatchVerifi
     requireUrl(errors, evidence.run?.conversationUrl, "run.conversationUrl");
     requireString(errors, evidence.run?.langfuseTraceId, "run.langfuseTraceId");
     requireUrl(errors, evidence.run?.langfuseTraceUrl, "run.langfuseTraceUrl");
+    requireString(
+      errors,
+      evidence.verification?.planeStateEvidence,
+      "verification.planeStateEvidence",
+    );
+    requireString(
+      errors,
+      evidence.verification?.planeCommentEvidence,
+      "verification.planeCommentEvidence",
+    );
     requireUrl(errors, evidence.verification?.openHandsEvidence, "verification.openHandsEvidence");
     requireUrl(errors, evidence.verification?.langfuseEvidence, "verification.langfuseEvidence");
     requireString(errors, evidence.run?.nextState, "run.nextState");
@@ -93,6 +105,13 @@ export function validateLiveDispatchEvidence(input: unknown): LiveDispatchVerifi
       evidence.task?.state,
       "verification.expectedNextState",
       "task.state",
+    );
+    requireMatchingString(
+      errors,
+      evidence.verification?.planeStateEvidence,
+      evidence.run?.nextState,
+      "verification.planeStateEvidence",
+      "run.nextState",
     );
     requireMatchingString(
       errors,

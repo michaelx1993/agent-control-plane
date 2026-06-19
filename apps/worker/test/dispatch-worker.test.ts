@@ -86,6 +86,12 @@ describe("DispatchWorker", () => {
           createdAt: new Date("2026-06-18T00:00:00.000Z"),
           updatedAt: new Date("2026-06-18T00:00:00.000Z"),
         },
+        planeSync: {
+          taskId: "plane-1",
+          stateName: "Code Review",
+          commentId: "comment-1",
+          commentBody: "Agent Status: Completed",
+        },
       }),
     ).toEqual({
       task: {
@@ -115,6 +121,8 @@ describe("DispatchWorker", () => {
       verification: {
         runDetailPath: "/runs/run-1",
         planeEvidence: "plane-1",
+        planeStateEvidence: "Code Review",
+        planeCommentEvidence: "comment-1",
         openHandsEvidence: "https://openhands.test/conversations/conversation-1",
         langfuseEvidence: "https://langfuse.test/trace-1",
         expectedNextState: "Code Review",
@@ -150,6 +158,11 @@ describe("DispatchWorker", () => {
         createdAt: new Date("2026-06-18T00:00:00.000Z"),
         updatedAt: new Date("2026-06-18T00:00:00.000Z"),
       },
+      planeSync: {
+        taskId: "plane-1",
+        stateName: "Code Review",
+        commentId: "comment-1",
+      },
     });
 
     expect(validateLiveDispatchEvidence(evidence)).toEqual({ ok: true, errors: [] });
@@ -177,6 +190,8 @@ describe("DispatchWorker", () => {
         verification: {
           runDetailPath: "/runs/run-1",
           planeEvidence: "plane-1",
+          planeStateEvidence: "Code Review",
+          planeCommentEvidence: "comment-1",
           openHandsEvidence: "https://openhands.test/conversations/conversation-1",
           langfuseEvidence: "https://langfuse.test/trace-1",
           expectedNextState: "Code Review",
@@ -218,7 +233,42 @@ describe("DispatchWorker", () => {
         "run.conversationUrl is required.",
         "run.langfuseTraceId is required.",
         "run.langfuseTraceUrl is required.",
+        "verification.planeStateEvidence is required.",
+        "verification.planeCommentEvidence is required.",
       ]),
+    });
+  });
+
+  it("rejects successful live evidence without Plane completion comment evidence", () => {
+    expect(
+      validateLiveDispatchEvidence({
+        task: { id: "task-1", planeId: "plane-1", repo: "crs-src", state: "Code Review" },
+        run: {
+          id: "run-1",
+          status: "succeeded",
+          role: "Development Agent",
+          attempt: 1,
+          promptReleaseId: "prompt-release-1",
+          workspacePath: "/tmp/crs-src/runs/run-1",
+          conversationId: "conversation-1",
+          conversationUrl: "https://openhands.test/conversations/conversation-1",
+          langfuseTraceId: "trace-1",
+          langfuseTraceUrl: "https://langfuse.test/trace-1",
+          nextState: "Code Review",
+          summary: "Implemented.",
+        },
+        verification: {
+          runDetailPath: "/runs/run-1",
+          planeEvidence: "plane-1",
+          planeStateEvidence: "Code Review",
+          openHandsEvidence: "https://openhands.test/conversations/conversation-1",
+          langfuseEvidence: "https://langfuse.test/trace-1",
+          expectedNextState: "Code Review",
+        },
+      }),
+    ).toMatchObject({
+      ok: false,
+      errors: expect.arrayContaining(["verification.planeCommentEvidence is required."]),
     });
   });
 
@@ -243,6 +293,8 @@ describe("DispatchWorker", () => {
         verification: {
           runDetailPath: "/runs/run-1",
           planeEvidence: "plane-1",
+          planeStateEvidence: "Code Review",
+          planeCommentEvidence: "comment-1",
           openHandsEvidence: "https://openhands.test/conversations/other",
           langfuseEvidence: "https://langfuse.test/other",
           expectedNextState: "Code Review",
@@ -278,6 +330,8 @@ describe("DispatchWorker", () => {
         verification: {
           runDetailPath: "/runs/run-1",
           planeEvidence: "plane-1",
+          planeStateEvidence: "Code Review",
+          planeCommentEvidence: "comment-1",
           openHandsEvidence: "https://openhands.test/conversations/conversation-1",
           langfuseEvidence: "https://langfuse.test/trace-1",
           expectedNextState: "Code Review",
@@ -340,7 +394,7 @@ describe("DispatchWorker", () => {
   it("fails a live dispatch when final Plane result sync fails", async () => {
     const task = createMockTask({ id: "task-live-sync", state: "Development" });
     class FailingPlaneSyncStore extends InMemoryControlPlaneStore {
-      override async syncRunResult(): Promise<void> {
+      override async syncRunResult(): Promise<never> {
         throw new Error("Plane final sync failed");
       }
     }
@@ -1471,7 +1525,7 @@ describe("DispatchWorker", () => {
       projectSlug: "token",
     });
 
-    await sync.syncRunResult(
+    const evidence = await sync.syncRunResult(
       createMockTask({ planeId: "plane-1", state: "Development" }),
       {
         status: "succeeded",
@@ -1482,6 +1536,12 @@ describe("DispatchWorker", () => {
       "Code Review",
     );
 
+    expect(evidence).toEqual({
+      taskId: "plane-1",
+      stateName: "Code Review",
+      commentId: "comment-1",
+      commentBody: "ok",
+    });
     expect(updateTask).toHaveBeenCalledWith("plane-1", {
       stateName: "Code Review",
       summary: "Implemented feature and tests passed.",

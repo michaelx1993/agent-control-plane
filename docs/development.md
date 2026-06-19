@@ -127,11 +127,13 @@ that the evidence contains the required Plane/workspace/OpenHands/Langfuse/Run D
 - `run`: run id, status, role, attempt, prompt release id, OpenHands conversation id/url,
   workspace path, Langfuse trace id/url, next state, summary, and error if present.
 - `verification`: direct evidence handles for the operator: `/runs/<run_id>`, Plane task id,
-  OpenHands evidence, Langfuse evidence, and expected next state.
+  Plane final state, Plane completion comment id, OpenHands evidence, Langfuse evidence, and
+  expected next state.
 
 Successful live evidence must include URL-level OpenHands and Langfuse refs that match the run
-record, and `task.state` must match `run.nextState` and `verification.expectedNextState`. Failed or
-blocked live evidence may lack a Langfuse trace, but still needs Run Detail, Plane, workspace, and
+record, a Plane completion comment id, and `task.state` must match `run.nextState`,
+`verification.expectedNextState`, and `verification.planeStateEvidence`. Failed or blocked live
+evidence may lack a Langfuse trace, but still needs Run Detail, Plane, workspace, and
 OpenHands/debug context.
 
 Live mode treats final Plane state/comment sync as mandatory. The worker only marks the local run

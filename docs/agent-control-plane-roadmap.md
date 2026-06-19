@@ -60,7 +60,8 @@ P0 方案固化
   OpenHands/Langfuse/next-state evidence bundle 用于 Development run smoke test。
 - `pnpm live:verify-once` 会在 one-shot live dispatch 后校验 evidence bundle，缺少 Plane、
   workspace、OpenHands、Langfuse 或 Run Detail 证据时失败；成功 run 会强制校验 OpenHands/
-  Langfuse URL 与 run refs 一致，并校验 post-dispatch `task.state` 已推进到 `run.nextState`。
+  Langfuse URL 与 run refs 一致，并校验 post-dispatch `task.state` 已推进到 `run.nextState`、
+  Plane final state evidence 一致且存在 Plane completion comment evidence。
 - `pnpm release:check` 在 live 模式会强制校验非空且 `pg_restore --list` 可解析的数据库备份，再执行 live preflight。
 - 已有 `pnpm backup:drill`，可将备份还原到隔离 drill 数据库并校验 Control Plane seed
   baseline；`REQUIRE_RESTORE_DRILL=1` 可把它纳入 live release gate。

@@ -152,8 +152,9 @@ first live rollout or backup/restore script changes. Set `REQUIRE_RESTORE_DRILL=
 `WORKER_MODE=live pnpm release:check` when an isolated drill database is available.
 Use `WORKER_MODE=live pnpm live:verify-once` for the first real Development task; it runs
 preflight first, dispatches one task, prints the JSON evidence bundle, and fails if Plane,
-post-dispatch task state, workspace, OpenHands, Langfuse, or Control Plane Run Detail evidence is
-missing. Use `WORKER_MODE=live pnpm live:dispatch-once` when you only need the raw dispatch JSON.
+post-dispatch task state, Plane completion comment, workspace, OpenHands, Langfuse, or Control
+Plane Run Detail evidence is missing. Use `WORKER_MODE=live pnpm live:dispatch-once` when you only
+need the raw dispatch JSON.
 
 ## Design Docs
 
