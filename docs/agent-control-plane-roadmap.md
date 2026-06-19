@@ -37,6 +37,8 @@ P0 方案固化
 - OpenHands terminal failed/stuck results will still persist conversation refs, event cursor, and
   external events before the worker marks the run failed.
 - 已有 Prompt Manager、prompt component/binding/release、scope lookup API、prompt diff 和 rollback。
+- Worker 在交给 OpenHands 和保存 prompt release snapshot 前，会对运行时 prompt 执行最低限度
+  secret redaction，覆盖常见 API key、bearer token 和 private key block。
 - 已有 OpenHands adapter skeleton、conversation refs、poll heartbeat hook。
 - 已有 Langfuse trace refs、token/cost summary 写入、prompt version metrics 和 dashboard 展示。
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。

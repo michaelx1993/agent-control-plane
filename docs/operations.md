@@ -213,6 +213,14 @@ Plane webhook sync and polling fallback both use the same task upsert path. They
 identifier, title, state, repo, priority, assignee, labels, URL, and sync cursor into Control Plane.
 This keeps webhook-driven updates and reconciliation-driven updates from drifting.
 
+## Runtime Secret Redaction
+
+Before prompt content is handed to OpenHands or stored as a prompt release snapshot, the worker
+redacts common secret shapes from runtime task context and active prompt components: `.env`-style
+API key assignments, bearer tokens, OpenAI/GitHub/Slack/AWS token shapes, and private key blocks.
+This is a last-mile guardrail, not a secret manager; operators should still avoid putting real
+credentials in Plane tasks, comments, workpads, or prompt components.
+
 ## Prompt Rollback
 
 Use Prompt Manager to compare two prompt component versions before rolling back. Rollback never

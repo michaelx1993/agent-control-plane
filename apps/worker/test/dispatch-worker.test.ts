@@ -14,6 +14,7 @@ import {
   loadConfig,
   normalizedPlaneTaskToDbInput,
   planeStateNameToDbTaskState,
+  redactRuntimeSecrets,
 } from "../src/index.js";
 import type { DbClient } from "@agent-control-plane/db";
 import type { PlaneClient, PlaneTaskPayload } from "@agent-control-plane/plane";
@@ -47,6 +48,39 @@ describe("DispatchWorker", () => {
     expect(runs.map((run) => run.status)).toEqual(["succeeded"]);
     expect(runs[0].statusHistory).toEqual(["queued", "claimed", "running", "succeeded"]);
     expect(runs[0].promptSnapshot).toContain("Role: Development Agent");
+  });
+
+  it("redacts runtime secrets before prompt release and tracing", async () => {
+    const task = createMockTask({
+      description: "Use OPENAI_API_KEY=sk-test1234567890abcdef before running tests.",
+      comments: ["Authorization: Bearer abcdefghijklmnopqrstuvwxyz"],
+      workpad: "-----BEGIN PRIVATE KEY-----\nsecret-key-material\n-----END PRIVATE KEY-----",
+    });
+    const store = new InMemoryControlPlaneStore([task]);
+    const worker = new DispatchWorker(
+      loadConfig({ WORKER_MODE: "mock", WORKER_ENABLED_TEAMS: "token-team" }),
+      store,
+      new MockOpenHandsAdapter(),
+      new MockTraceRecorder(),
+    );
+
+    await worker.dispatchOnce();
+
+    const [run] = [...store.runs.values()];
+    expect(run.promptSnapshot).toContain("OPENAI_API_KEY=[REDACTED_OPENAI_KEY]");
+    expect(run.promptSnapshot).toContain("Authorization: Bearer [REDACTED_SECRET]");
+    expect(run.promptSnapshot).toContain("[REDACTED_PRIVATE_KEY]");
+    expect(run.promptSnapshot).not.toContain("sk-test1234567890abcdef");
+    expect(run.promptSnapshot).not.toContain("secret-key-material");
+  });
+
+  it("redacts known token shapes in arbitrary runtime text", () => {
+    expect(redactRuntimeSecrets("token: ghp_abcdefghijklmnopqrstuvwxyz123456")).toContain(
+      "token: [REDACTED_SECRET]",
+    );
+    expect(redactRuntimeSecrets("aws=AKIAABCDEFGHIJKLMNOP")).toContain(
+      "aws=[REDACTED_AWS_ACCESS_KEY]",
+    );
   });
 
   it("does not dispatch an in-memory task after the configured attempt limit is reached", async () => {
@@ -794,7 +828,7 @@ describe("DispatchWorker", () => {
               name: "repo-rules",
               version: 2,
               status: "active",
-              content: "Use repository-specific constraints.",
+              content: "Use repository-specific constraints. secret: repo-secret-value",
             },
           },
         ]),
@@ -831,6 +865,8 @@ describe("DispatchWorker", () => {
 
     expect(assembly.content).toContain("<!-- prompt:global/global-base@v1 -->");
     expect(assembly.content).toContain("<!-- prompt:repo/repo-rules@v2 -->");
+    expect(assembly.content).toContain("secret: [REDACTED_SECRET]");
+    expect(assembly.content).not.toContain("repo-secret-value");
     expect(assembly.content.indexOf("global-base")).toBeLessThan(
       assembly.content.indexOf("repo-rules"),
     );

@@ -409,29 +409,31 @@ export class DispatchWorker {
         ? task.comments.map((comment) => `- ${comment}`).join("\n")
         : "- none";
 
-    return [
-      "# Agent Control Plane Dispatch",
-      "## Global Prompt",
-      "You are an autonomous software worker executing one bounded task.",
-      "## Team Prompt",
-      `Team: ${task.team}`,
-      "## Project Prompt",
-      `Project: ${task.project}`,
-      "## Repo Prompt",
-      `Repository: ${task.repo}`,
-      "## Role Prompt",
-      `Role: ${role}`,
-      "## Task Context",
-      `Title: ${task.title}`,
-      `Description: ${task.description}`,
-      `Current State: ${task.state}`,
-      "## Comments",
-      comments,
-      "## Workpad",
-      task.workpad ?? "none",
-      "## Runtime Constraints",
-      "Use the assigned repo only. Record a concise summary and suggested next state when complete.",
-    ].join("\n\n");
+    return redactRuntimeSecrets(
+      [
+        "# Agent Control Plane Dispatch",
+        "## Global Prompt",
+        "You are an autonomous software worker executing one bounded task.",
+        "## Team Prompt",
+        `Team: ${task.team}`,
+        "## Project Prompt",
+        `Project: ${task.project}`,
+        "## Repo Prompt",
+        `Repository: ${task.repo}`,
+        "## Role Prompt",
+        `Role: ${role}`,
+        "## Task Context",
+        `Title: ${task.title}`,
+        `Description: ${task.description}`,
+        `Current State: ${task.state}`,
+        "## Comments",
+        comments,
+        "## Workpad",
+        task.workpad ?? "none",
+        "## Runtime Constraints",
+        "Use the assigned repo only. Record a concise summary and suggested next state when complete.",
+      ].join("\n\n"),
+    );
   }
 
   decideNextState(task: Task, run: Run, result: OpenHandsRunResult): TaskState {
@@ -869,22 +871,29 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       };
     }
 
-    const renderedComponents = promptComponents.map((component, index) => ({
-      promptComponentId: component.id,
-      orderIndex: index,
-      contentHash: sha256Hex(component.content),
-      heading: `<!-- prompt:${component.scopeType}/${component.name}@v${component.version} -->`,
-      content: component.content.trim(),
-    }));
+    const renderedComponents = promptComponents.map((component, index) => {
+      const content = redactRuntimeSecrets(component.content.trim());
+      return {
+        promptComponentId: component.id,
+        orderIndex: index,
+        contentHash: sha256Hex(content),
+        heading: `<!-- prompt:${component.scopeType}/${component.name}@v${component.version} -->`,
+        content,
+      };
+    });
 
     return {
-      content: [
-        "# Agent Control Plane Dispatch",
-        "## Platform Prompt",
-        ...renderedComponents.map((component) => [component.heading, component.content].join("\n")),
-        "## Task Context",
-        fallbackPrompt,
-      ].join("\n\n"),
+      content: redactRuntimeSecrets(
+        [
+          "# Agent Control Plane Dispatch",
+          "## Platform Prompt",
+          ...renderedComponents.map((component) =>
+            [component.heading, component.content].join("\n"),
+          ),
+          "## Task Context",
+          fallbackPrompt,
+        ].join("\n\n"),
+      ),
       components: renderedComponents.map((component) => ({
         promptComponentId: component.promptComponentId,
         orderIndex: component.orderIndex,
@@ -1632,6 +1641,51 @@ export function createTraceRecorder(config: WorkerConfig): TraceRecorder {
     }),
   );
 }
+
+export function redactRuntimeSecrets(value: string): string {
+  return secretRedactors.reduce((current, redactor) => {
+    if (typeof redactor.replacement === "string") {
+      return current.replace(redactor.pattern, redactor.replacement);
+    }
+    return current.replace(redactor.pattern, redactor.replacement);
+  }, value);
+}
+
+const secretRedactors: Array<{
+  pattern: RegExp;
+  replacement: string | ((substring: string, ...args: string[]) => string);
+}> = [
+  {
+    pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+    replacement: "[REDACTED_PRIVATE_KEY]",
+  },
+  {
+    pattern:
+      /\b((?:api[_-]?key|secret|token|password|authorization|bearer|access[_-]?key|private[_-]?key)\s*[:=]\s*)(["']?)([^\s"'`]{8,})(\2)/gi,
+    replacement: (_match, prefix: string, quote: string, _secret: string, suffix: string) =>
+      `${prefix}${quote}[REDACTED_SECRET]${suffix}`,
+  },
+  {
+    pattern: /\bBearer\s+[A-Za-z0-9._~+/=-]{12,}/gi,
+    replacement: "Bearer [REDACTED_SECRET]",
+  },
+  {
+    pattern: /\bsk-[A-Za-z0-9_-]{12,}\b/g,
+    replacement: "[REDACTED_OPENAI_KEY]",
+  },
+  {
+    pattern: /\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g,
+    replacement: "[REDACTED_GITHUB_TOKEN]",
+  },
+  {
+    pattern: /\bxox[baprs]-[A-Za-z0-9-]{20,}\b/g,
+    replacement: "[REDACTED_SLACK_TOKEN]",
+  },
+  {
+    pattern: /\bAKIA[0-9A-Z]{16}\b/g,
+    replacement: "[REDACTED_AWS_ACCESS_KEY]",
+  },
+];
 
 function toDbTaskState(state: TaskState): DbTaskState {
   const dbState = dbStateByWorkerState[state];
