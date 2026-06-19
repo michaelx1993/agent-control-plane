@@ -51,8 +51,11 @@ importers:
   apps/worker:
     dependencies:
       "@agent-control-plane/db":
-        specifier: file:../../packages/db
+        specifier: workspace:*
         version: link:../../packages/db
+      "@agent-control-plane/plane":
+        specifier: workspace:*
+        version: link:../../packages/plane
       tsx:
         specifier: ^4.20.3
         version: 4.22.4

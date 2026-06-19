@@ -5,10 +5,14 @@ import {
   InMemoryControlPlaneStore,
   MockOpenHandsAdapter,
   MockTraceRecorder,
+  PlaneTaskSyncService,
   createMockTask,
   loadConfig,
+  normalizedPlaneTaskToDbInput,
+  planeStateNameToDbTaskState,
 } from "../src/index.js";
 import type { DbClient } from "@agent-control-plane/db";
+import type { PlaneClient, PlaneTaskPayload } from "@agent-control-plane/plane";
 
 describe("DispatchWorker", () => {
   it("moves a successful development run from queued/running to succeeded and suggests Code Review", async () => {
@@ -105,5 +109,103 @@ describe("DispatchWorker", () => {
         labels: ["repo:crs-src", "kind:worker"],
       }),
     ]);
+  });
+
+  it("maps Plane state and repo labels into DB task input", () => {
+    expect(planeStateNameToDbTaskState("Code Review")).toBe("CodeReview");
+    expect(planeStateNameToDbTaskState("In Merge")).toBe("InMerge");
+    expect(planeStateNameToDbTaskState("release-version")).toBe("ReleaseVersion");
+    expect(planeStateNameToDbTaskState("unknown custom state")).toBe("Todo");
+
+    expect(
+      normalizedPlaneTaskToDbInput(
+        {
+          source: "plane",
+          sourceId: "plane-1",
+          identifier: "TOK-1",
+          title: "Implement sync",
+          stateName: "Development",
+          repo: "crs-src",
+          labels: ["repo:crs-src", "Feature"],
+          url: "https://plane.test/TOK-1",
+          isDispatchable: true,
+          raw: { id: "plane-1" },
+        },
+        "token",
+      ),
+    ).toEqual({
+      projectSlug: "token",
+      externalTaskId: "plane-1",
+      identifier: "TOK-1",
+      title: "Implement sync",
+      state: "Development",
+      repositorySlug: "crs-src",
+      labels: ["repo:crs-src", "Feature"],
+      url: "https://plane.test/TOK-1",
+    });
+  });
+
+  it("syncs Plane work items into the DB upsert path", async () => {
+    const payloads: PlaneTaskPayload[] = [
+      {
+        id: "plane-1",
+        identifier: "TOK-1",
+        name: "Implement Plane sync",
+        state: { name: "Development" },
+        labels: [{ name: "repo:crs-src" }],
+      },
+      {
+        id: "plane-2",
+        identifier: "TOK-2",
+        name: "Needs repo label",
+        state: { name: "Todo" },
+        labels: [{ name: "Feature" }],
+      },
+    ];
+    const listTasks = vi.fn().mockResolvedValue(payloads);
+    const plane = {
+      listTasks,
+    } as unknown as PlaneClient;
+    const upsert = vi.fn().mockResolvedValue({});
+    const db = {
+      $transaction: vi.fn(async (callback) => {
+        return callback({
+          project: {
+            findFirst: vi.fn().mockResolvedValue({ id: "project-1" }),
+          },
+          repository: {
+            findFirst: vi.fn().mockResolvedValue({ id: "repo-1" }),
+          },
+          task: {
+            upsert,
+          },
+        });
+      }),
+    } as unknown as DbClient;
+    const sync = new PlaneTaskSyncService(db, plane, {
+      projectSlug: "token",
+      workspaceSlug: "acme",
+      projectId: "project-plane-1",
+      perPage: 10,
+    });
+
+    const result = await sync.sync();
+
+    expect(listTasks).toHaveBeenCalledWith({
+      workspaceSlug: "acme",
+      projectId: "project-plane-1",
+      perPage: 10,
+    });
+    expect(result).toEqual({ fetched: 2, upserted: 2, blockedMissingRepo: 1 });
+    expect(upsert).toHaveBeenCalledTimes(2);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          repositoryId: "repo-1",
+          title: "Implement Plane sync",
+          state: "Development",
+        }),
+      }),
+    );
   });
 });

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agent-control-plane/db": "file:../../packages/db",
+    "@agent-control-plane/db": "workspace:*",
+    "@agent-control-plane/plane": "workspace:*",
     "tsx": "^4.20.3"
   },
   "devDependencies": {

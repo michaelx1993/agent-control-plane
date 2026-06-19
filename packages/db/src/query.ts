@@ -12,7 +12,15 @@ import { createHash } from "node:crypto";
 
 export type DbClient = Pick<
   PrismaClient,
-  "$transaction" | "agentDefinition" | "promptRelease" | "role" | "run" | "runEvent" | "task"
+  | "$transaction"
+  | "agentDefinition"
+  | "project"
+  | "promptRelease"
+  | "repository"
+  | "role"
+  | "run"
+  | "runEvent"
+  | "task"
 >;
 
 export const dispatchableTaskStates = [
@@ -85,6 +93,95 @@ export async function findDispatchableTasks(
     },
     orderBy: [{ priority: { sort: "asc", nulls: "last" } }, { updatedAt: "asc" }],
     take: options.limit,
+  });
+}
+
+export interface UpsertSyncedTaskInput {
+  projectSlug: string;
+  externalTaskId: string;
+  identifier?: string;
+  title: string;
+  state: TaskState;
+  repositorySlug?: string;
+  priority?: number;
+  labels?: string[];
+  assignee?: string;
+  url?: string;
+  syncCursor?: string;
+}
+
+export async function upsertSyncedTask(db: DbClient, input: UpsertSyncedTaskInput) {
+  return db.$transaction(async (tx) => {
+    const project = await tx.project.findFirst({
+      where: {
+        slug: input.projectSlug,
+        status: "active",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!project) {
+      throw new Error(`Project ${input.projectSlug} not found or inactive`);
+    }
+
+    const repository = input.repositorySlug
+      ? await tx.repository.findFirst({
+          where: {
+            projectId: project.id,
+            slug: input.repositorySlug,
+            status: "active",
+          },
+          select: {
+            id: true,
+          },
+        })
+      : null;
+
+    const now = new Date();
+    return tx.task.upsert({
+      where: {
+        projectId_externalTaskId: {
+          projectId: project.id,
+          externalTaskId: input.externalTaskId,
+        },
+      },
+      update: {
+        repositoryId: repository?.id ?? null,
+        identifier: input.identifier ?? input.externalTaskId,
+        title: input.title,
+        state: input.state,
+        priority: input.priority,
+        labels: input.labels ?? [],
+        assignee: input.assignee,
+        url: input.url,
+        lastSyncedAt: now,
+        syncCursor: input.syncCursor,
+      },
+      create: {
+        projectId: project.id,
+        repositoryId: repository?.id,
+        externalTaskId: input.externalTaskId,
+        identifier: input.identifier ?? input.externalTaskId,
+        title: input.title,
+        state: input.state,
+        priority: input.priority,
+        labels: input.labels ?? [],
+        assignee: input.assignee,
+        url: input.url,
+        lastSyncedAt: now,
+        syncCursor: input.syncCursor,
+      },
+      include: {
+        repository: true,
+        project: {
+          include: {
+            team: true,
+          },
+        },
+      },
+    });
   });
 }
 

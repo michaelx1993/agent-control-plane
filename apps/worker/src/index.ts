@@ -6,10 +6,17 @@ import {
   markRunRunning as dbMarkRunRunning,
   prisma,
   startRun as dbStartRun,
+  upsertSyncedTask,
   type DbClient,
   type Run as DbRun,
   type TaskState as DbTaskState,
 } from "@agent-control-plane/db";
+import {
+  HttpPlaneClient,
+  normalizePlaneTask,
+  type NormalizedPlaneTask,
+  type PlaneClient,
+} from "@agent-control-plane/plane";
 
 export type TaskState =
   | "Backlog"
@@ -35,6 +42,11 @@ export interface WorkerConfig {
   leaseMs: number;
   openHandsBaseUrl?: string;
   langfuseBaseUrl?: string;
+  planeBaseUrl?: string;
+  planeApiKey?: string;
+  planeWorkspaceSlug?: string;
+  planeProjectId?: string;
+  projectSlug: string;
 }
 
 export interface Task {
@@ -194,6 +206,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     leaseMs: Number(env.WORKER_LEASE_MS ?? 15 * 60 * 1000),
     openHandsBaseUrl: env.OPENHANDS_BASE_URL,
     langfuseBaseUrl: env.LANGFUSE_BASE_URL,
+    planeBaseUrl: env.PLANE_BASE_URL,
+    planeApiKey: env.PLANE_API_KEY,
+    planeWorkspaceSlug: env.PLANE_WORKSPACE_SLUG,
+    planeProjectId: env.PLANE_PROJECT_ID,
+    projectSlug: env.CONTROL_PLANE_PROJECT_SLUG ?? "token",
   };
 }
 
@@ -364,6 +381,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       workerId,
       enabledTeams: [task.team],
       leaseMs,
+      projectSlug: task.project,
     });
 
     if (!dispatchable.some((candidate) => candidate.id === taskId)) {
@@ -462,11 +480,19 @@ type DbRunWithContext = DbRun & {
 
 export class DbControlPlaneStore implements ControlPlaneStore {
   private readonly leaseOwners = new Map<string, string>();
+  private readonly planeSync?: PlaneTaskSyncService;
 
-  constructor(private readonly db: DbClient = prisma) {}
+  constructor(
+    private readonly db: DbClient = prisma,
+    options: { planeSync?: PlaneTaskSyncService } = {},
+  ) {
+    this.planeSync = options.planeSync;
+  }
 
   async syncFromPlane(): Promise<void> {
-    // Plane ingestion will land here. The live skeleton reads already-synced DB tasks.
+    if (this.planeSync) {
+      await this.planeSync.sync();
+    }
     return;
   }
 
@@ -621,6 +647,125 @@ export class DbControlPlaneStore implements ControlPlaneStore {
   }
 }
 
+export type PlaneTaskSyncResult = {
+  fetched: number;
+  upserted: number;
+  blockedMissingRepo: number;
+};
+
+export class PlaneTaskSyncService {
+  constructor(
+    private readonly db: DbClient,
+    private readonly plane: PlaneClient,
+    private readonly options: {
+      projectSlug: string;
+      workspaceSlug?: string;
+      projectId?: string;
+      perPage?: number;
+    },
+  ) {}
+
+  async sync(): Promise<PlaneTaskSyncResult> {
+    const payloads = await this.plane.listTasks({
+      workspaceSlug: this.options.workspaceSlug,
+      projectId: this.options.projectId,
+      perPage: this.options.perPage ?? 50,
+    });
+
+    let upserted = 0;
+    let blockedMissingRepo = 0;
+
+    for (const payload of payloads) {
+      const normalized = normalizePlaneTask(payload);
+      if (!normalized.repo) {
+        blockedMissingRepo += 1;
+      }
+      await upsertSyncedTask(
+        this.db,
+        normalizedPlaneTaskToDbInput(normalized, this.options.projectSlug),
+      );
+      upserted += 1;
+    }
+
+    return {
+      fetched: payloads.length,
+      upserted,
+      blockedMissingRepo,
+    };
+  }
+}
+
+export function createPlaneTaskSyncService(
+  config: WorkerConfig,
+  db: DbClient = prisma,
+): PlaneTaskSyncService | undefined {
+  if (!config.planeBaseUrl || !config.planeWorkspaceSlug || !config.planeProjectId) {
+    return undefined;
+  }
+
+  return new PlaneTaskSyncService(
+    db,
+    new HttpPlaneClient({
+      baseUrl: config.planeBaseUrl,
+      apiKey: config.planeApiKey,
+      workspaceSlug: config.planeWorkspaceSlug,
+      projectId: config.planeProjectId,
+    }),
+    {
+      projectSlug: config.projectSlug,
+      workspaceSlug: config.planeWorkspaceSlug,
+      projectId: config.planeProjectId,
+    },
+  );
+}
+
+export function normalizedPlaneTaskToDbInput(
+  task: NormalizedPlaneTask,
+  projectSlug: string,
+): Parameters<typeof upsertSyncedTask>[1] {
+  return {
+    projectSlug,
+    externalTaskId: task.sourceId,
+    identifier: task.identifier ?? task.sourceId,
+    title: task.title,
+    state: planeStateNameToDbTaskState(task.stateName),
+    repositorySlug: task.repo,
+    labels: task.labels,
+    url: task.url,
+  };
+}
+
+export function planeStateNameToDbTaskState(stateName?: string): DbTaskState {
+  const normalized = normalizeStateName(stateName);
+  const stateMap: Record<string, DbTaskState> = {
+    todo: "Todo",
+    backlog: "Todo",
+    development: "Development",
+    started: "Development",
+    inprogress: "Development",
+    codereview: "CodeReview",
+    review: "CodeReview",
+    humanreview: "HumanReview",
+    human: "HumanReview",
+    inmerge: "InMerge",
+    merge: "InMerge",
+    merged: "Merged",
+    releaseversion: "ReleaseVersion",
+    release: "ReleaseVersion",
+    released: "Released",
+    deployment: "Deployment",
+    deploy: "Deployment",
+    deployed: "Deployed",
+    done: "Done",
+    completed: "Done",
+    blocked: "Blocked",
+    canceled: "Canceled",
+    cancelled: "Canceled",
+  };
+
+  return stateMap[normalized] ?? "Todo";
+}
+
 export class MockOpenHandsAdapter implements OpenHandsAdapter {
   async run(input: OpenHandsRunInput): Promise<OpenHandsRunResult> {
     return {
@@ -685,7 +830,11 @@ function isAllowedTransition(from: TaskState, to: TaskState): boolean {
 export async function runDryRun(): Promise<DispatchResult | undefined> {
   const config = loadConfig();
   const store =
-    config.mode === "live" ? new DbControlPlaneStore() : new InMemoryControlPlaneStore();
+    config.mode === "live"
+      ? new DbControlPlaneStore(prisma, {
+          planeSync: createPlaneTaskSyncService(config, prisma),
+        })
+      : new InMemoryControlPlaneStore();
   const worker = new DispatchWorker(
     config,
     store,
@@ -707,6 +856,13 @@ function parseStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function normalizeStateName(stateName?: string): string {
+  return (stateName ?? "")
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "")
+    .trim();
 }
 
 async function main(): Promise<void> {
