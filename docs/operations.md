@@ -334,6 +334,7 @@ Before using the worker against live systems:
 - `WORKER_DEFAULT_REPO_CONCURRENCY=1` unless a repo is known safe for parallel edits.
 - A database backup exists for the target environment.
 - `WORKER_MODE=live` is only enabled after a successful mock run and DB migration.
+- Seed baseline data exists for teams, active repositories, roles, and active agent definitions.
 - `pnpm live:preflight` passes.
 
 ## Live Preflight
@@ -358,7 +359,8 @@ pnpm live:preflight
 Checks:
 
 - Required live env vars are present.
-- PostgreSQL responds to `SELECT 1`.
+- PostgreSQL responds to `SELECT 1` and has baseline rows for teams, active repositories, roles,
+  and active agent definitions. An empty or unseeded Control Plane database fails preflight.
 - Plane work-items API can list one item from the configured project.
 - Plane API key auth defaults to `X-API-Key`; set `PLANE_API_KEY_HEADER=Authorization` only for
   bearer-compatible deployments.

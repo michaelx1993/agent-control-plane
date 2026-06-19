@@ -46,6 +46,7 @@ P0 方案固化
 - 已有 Operator Timeline API/UI，聚合 run event、audit event、feedback。
 - 已有 Readiness API/UI，展示 Plane/OpenHands/Langfuse/DB/Worker 配置缺口。
 - 已有人工 task transition API，状态跳转受 state-machine 校验。
+- `pnpm live:preflight` 会校验 DB 连通性和 Control Plane seed baseline，避免空库启动 live worker。
 - 已有 Linear 离线迁移草案工具，可将 JSON/CSV export 转换为 Plane import draft，并标出缺失 repo 的任务。
 
 当前完成度判定：
@@ -57,7 +58,7 @@ P0 方案固化
 下一阶段优先级：
 
 1. 启动并验证 Plane self-host，确认 work item API、webhook、repo 字段方案。
-2. 运行 `pnpm live:preflight`，确认 DB、Plane、OpenHands、Langfuse 基础连通。
+2. 运行 `pnpm live:preflight`，确认 DB seed baseline、Plane、OpenHands、Langfuse 基础连通。
 3. 配置 `WORKER_MODE=live`，用真实 OpenHands endpoint 跑一次 Development 任务。
 4. 接入真实 Langfuse trace，确认 run detail 能跳转并展示 token/cost。
 5. 将 live run 的 Plane 状态回写和低频 comment 验证通过。

@@ -27,6 +27,20 @@ export type LivePreflightOptions = {
   };
 };
 
+type DatabaseBaselineRow = {
+  teams?: bigint | number | string | null;
+  repositories?: bigint | number | string | null;
+  roles?: bigint | number | string | null;
+  agents?: bigint | number | string | null;
+};
+
+type DatabaseBaselineCounts = {
+  teams: number;
+  repositories: number;
+  roles: number;
+  agents: number;
+};
+
 type RequiredEnv = {
   id: string;
   label: string;
@@ -42,6 +56,14 @@ const requiredEnv: RequiredEnv[] = [
   { id: "LANGFUSE_PUBLIC_KEY", label: "Langfuse public key" },
   { id: "LANGFUSE_SECRET_KEY", label: "Langfuse secret key" },
 ];
+
+const databaseBaselineQuery = `
+SELECT
+  (SELECT COUNT(*) FROM teams) AS teams,
+  (SELECT COUNT(*) FROM repositories WHERE status = 'active') AS repositories,
+  (SELECT COUNT(*) FROM roles) AS roles,
+  (SELECT COUNT(*) FROM agent_definitions WHERE status = 'active') AS agents
+`;
 
 export async function runLivePreflight(
   options: LivePreflightOptions = {},
@@ -124,11 +146,24 @@ async function checkDatabase(
     }
     const client = db ?? ownedDb;
     await client?.$queryRawUnsafe("SELECT 1");
+    const baselineRows =
+      await client?.$queryRawUnsafe<DatabaseBaselineRow[]>(databaseBaselineQuery);
+    const baseline = normalizeDatabaseBaseline(baselineRows?.[0]);
+    const baselineDetail = formatDatabaseBaseline(baseline);
+    if (Object.values(baseline).some((count) => count <= 0)) {
+      return {
+        id: "database",
+        label: "Database connectivity",
+        status: "fail",
+        detail: `PostgreSQL responded, but Control Plane baseline is incomplete: ${baselineDetail}. Run database seed before live worker rollout.`,
+        durationMs: Date.now() - startedAt,
+      };
+    }
     return {
       id: "database",
       label: "Database connectivity",
       status: "pass",
-      detail: "PostgreSQL responded to SELECT 1.",
+      detail: `PostgreSQL responded and Control Plane baseline is present: ${baselineDetail}.`,
       durationMs: Date.now() - startedAt,
     };
   } catch (error) {
@@ -142,6 +177,27 @@ async function checkDatabase(
   } finally {
     await ownedDb?.$disconnect?.();
   }
+}
+
+function normalizeDatabaseBaseline(row?: DatabaseBaselineRow): DatabaseBaselineCounts {
+  return {
+    teams: normalizeCount(row?.teams),
+    repositories: normalizeCount(row?.repositories),
+    roles: normalizeCount(row?.roles),
+    agents: normalizeCount(row?.agents),
+  };
+}
+
+function normalizeCount(value: bigint | number | string | null | undefined): number {
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
+  const count = Number(value ?? 0);
+  return Number.isFinite(count) ? count : 0;
+}
+
+function formatDatabaseBaseline(baseline: DatabaseBaselineCounts): string {
+  return `teams=${baseline.teams}, repositories=${baseline.repositories}, roles=${baseline.roles}, agents=${baseline.agents}`;
 }
 
 async function checkPlane(
