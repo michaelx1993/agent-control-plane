@@ -58,7 +58,7 @@ P0 方案固化
   OpenHands/Langfuse/next-state evidence bundle 用于 Development run smoke test。
 - `pnpm live:verify-once` 会在 one-shot live dispatch 后校验 evidence bundle，缺少 Plane、
   workspace、OpenHands、Langfuse 或 Run Detail 证据时失败。
-- `pnpm release:check` 在 live 模式会强制校验非空数据库备份，再执行 live preflight。
+- `pnpm release:check` 在 live 模式会强制校验非空且 `pg_restore --list` 可解析的数据库备份，再执行 live preflight。
 - 已有 Docker Compose `app` profile 和 app Dockerfile，可启动 web console 与
   `WORKER_RUN_LOOP=true` 的常驻 worker。
 - `pnpm compose:check` 会校验 Docker Compose app profile，并已纳入 release gate。
@@ -523,7 +523,8 @@ Done              -> Terminal
   CSV export、payload secret redaction。
 - Secret management：已有 runtime redaction 和 release secret scan gate；后续可接入外部 secret
   manager 做凭据注入与轮换。
-- Backup/restore
+- Backup/restore：已有 `pg_dump` custom-format backup、`pg_restore` restore，以及 live release
+  前的 backup manifest integrity gate。
 - Deployment
 - Monitoring
 

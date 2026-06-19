@@ -54,9 +54,9 @@ DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schem
   pnpm release:check
 ```
 
-When `WORKER_MODE=live`, `release:check` also requires a non-empty database backup. It uses
-`BACKUP_FILE` when provided, otherwise the latest `agent-control-plane-*.dump` under `BACKUP_DIR`
-which defaults to `backups`.
+When `WORKER_MODE=live`, `release:check` also requires a non-empty PostgreSQL custom-format
+database backup that `pg_restore --list` can parse. It uses `BACKUP_FILE` when provided, otherwise
+the latest `agent-control-plane-*.dump` under `BACKUP_DIR` which defaults to `backups`.
 
 ## Health Checks
 
@@ -341,7 +341,8 @@ DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schem
   scripts/db-restore.sh backups/agent-control-plane-YYYYMMDDTHHMMSSZ.dump
 ```
 
-Verify the backup gate that live release checks use:
+Verify the backup gate that live release checks use. This requires PostgreSQL client tools because
+the gate runs `pg_restore --list` against the selected custom-format dump:
 
 ```bash
 BACKUP_FILE="backups/agent-control-plane-YYYYMMDDTHHMMSSZ.dump" scripts/check-backup.sh

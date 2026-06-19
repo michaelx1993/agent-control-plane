@@ -142,8 +142,9 @@ Use `pnpm plane:probe` during the Plane self-host spike to verify list/get/repo 
 `PLANE_PROBE_MUTATE=true` with `PLANE_PROBE_TASK_ID`, `PLANE_PROBE_PATCH_JSON`, and
 `PLANE_PROBE_COMMENT_BODY` only against a disposable spike task when validating PATCH/comment APIs.
 
-For live rollout, run `scripts/db-backup.sh` first. `pnpm release:check` requires a non-empty
-`BACKUP_FILE` or the latest `agent-control-plane-*.dump` under `BACKUP_DIR` when `WORKER_MODE=live`.
+For live rollout, run `scripts/db-backup.sh` first. `pnpm release:check` requires a non-empty,
+`pg_restore --list`-verifiable `BACKUP_FILE` or the latest `agent-control-plane-*.dump` under
+`BACKUP_DIR` when `WORKER_MODE=live`.
 Use `WORKER_MODE=live pnpm live:verify-once` for the first real Development task; it runs
 preflight first, dispatches one task, prints the JSON evidence bundle, and fails if Plane,
 workspace, OpenHands, Langfuse, or Control Plane Run Detail evidence is missing. Use
