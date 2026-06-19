@@ -12,6 +12,7 @@ import {
 import { GET as getPromptReleasesRoute } from "./prompt-releases/route";
 import { GET as getPromptScopesRoute } from "./prompt-scopes/route";
 import { GET as getRunDetailRoute } from "./runs/[runId]/route";
+import { POST as postRunFeedbackRoute } from "./runs/[runId]/feedback/route";
 import { GET as getTasksRoute } from "./tasks/route";
 
 describe("new mock API routes", () => {
@@ -86,6 +87,39 @@ describe("new mock API routes", () => {
       count: 0,
       promptComponents: [],
     });
+  });
+
+  it("validates run feedback creation payloads", async () => {
+    const response = await postRunFeedbackRoute(
+      new Request("http://localhost/api/runs/run-1/feedback", {
+        method: "POST",
+        body: JSON.stringify({
+          severity: "major",
+        }),
+      }),
+      { params: Promise.resolve({ runId: "run-1" }) },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toContain("body");
+  });
+
+  it("requires DATABASE_URL before creating run feedback", async () => {
+    const response = await postRunFeedbackRoute(
+      new Request("http://localhost/api/runs/run-1/feedback", {
+        method: "POST",
+        body: JSON.stringify({
+          body: "Please fix the review feedback.",
+          returnToDevelopment: true,
+        }),
+      }),
+      { params: Promise.resolve({ runId: "run-1" }) },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain("DATABASE_URL");
   });
 
   it("validates prompt component creation payloads", async () => {

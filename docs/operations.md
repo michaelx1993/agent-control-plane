@@ -84,6 +84,25 @@ Operational rule:
 - Set it high enough to avoid noisy `run_events`; `30000` means at most two heartbeat events per minute per active run.
 - Use run detail and dashboard heartbeat age to distinguish active long-running work from a stale lease.
 
+## Review Rework Feedback
+
+When Code Review or Human Review rejects work, attach feedback to the run and optionally move the
+task back to Development:
+
+```bash
+curl -X POST "${CONTROL_PLANE_BASE_URL}/api/runs/<run-id>/feedback" \
+  -H "content-type: application/json" \
+  -d '{
+    "source": "human",
+    "severity": "major",
+    "body": "Fix the review findings before returning to Code Review.",
+    "returnToDevelopment": true
+  }'
+```
+
+This writes `feedback_items`, records a run event when `returnToDevelopment=true`, and lets the
+next Development agent see unresolved feedback through the task/run context.
+
 ## Backup And Restore
 
 Create a PostgreSQL custom-format backup:

@@ -900,6 +900,15 @@ export class DbControlPlaneStore implements ControlPlaneStore {
             team: true,
           },
         },
+        feedbackItems: {
+          where: {
+            resolvedAt: null,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 20,
+        },
       },
     });
 
@@ -915,6 +924,15 @@ export class DbControlPlaneStore implements ControlPlaneStore {
           include: {
             team: true,
           },
+        },
+        feedbackItems: {
+          where: {
+            resolvedAt: null,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 20,
         },
       },
     });
@@ -933,6 +951,16 @@ export class DbControlPlaneStore implements ControlPlaneStore {
   }
 
   private toWorkerTask(task: DbTaskWithDispatchContext): Task {
+    const feedbackComments =
+      "feedbackItems" in task && Array.isArray(task.feedbackItems)
+        ? task.feedbackItems.map(
+            (feedback) =>
+              `[feedback:${feedback.source}/${feedback.severity}] ${feedback.body}${
+                feedback.externalUrl ? ` (${feedback.externalUrl})` : ""
+              }`,
+          )
+        : [];
+
     return {
       id: task.id,
       planeId: task.externalTaskId,
@@ -943,7 +971,7 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       description: task.url ? `Plane task: ${task.url}` : "",
       state: workerStateByDbState[task.state],
       labels: parseStringArray(task.labels),
-      comments: [],
+      comments: feedbackComments,
       blocked: task.state === "Blocked",
       humanRequired: task.state === "HumanReview",
     };

@@ -95,6 +95,15 @@ export async function findDispatchableTasks(
           team: true,
         },
       },
+      feedbackItems: {
+        where: {
+          resolvedAt: null,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 20,
+      },
     },
     orderBy: [{ priority: { sort: "asc", nulls: "last" } }, { updatedAt: "asc" }],
     take: options.limit,

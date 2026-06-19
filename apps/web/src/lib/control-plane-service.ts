@@ -22,6 +22,8 @@ import {
 import { PrismaClient } from "@prisma/client";
 import type { RunStatus as DbRunStatus, TaskState as DbTaskState } from "@prisma/client";
 import type {
+  FeedbackSeverity as DbFeedbackSeverity,
+  FeedbackSource as DbFeedbackSource,
   PromptBindingEnvironment as DbPromptBindingEnvironment,
   PromptBindingStatus as DbPromptBindingStatus,
   PromptComponentStatus as DbPromptComponentStatus,
@@ -117,6 +119,14 @@ export type PromptScopesResponse = {
   scopes: PromptScopeItem[];
 };
 
+export type CreateRunFeedbackInput = {
+  source?: DbFeedbackSource;
+  severity?: DbFeedbackSeverity;
+  body: string;
+  externalUrl?: string | null;
+  returnToDevelopment?: boolean;
+};
+
 export type CreatePromptBindingInput = {
   scopeType: DbPromptScopeType;
   scopeId: string;
@@ -190,6 +200,65 @@ export async function getRunDetail(runId: string): Promise<RunDetail | null> {
   }
 
   return runDetails.find((run) => run.id === runId) ?? null;
+}
+
+export async function createRunFeedback(runId: string, input: CreateRunFeedbackInput) {
+  if (!shouldUseDatabase()) {
+    throw new Error("DATABASE_URL is required to create run feedback");
+  }
+
+  const run = await prisma.run.findUnique({
+    where: { id: runId },
+    select: {
+      id: true,
+      taskId: true,
+    },
+  });
+  if (!run) {
+    throw new Error(`Run ${runId} not found`);
+  }
+
+  const feedback = await prisma.$transaction(async (tx) => {
+    const item = await tx.feedbackItem.create({
+      data: {
+        taskId: run.taskId,
+        runId: run.id,
+        source: input.source ?? "human",
+        severity: input.severity ?? "major",
+        body: input.body,
+        externalUrl: input.externalUrl ?? null,
+      },
+    });
+
+    if (input.returnToDevelopment) {
+      await tx.task.update({
+        where: { id: run.taskId },
+        data: { state: "Development" },
+      });
+      await tx.runEvent.create({
+        data: {
+          runId: run.id,
+          eventType: "state_sync",
+          message: "Feedback requested Development rework",
+          payload: {
+            feedbackId: item.id,
+            nextState: "Development",
+          },
+        },
+      });
+    }
+
+    return item;
+  });
+
+  return {
+    id: feedback.id,
+    source: feedback.source,
+    severity: feedback.severity,
+    body: feedback.body,
+    createdAt: feedback.createdAt.toISOString(),
+    externalUrl: feedback.externalUrl ?? "",
+  };
 }
 
 export async function getPromptReleases(): Promise<PromptReleasesResponse> {

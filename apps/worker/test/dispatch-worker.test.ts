@@ -271,6 +271,14 @@ describe("DispatchWorker", () => {
         state: "Development",
         labels: ["repo:crs-src", "kind:worker"],
         repositoryId: "repo-1",
+        feedbackItems: [
+          {
+            source: "code_review",
+            severity: "major",
+            body: "Fix failing unit tests.",
+            externalUrl: "https://plane.test/comment-1",
+          },
+        ],
         repository: {
           slug: "crs-src",
           status: "active",
@@ -320,6 +328,9 @@ describe("DispatchWorker", () => {
         repo: "crs-src",
         state: "Development",
         labels: ["repo:crs-src", "kind:worker"],
+        comments: [
+          "[feedback:code_review/major] Fix failing unit tests. (https://plane.test/comment-1)",
+        ],
       }),
     ]);
   });
