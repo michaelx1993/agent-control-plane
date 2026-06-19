@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import {
   completeRun as dbCompleteRun,
   findDispatchableTasks as dbFindDispatchableTasks,
+  markExpiredLeasesFailed as dbMarkExpiredLeasesFailed,
   markRunRunning as dbMarkRunRunning,
   prisma,
   startRun as dbStartRun,
@@ -518,6 +519,7 @@ export class DbControlPlaneStore implements ControlPlaneStore {
   }
 
   async syncFromPlane(): Promise<void> {
+    await dbMarkExpiredLeasesFailed(this.db);
     if (this.planeSync) {
       await this.planeSync.sync();
     }

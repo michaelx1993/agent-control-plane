@@ -439,6 +439,78 @@ export async function heartbeatRun(db: DbClient, input: HeartbeatRunInput) {
   });
 }
 
+export interface MarkExpiredLeasesInput {
+  now?: Date;
+  limit?: number;
+  failureReason?: string;
+}
+
+export type MarkExpiredLeasesResult = {
+  count: number;
+  runIds: string[];
+};
+
+export async function markExpiredLeasesFailed(
+  db: DbClient,
+  input: MarkExpiredLeasesInput = {},
+): Promise<MarkExpiredLeasesResult> {
+  const now = input.now ?? new Date();
+  const failureReason = input.failureReason ?? "Lease expired without heartbeat";
+
+  return db.$transaction(async (tx) => {
+    const expiredRuns = await tx.run.findMany({
+      where: {
+        status: {
+          in: ["claimed", "running"],
+        },
+        leaseExpiresAt: {
+          lt: now,
+        },
+      },
+      select: {
+        id: true,
+        leaseOwner: true,
+        leaseExpiresAt: true,
+      },
+      orderBy: {
+        leaseExpiresAt: "asc",
+      },
+      take: input.limit ?? 100,
+    });
+
+    for (const run of expiredRuns) {
+      await tx.run.update({
+        where: {
+          id: run.id,
+        },
+        data: {
+          status: "failed",
+          leaseExpiresAt: null,
+          finishedAt: now,
+          failureReason,
+        },
+      });
+
+      await tx.runEvent.create({
+        data: {
+          runId: run.id,
+          eventType: "failed",
+          message: failureReason,
+          payload: {
+            leaseOwner: run.leaseOwner,
+            expiredAt: run.leaseExpiresAt?.toISOString() ?? null,
+          } satisfies Prisma.InputJsonObject,
+        },
+      });
+    }
+
+    return {
+      count: expiredRuns.length,
+      runIds: expiredRuns.map((run) => run.id),
+    };
+  });
+}
+
 export interface CompleteRunInput {
   runId: string;
   leaseOwner?: string;
