@@ -25,6 +25,18 @@ P0 方案固化
 -> P8 生产化与迁移
 ```
 
+当前实现快照：
+
+- 已有 Next.js Control Plane web console 和 worker app。
+- 已有 PostgreSQL/Prisma 数据模型、seed、demo run。
+- 已有 Plane task webhook receiver、task mirror、repo label 兜底解析。
+- 已有 run/lease/heartbeat、expired lease failure、OpenHands event summary persistence。
+- 已有 Prompt Manager、prompt component/binding/release、scope lookup API。
+- 已有 OpenHands adapter skeleton、conversation refs、poll heartbeat hook。
+- 已有 Langfuse trace refs、token/cost summary 写入和 dashboard 展示。
+- 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
+- 已有 Run Detail feedback 表单和 feedback API，支持打回 Development。
+
 ## P0 方案固化
 
 目标：把产品边界、数据模型、状态机和集成边界定死。
@@ -127,6 +139,7 @@ P0 方案固化
 - task 没有 repo 时，不会进入可派发队列。
 - 修改 Plane 状态后，本地 task 状态能更新。
 - 本地 run 完成后，能把状态和摘要写回 Plane。
+- webhook 可选 `PLANE_WEBHOOK_SECRET`，对外暴露时必须配置。
 
 风险：
 
@@ -155,6 +168,7 @@ P0 方案固化
 - 获取/续租 lease。
 - 记录 heartbeat。
 - 记录 queued / claimed / running / blocked / completed / failed。
+- 低频状态写回 Plane comment，但高频 heartbeat 只写本地。
 - 失败后按策略 retry。
 - 对外提供 run 查询 API。
 
@@ -173,6 +187,7 @@ P0 方案固化
 - worker 崩溃后 lease 过期，任务可重新派发。
 - heartbeat 超时可标记 stalled。
 - run 状态变化不依赖 Plane comment。
+- run detail 可展示 heartbeat、events、feedback、OpenHands/Langfuse 链接。
 
 风险：
 
@@ -213,6 +228,7 @@ global
 
 - 创建/编辑 prompt component。
 - 将 prompt component 绑定到 team/project/repo/role/agent。
+- 通过 scope lookup 选择绑定对象，避免手填 UUID。
 - 每次 run 前生成不可变 prompt release。
 - 记录 prompt release 组成和 hash。
 - 支持回滚 active prompt。
@@ -224,6 +240,7 @@ global
 - `prompt_releases`
 - `prompt_release_components`
 - Prompt Manager UI
+- `/api/prompt-scopes`
 
 验收标准：
 
@@ -273,6 +290,7 @@ global
 - 用户能从 run detail 跳到 OpenHands conversation。
 - OpenHands event log 中能看到 agent 消息、tool call、shell/file 操作。
 - OpenHands 失败时，Control Plane 能记录失败原因并决定 retry/block。
+- worker 轮询 OpenHands 期间按 `WORKER_HEARTBEAT_INTERVAL_MS` 刷新本地 lease。
 
 风险：
 
@@ -299,6 +317,7 @@ global
 - 收集 token、cost、latency。
 - 从 run detail 跳转 Langfuse trace。
 - 按 prompt version 统计成功率、平均成本、平均 token。
+- Dashboard 展示 recent run tokens/cost。
 
 交付物：
 
@@ -351,6 +370,7 @@ Done              -> Terminal
 - 自动状态由 Control Plane 派发。
 - 人工状态只等待用户操作。
 - reviewer/human 打回后，Development agent 必须读到反馈。
+- Run Detail 可以新增 feedback，并可选退回 Development。
 - agent 完成后只建议或执行允许的状态转移。
 
 交付物：
@@ -359,12 +379,14 @@ Done              -> Terminal
 - `role_router`
 - `feedback_collector`
 - `plane_state_sync`
+- Run Detail feedback form
 
 验收标准：
 
 - Development 完成后能进入 Code Review。
 - Code Review 发现问题能回 Development。
 - Human Review 打回后能回 Development，并保留反馈。
+- Development agent 下一次接单前能从 unresolved feedback 生成 comments。
 - Merged/Released/Deployed 由人决定下一步。
 
 风险：
@@ -471,6 +493,8 @@ Done              -> Terminal
 8. 替换 mock 为真实 OpenHands SDK。
 9. 接入 Langfuse trace。
 10. 做 run detail 页面，展示 Plane task、OpenHands conversation、Langfuse trace。
+11. 做 feedback/rework UI，并让下一轮 Development 读取 unresolved feedback。
+12. 做 prompt scope 选择器，降低 prompt binding 配置错误。
 
 ## 里程碑
 
@@ -484,11 +508,13 @@ Done              -> Terminal
 
 - run/lease/heartbeat/retry 可用。
 - 可从 API 查看运行状态。
+- Plane comment 只承载低频状态，不承载高频 heartbeat。
 
 ### M3: Prompt Platform 可用
 
 - prompt 不再依赖 GitHub。
 - 每次 run 绑定 prompt release。
+- prompt binding 可通过平台 scope lookup 完成。
 
 ### M4: OpenHands Run 可用
 
@@ -499,16 +525,16 @@ Done              -> Terminal
 
 - Langfuse trace 可查看。
 - token/cost 可统计。
+- Dashboard 和 run detail 都能展示 token/cost。
 
 ### M6: Workflow 闭环可用
 
 - Development -> Code Review -> Human Review -> In Merge 可跑通。
 - 打回返工可跑通。
+- feedback 可通过 UI/API 创建，且进入下一轮 Development 上下文。
 
 ## 当前待决策
 
-- Control Plane 技术栈。
-- 数据库选 PostgreSQL 还是 SQLite 起步。
 - OpenHands workspace 用本机目录、Docker 还是远程 runtime。
 - 是否保留 Symphony 名字，还是新建独立 Control Plane。
 
@@ -519,11 +545,12 @@ Done              -> Terminal
 - Prompt 主库放 Control Plane，Langfuse 做 trace/eval。
 - Langfuse 默认保存完整 trace。
 - Control Plane 与 Plane 职责分离：Plane 管人类任务，Control Plane 管 agent runtime。
+- Control Plane 技术栈采用 Next.js web app + worker + packages monorepo。
+- 数据库直接使用 PostgreSQL + Prisma。
+- Agent Control Plane 是替代 Symphony 的新编排层，Symphony 名字不再作为核心产品名。
 
 ## 仍需讨论
 
-- 技术栈：Next.js 全栈、FastAPI + Next.js、Go + Next.js 哪个更适合长期维护。
-- 数据库：PostgreSQL 直接起步，还是 SQLite 原型后迁移。
 - OpenHands workspace：本机目录、Docker sandbox、远程 runtime 哪种作为第一版。
 - Plane 二开深度：只改字段/UI，还是后续把 agent run 状态嵌入 work item 页面。
-- Symphony 名字是否保留：作为兼容层、模块名，还是新项目彻底命名为 Agent Control Plane。
+- retry/backoff 的第一版策略：固定次数、指数退避，还是人工批准后重跑。

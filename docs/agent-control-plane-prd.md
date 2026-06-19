@@ -8,14 +8,15 @@
 - Agent prompt 仍放在 GitHub/Markdown 中，修改、版本、发布和回滚都不够产品化。
 - Agent 执行过程主要靠本地日志，缺少可视化的完整 conversation、tool call、token 和成本视图。
 
-新的方案拆成四层：
+新的方案拆成四层。Agent Control Plane 是 Symphony 的替代编排层，不是 Plane 或 OpenHands
+的别名：
 
 ```text
 Plane
   任务、项目、状态、人类 review
       |
       v
-Symphony / Agent Control Plane
+Agent Control Plane
   任务发现、状态机、repo routing、并发、lease、重试、结果同步
       |
       v
@@ -31,6 +32,7 @@ Langfuse
 
 - Plane 必须 self-host，因为后续一定会二次开发。
 - Plane 是人类任务平台，Control Plane 是 agent 调度平台。
+- Agent Control Plane 逐步替代 Symphony 的任务发现、状态机、prompt 装配、run/lease 和观测编排能力。
 - Prompt 主库优先放在 Control Plane，Langfuse 负责 trace、eval 和效果分析。
 - Trace 不按多租户隐私产品设计，默认完整记录，方便个人调试。
 - token project 下不再拆 crs/sub2/traffic 多个 project，统一用 repo 字段路由。
@@ -72,8 +74,16 @@ Control Plane 面向 agent runtime，负责“哪个 agent 什么时候接单、
 - OpenHands conversation ref
 - Langfuse trace ref
 - state transition validation
+- low-frequency Plane status comment: Claimed / Running / Completed / Failed
+- review feedback write path and Development rework trigger
 
 Plane 可以展示 agent 状态，但不承载高频 heartbeat、retry、token、conversation event log 和 prompt release 事实源。
+
+当前实现约束：
+
+- 高频 heartbeat 只写 Control Plane `runs/run_events`，不写 Plane comment。
+- Plane comment 只写低频状态和最终结果，避免触发 Plane rate limit。
+- Review 打回可在 Run Detail 页面或 API 写入 feedback，并可将 task 退回 Development。
 
 ## 用户角色
 
@@ -211,6 +221,13 @@ global prompt
 
 每次 run 必须记录实际使用的 prompt release id，保证可追溯。
 
+当前 Prompt Manager 已支持：
+
+- 创建 prompt component。
+- 创建 prompt binding。
+- 从平台列出 team/project/repo/role/agent scope，避免手填 UUID。
+- 每次 worker run 按 global/team/project/repo/role/agent 顺序装配 active prompt。
+
 ## OpenHands 集成
 
 Agent Control Plane 不直接执行 shell/file/tool，而是调用 OpenHands SDK：
@@ -275,10 +292,13 @@ Trace 策略：
 - 跳转 OpenHands conversation。
 - 跳转 Langfuse trace。
 - 展示本次使用的 prompt release。
+- 展示并新增 feedback；需要返工时可将任务退回 Development。
 
 ### Prompt Manager
 
 - 创建 global/team/project/repo/role prompt。
+- 创建 team/project/repo/role/agent prompt binding。
+- 选择已有 scope 绑定 prompt，不要求用户手填 scope UUID。
 - diff prompt version。
 - 发布 active 版本。
 - 回滚到旧版本。

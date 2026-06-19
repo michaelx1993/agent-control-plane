@@ -16,6 +16,18 @@ explicitly downgraded for cost or upgraded for a hard debugging pass.
 - `packages/prompt` owns prompt composition and release metadata.
 - `packages/plane`, `packages/openhands`, and `packages/langfuse` own external adapters.
 
+## Documentation Discipline
+
+Any change that alters architecture, state transitions, persistence, prompt assembly, runtime
+behavior, operator workflows, or external integrations must update docs in the same commit.
+
+Primary docs:
+
+- `docs/agent-control-plane-prd.md` for product and boundary decisions.
+- `docs/agent-control-plane-erd.md` for persisted data and key queries.
+- `docs/agent-control-plane-roadmap.md` for phase status and next work.
+- `docs/operations.md` for runbooks and operator actions.
+
 ## First Milestone
 
 The first milestone is an end-to-end mock run:
@@ -48,6 +60,9 @@ The demo run is `00000000-0000-4000-9000-000000000001` and includes a task,
 prompt release, OpenHands conversation ref, Langfuse trace ref, run events, and
 one feedback item. This seed is opt-in and should not be used for production
 data.
+
+Run Detail supports adding feedback from the UI. When `returnToDevelopment=true`, the task is moved
+back to Development and unresolved feedback is injected into the next worker prompt as comments.
 
 ## Live Worker Preconditions
 

@@ -41,6 +41,11 @@ pnpm build
 pnpm worker:dry-run
 ```
 
+Documentation must be updated in the same change whenever architecture, workflow, data model,
+runtime behavior, or operator process changes. Treat `docs/agent-control-plane-prd.md`,
+`docs/agent-control-plane-erd.md`, `docs/agent-control-plane-roadmap.md`, and this runbook as part
+of the delivery surface.
+
 Use the scripted release gate before any live worker rollout:
 
 ```bash
@@ -86,8 +91,10 @@ Operational rule:
 
 ## Review Rework Feedback
 
-When Code Review or Human Review rejects work, attach feedback to the run and optionally move the
-task back to Development:
+When Code Review or Human Review rejects work, use the Run Detail feedback form first. It writes
+feedback and can move the task back to Development in one action.
+
+The API is also available for scripts:
 
 ```bash
 curl -X POST "${CONTROL_PLANE_BASE_URL}/api/runs/<run-id>/feedback" \
@@ -102,6 +109,8 @@ curl -X POST "${CONTROL_PLANE_BASE_URL}/api/runs/<run-id>/feedback" \
 
 This writes `feedback_items`, records a run event when `returnToDevelopment=true`, and lets the
 next Development agent see unresolved feedback through the task/run context.
+
+The Development worker reads unresolved feedback as task comments before assembling the next prompt.
 
 ## Backup And Restore
 

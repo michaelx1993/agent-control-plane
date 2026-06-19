@@ -354,16 +354,17 @@ Langfuse trace 引用。一次 run 可包含多个 trace/generation。
 
 ### run_events
 
-Control Plane 自己的轻量事件，不替代 OpenHands event log。
+Control Plane 自己的轻量事件，不替代 OpenHands event log。当前事件还承担 run detail
+timeline、feedback 打回记录和 observability refs 记录。
 
-| 字段       | 类型        | 说明                                                   |
-| ---------- | ----------- | ------------------------------------------------------ |
-| id         | uuid        | 主键                                                   |
-| run_id     | uuid        | 关联 runs                                              |
-| event_type | text        | claimed / heartbeat / state_sync / blocked / completed |
-| message    | text        | 简短摘要                                               |
-| payload    | jsonb       | 结构化数据                                             |
-| created_at | timestamptz | 创建时间                                               |
+| 字段       | 类型        | 说明                                                                                |
+| ---------- | ----------- | ----------------------------------------------------------------------------------- |
+| id         | uuid        | 主键                                                                                |
+| run_id     | uuid        | 关联 runs                                                                           |
+| event_type | text        | queued / claimed / heartbeat / state_sync / blocked / completed / failed / canceled |
+| message    | text        | 简短摘要                                                                            |
+| payload    | jsonb       | 结构化数据                                                                          |
+| created_at | timestamptz | 创建时间                                                                            |
 
 索引：
 
@@ -373,6 +374,7 @@ Control Plane 自己的轻量事件，不替代 OpenHands event log。
 ### feedback_items
 
 来自 reviewer、人类、PR comment 或 agent 自检的返工反馈。Development agent 下一次启动前必须读取 unresolved feedback。
+当前写入入口包括 Run Detail UI 和 `POST /api/runs/{run_id}/feedback`。
 
 | 字段         | 类型        | 说明                                                    |
 | ------------ | ----------- | ------------------------------------------------------- |
@@ -433,6 +435,7 @@ Control Plane 自己的轻量事件，不替代 OpenHands event log。
 select t.*
 from tasks t
 join repositories r on r.id = t.repository_id
+left join feedback_items f on f.task_id = t.id and f.resolved_at is null
 where t.state in ('Todo', 'Development', 'Code Review', 'In Merge', 'Release Version', 'Deployment')
   and t.repository_id is not null
   and r.status = 'active'
@@ -446,6 +449,9 @@ where t.state in ('Todo', 'Development', 'Code Review', 'In Merge', 'Release Ver
 order by t.priority asc nulls last, t.updated_at asc;
 ```
 
+实现中会把 unresolved feedback 附加进 worker task comments，供下一轮 Development
+prompt 使用。
+
 ### 查询 run 详情
 
 ```sql
@@ -453,10 +459,15 @@ select
   r.*,
   c.conversation_id,
   c.ui_url as openhands_url,
-  pr.langfuse_prompt_id,
-  pr.langfuse_prompt_version
+  tr.trace_id,
+  tr.ui_url as langfuse_url,
+  tr.input_tokens,
+  tr.output_tokens,
+  tr.cost_usd,
+  pr.rendered_content
 from runs r
 left join conversation_refs c on c.run_id = r.id
+left join trace_refs tr on tr.run_id = r.id
 left join prompt_releases pr on pr.id = r.prompt_release_id
 where r.id = $1;
 ```
