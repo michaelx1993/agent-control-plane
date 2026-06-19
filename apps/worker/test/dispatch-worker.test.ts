@@ -500,6 +500,60 @@ describe("DispatchWorker", () => {
     expect(tasks).toEqual([]);
   });
 
+  it("returns DB-backed tasks when a retry cap has been manually released", async () => {
+    const taskFindMany = vi.fn().mockResolvedValue([
+      {
+        id: "task-released",
+        externalTaskId: "plane-released",
+        title: "Released task",
+        url: "https://plane.test/token/TOK-4",
+        state: "Development",
+        priority: 1,
+        createdAt: new Date("2026-06-18T10:00:00.000Z"),
+        labels: ["repo:crs-src"],
+        repositoryId: "repo-crs",
+        retryAfterAttempt: 3,
+        runs: [
+          {
+            attempt: 3,
+            status: "failed",
+          },
+        ],
+        repository: {
+          slug: "crs-src",
+          status: "active",
+        },
+        project: {
+          slug: "token",
+          team: {
+            name: "token-team",
+            key: "TOK",
+            externalTeamId: "token-team",
+          },
+        },
+      },
+    ]);
+    const db = {
+      task: {
+        findMany: taskFindMany,
+      },
+      run: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    } as unknown as DbClient;
+    const store = new DbControlPlaneStore(db);
+
+    const tasks = await store.findDispatchableTasks(
+      loadConfig({
+        WORKER_MODE: "live",
+        WORKER_ENABLED_TEAMS: "token-team",
+        WORKER_MAX_TASK_ATTEMPTS: "3",
+      }),
+    );
+
+    expect(tasks.map((task) => task.id)).toEqual(["task-released"]);
+  });
+
   it("assembles DB-backed prompt components in platform order", async () => {
     const db = {
       run: {

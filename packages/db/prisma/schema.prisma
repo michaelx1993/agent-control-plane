@@ -207,6 +207,7 @@ model Task {
   labels         Json            @default("[]")
   assignee       String?
   url            String?
+  retryAfterAttempt Int          @default(0) @map("retry_after_attempt")
   lastSyncedAt   DateTime?       @map("last_synced_at") @db.Timestamptz(6)
   syncCursor     String?         @map("sync_cursor")
   createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)

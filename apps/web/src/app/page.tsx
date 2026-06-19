@@ -5,6 +5,7 @@ import {
   getTaskQueue,
 } from "@/lib/control-plane-service";
 import { type HealthSignal, type RunStatus, type TaskQueueItem } from "@/lib/mock-data";
+import { RetryTaskButton } from "./RetryTaskButton";
 
 const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
   attention: "statusAttention",
@@ -108,7 +109,12 @@ export default async function DashboardPage() {
                     <td>
                       {task.attempt}/{task.maxAttempts}
                     </td>
-                    <td>{task.lease}</td>
+                    <td>
+                      <span>{task.lease}</span>
+                      {task.dispatchStatus === "retry_capped" ? (
+                        <RetryTaskButton taskId={task.id} />
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>

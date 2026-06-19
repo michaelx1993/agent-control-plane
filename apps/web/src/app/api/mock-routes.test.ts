@@ -13,6 +13,7 @@ import { GET as getPromptReleasesRoute } from "./prompt-releases/route";
 import { GET as getPromptScopesRoute } from "./prompt-scopes/route";
 import { GET as getRunDetailRoute } from "./runs/[runId]/route";
 import { POST as postRunFeedbackRoute } from "./runs/[runId]/feedback/route";
+import { POST as postTaskRetryRoute } from "./tasks/[taskId]/retry/route";
 import { GET as getTasksRoute } from "./tasks/route";
 
 describe("new mock API routes", () => {
@@ -121,6 +122,22 @@ describe("new mock API routes", () => {
         }),
       }),
       { params: Promise.resolve({ runId: "run-1" }) },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain("DATABASE_URL");
+  });
+
+  it("requires DATABASE_URL before releasing task retry", async () => {
+    const response = await postTaskRetryRoute(
+      new Request("http://localhost/api/tasks/ACP-1/retry", {
+        method: "POST",
+        body: JSON.stringify({
+          reason: "Try again after review.",
+        }),
+      }),
+      { params: Promise.resolve({ taskId: "ACP-1" }) },
     );
     const payload = await response.json();
 

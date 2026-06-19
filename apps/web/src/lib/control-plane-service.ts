@@ -127,6 +127,10 @@ export type CreateRunFeedbackInput = {
   returnToDevelopment?: boolean;
 };
 
+export type ReleaseTaskRetryInput = {
+  reason?: string;
+};
+
 export type CreatePromptBindingInput = {
   scopeType: DbPromptScopeType;
   scopeId: string;
@@ -259,6 +263,56 @@ export async function createRunFeedback(runId: string, input: CreateRunFeedbackI
     body: feedback.body,
     createdAt: feedback.createdAt.toISOString(),
     externalUrl: feedback.externalUrl ?? "",
+  };
+}
+
+export async function releaseTaskRetry(identifier: string, input: ReleaseTaskRetryInput = {}) {
+  if (!shouldUseDatabase()) {
+    throw new Error("DATABASE_URL is required to release task retry");
+  }
+
+  const task = await prisma.task.findFirst({
+    where: { identifier },
+    include: {
+      runs: {
+        select: {
+          attempt: true,
+        },
+        orderBy: {
+          attempt: "desc",
+        },
+        take: 1,
+      },
+    },
+  });
+  if (!task) {
+    throw new Error(`Task ${identifier} not found`);
+  }
+
+  const retryAfterAttempt = Math.max(task.retryAfterAttempt, task.runs[0]?.attempt ?? 0);
+  const released = await prisma.$transaction(async (tx) => {
+    const updated = await tx.task.update({
+      where: { id: task.id },
+      data: { retryAfterAttempt },
+    });
+    await tx.auditEvent.create({
+      data: {
+        action: "task.retry_released",
+        entityType: "task",
+        entityId: task.id,
+        message: input.reason ?? "Manual retry release",
+        payload: {
+          identifier: task.identifier,
+          retryAfterAttempt,
+        },
+      },
+    });
+    return updated;
+  });
+
+  return {
+    id: released.identifier,
+    retryAfterAttempt: released.retryAfterAttempt,
   };
 }
 
@@ -704,7 +758,9 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
       activeRun.leaseExpiresAt > now &&
       activeRunStatuses.has(activeRun.status);
     const maxAttempt = Math.max(0, ...task.runs.map((run) => run.attempt));
-    const retryCapped = maxAttempt >= maxAttempts;
+    const retryAfterAttempt = task.retryAfterAttempt ?? 0;
+    const displayAttempt = Math.max(0, maxAttempt - retryAfterAttempt);
+    const retryCapped = displayAttempt >= maxAttempts;
     const eligible =
       Boolean(task.repository?.slug) &&
       automaticStates.has(task.state) &&
@@ -723,12 +779,12 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
       labels: parseStringArray(task.labels),
       eligible,
       dispatchStatus,
-      attempt: maxAttempt,
+      attempt: displayAttempt,
       maxAttempts,
       lease: activeRun
         ? `held by ${activeRun.id}`
         : retryCapped
-          ? `retry capped at ${maxAttempt}/${maxAttempts}`
+          ? `retry capped at ${displayAttempt}/${maxAttempts}`
           : task.repository?.slug
             ? "available"
             : "blocked: missing repo",

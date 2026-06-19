@@ -110,23 +110,24 @@ erDiagram
 
 从 Plane 同步来的任务镜像。正文和评论不做长期事实源，只缓存必要摘要和同步游标。
 
-| 字段             | 类型        | 说明                      |
-| ---------------- | ----------- | ------------------------- |
-| id               | uuid        | 主键                      |
-| project_id       | uuid        | 关联 projects             |
-| repository_id    | uuid        | 关联 repositories，可为空 |
-| external_task_id | text        | Plane work item id        |
-| identifier       | text        | 人类可读编号              |
-| title            | text        | 标题                      |
-| state            | text        | 当前状态                  |
-| priority         | int         | 优先级                    |
-| labels           | jsonb       | 标签缓存                  |
-| assignee         | text        | 负责人缓存                |
-| url              | text        | Plane URL                 |
-| last_synced_at   | timestamptz | 最近同步时间              |
-| sync_cursor      | text        | 评论/事件同步游标         |
-| created_at       | timestamptz | 创建时间                  |
-| updated_at       | timestamptz | 更新时间                  |
+| 字段                | 类型        | 说明                                   |
+| ------------------- | ----------- | -------------------------------------- |
+| id                  | uuid        | 主键                                   |
+| project_id          | uuid        | 关联 projects                          |
+| repository_id       | uuid        | 关联 repositories，可为空              |
+| external_task_id    | text        | Plane work item id                     |
+| identifier          | text        | 人类可读编号                           |
+| title               | text        | 标题                                   |
+| state               | text        | 当前状态                               |
+| priority            | int         | 优先级                                 |
+| labels              | jsonb       | 标签缓存                               |
+| assignee            | text        | 负责人缓存                             |
+| url                 | text        | Plane URL                              |
+| retry_after_attempt | int         | 人工重新放行 retry 的 attempt baseline |
+| last_synced_at      | timestamptz | 最近同步时间                           |
+| sync_cursor         | text        | 评论/事件同步游标                      |
+| created_at          | timestamptz | 创建时间                               |
+| updated_at          | timestamptz | 更新时间                               |
 
 唯一约束：
 

@@ -695,6 +695,7 @@ type DbTaskWithWorkerContext = {
   url: string | null;
   state: DbTaskState;
   labels: unknown;
+  retryAfterAttempt?: number;
   repository?: { slug: string } | null;
   project: {
     slug: string;
@@ -994,7 +995,7 @@ export class DbControlPlaneStore implements ControlPlaneStore {
 
   private hasAttemptsRemaining(task: DbTaskWithDispatchContext, maxTaskAttempts: number): boolean {
     const maxAttempt = Math.max(0, ...task.runs.map((run) => run.attempt));
-    return maxAttempt < maxTaskAttempts;
+    return maxAttempt - (task.retryAfterAttempt ?? 0) < maxTaskAttempts;
   }
 
   private toWorkerTask(task: DbTaskWithWorkerContext): Task {

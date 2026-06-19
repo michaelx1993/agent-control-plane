@@ -102,6 +102,8 @@ Operational rule:
   `WORKER_MAX_TASK_ATTEMPTS`.
 - The Task Queue exposes these tasks as `retry capped` with `attempt/maxAttempts`, so operators
   can distinguish them from normal human gates.
+- Use the Task Queue `Release retry` action to set the task retry baseline to its current max
+  attempt. Historical runs stay immutable, and the next worker attempt opens a fresh retry window.
 - Reviewers should add feedback or mark the task blocked/done after the retry cap is reached.
   This prevents failing tasks from looping silently through the worker.
 

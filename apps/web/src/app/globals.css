@@ -363,6 +363,34 @@ dd {
   border-top: 1px solid var(--line-soft);
 }
 
+.retryAction {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.retryAction small {
+  color: var(--bad);
+}
+
+.inlineIconButton {
+  width: fit-content;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.inlineIconButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .release p {
   margin-top: 8px;
 }
