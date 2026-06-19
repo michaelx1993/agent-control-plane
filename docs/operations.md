@@ -647,10 +647,12 @@ need the raw dispatch JSON without the verifier.
 - `verification`: `/runs/<run_id>`, Plane task id, OpenHands evidence, Langfuse evidence, and the
   expected next state.
 
-The verifier fails successful runs if the evidence is missing Run Detail, Plane, workspace,
-OpenHands conversation id/url, or Langfuse trace id/url. The verification OpenHands/Langfuse links
-must match the run refs. Failed or blocked runs may lack Langfuse evidence, but must still include a
-Run Detail path, Plane evidence, workspace path, and OpenHands/debug context.
+The verifier fails successful runs if the evidence is missing Run Detail, Plane, post-dispatch task
+state, workspace, OpenHands conversation id/url, or Langfuse trace id/url. Successful evidence must
+show `task.state == run.nextState == verification.expectedNextState`, and the verification
+OpenHands/Langfuse links must match the run refs. Failed or blocked runs may lack Langfuse evidence,
+but must still include a Run Detail path, Plane evidence, workspace path, and OpenHands/debug
+context.
 
 Verify the Run Detail workspace metadata, OpenHands conversation, Langfuse trace, and Plane status
 comment before enabling a long-running worker.

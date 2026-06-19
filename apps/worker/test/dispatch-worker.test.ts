@@ -159,7 +159,7 @@ describe("DispatchWorker", () => {
     const output = [
       "$ tsx src/index.ts",
       JSON.stringify({
-        task: { id: "task-1", planeId: "plane-1", repo: "crs-src" },
+        task: { id: "task-1", planeId: "plane-1", repo: "crs-src", state: "Code Review" },
         run: {
           id: "run-1",
           status: "succeeded",
@@ -193,7 +193,7 @@ describe("DispatchWorker", () => {
   it("rejects live dispatch evidence without OpenHands and Langfuse refs", () => {
     expect(
       validateLiveDispatchEvidence({
-        task: { id: "task-1", planeId: "plane-1", repo: "crs-src" },
+        task: { id: "task-1", planeId: "plane-1", repo: "crs-src", state: "Code Review" },
         run: {
           id: "run-1",
           status: "succeeded",
@@ -225,7 +225,7 @@ describe("DispatchWorker", () => {
   it("rejects successful live evidence whose verification links do not match run refs", () => {
     expect(
       validateLiveDispatchEvidence({
-        task: { id: "task-1", planeId: "plane-1", repo: "crs-src" },
+        task: { id: "task-1", planeId: "plane-1", repo: "crs-src", state: "Code Review" },
         run: {
           id: "run-1",
           status: "succeeded",
@@ -257,10 +257,42 @@ describe("DispatchWorker", () => {
     });
   });
 
+  it("rejects successful live evidence when Plane post-dispatch state did not advance", () => {
+    expect(
+      validateLiveDispatchEvidence({
+        task: { id: "task-1", planeId: "plane-1", repo: "crs-src", state: "Development" },
+        run: {
+          id: "run-1",
+          status: "succeeded",
+          role: "Development Agent",
+          attempt: 1,
+          promptReleaseId: "prompt-release-1",
+          workspacePath: "/tmp/crs-src/runs/run-1",
+          conversationId: "conversation-1",
+          conversationUrl: "https://openhands.test/conversations/conversation-1",
+          langfuseTraceId: "trace-1",
+          langfuseTraceUrl: "https://langfuse.test/trace-1",
+          nextState: "Code Review",
+          summary: "Implemented.",
+        },
+        verification: {
+          runDetailPath: "/runs/run-1",
+          planeEvidence: "plane-1",
+          openHandsEvidence: "https://openhands.test/conversations/conversation-1",
+          langfuseEvidence: "https://langfuse.test/trace-1",
+          expectedNextState: "Code Review",
+        },
+      }),
+    ).toMatchObject({
+      ok: false,
+      errors: expect.arrayContaining(["task.state must match run.nextState."]),
+    });
+  });
+
   it("allows failed live dispatch evidence only when debugging context is present", () => {
     expect(
       validateLiveDispatchEvidence({
-        task: { id: "task-1", planeId: "plane-1", repo: "crs-src" },
+        task: { id: "task-1", planeId: "plane-1", repo: "crs-src", state: "Development" },
         run: {
           id: "run-1",
           status: "failed",

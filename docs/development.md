@@ -130,5 +130,6 @@ that the evidence contains the required Plane/workspace/OpenHands/Langfuse/Run D
   OpenHands evidence, Langfuse evidence, and expected next state.
 
 Successful live evidence must include URL-level OpenHands and Langfuse refs that match the run
-record. Failed or blocked live evidence may lack a Langfuse trace, but still needs Run Detail, Plane,
-workspace, and OpenHands/debug context.
+record, and `task.state` must match `run.nextState` and `verification.expectedNextState`. Failed or
+blocked live evidence may lack a Langfuse trace, but still needs Run Detail, Plane, workspace, and
+OpenHands/debug context.

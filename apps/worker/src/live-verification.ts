@@ -45,6 +45,7 @@ export function validateLiveDispatchEvidence(input: unknown): LiveDispatchVerifi
   requireString(errors, evidence.task?.id, "task.id");
   requireString(errors, evidence.task?.planeId, "task.planeId");
   requireString(errors, evidence.task?.repo, "task.repo");
+  requireString(errors, evidence.task?.state, "task.state");
   requireString(errors, evidence.run?.id, "run.id");
   requireString(errors, evidence.run?.status, "run.status");
   requireString(errors, evidence.run?.role, "run.role");
@@ -79,6 +80,20 @@ export function validateLiveDispatchEvidence(input: unknown): LiveDispatchVerifi
       "verification.expectedNextState",
     );
     requireString(errors, evidence.run?.summary, "run.summary");
+    requireMatchingString(
+      errors,
+      evidence.task?.state,
+      evidence.run?.nextState,
+      "task.state",
+      "run.nextState",
+    );
+    requireMatchingString(
+      errors,
+      evidence.verification?.expectedNextState,
+      evidence.task?.state,
+      "verification.expectedNextState",
+      "task.state",
+    );
     requireMatchingString(
       errors,
       evidence.verification?.openHandsEvidence,
