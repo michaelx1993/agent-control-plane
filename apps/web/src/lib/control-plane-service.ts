@@ -156,6 +156,7 @@ export type SystemHealthResponse = {
 export type QueueSummary = {
   eligible: number;
   blocked: number;
+  retryCapped: number;
   running: number;
   failed: number;
 };
@@ -675,15 +676,17 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
         repository: true,
         project: true,
         runs: {
-          where: {
-            status: {
-              in: ["claimed", "running"],
-            },
+          select: {
+            id: true,
+            attempt: true,
+            leaseExpiresAt: true,
+            status: true,
+            updatedAt: true,
           },
           orderBy: {
             updatedAt: "desc",
           },
-          take: 1,
+          take: 20,
         },
       },
       orderBy: [{ priority: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }],
@@ -692,18 +695,23 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
     getRunsFromDb(),
   ]);
   const now = new Date();
+  const maxAttempts = getWorkerMaxTaskAttempts();
   const responseTasks = tasks.map((task): TaskQueueItem => {
-    const activeRun = task.runs[0];
+    const activeRun = task.runs.find((run) => activeRunStatuses.has(run.status));
     const hasActiveLease =
       activeRun?.leaseExpiresAt !== null &&
       activeRun?.leaseExpiresAt !== undefined &&
       activeRun.leaseExpiresAt > now &&
       activeRunStatuses.has(activeRun.status);
+    const maxAttempt = Math.max(0, ...task.runs.map((run) => run.attempt));
+    const retryCapped = maxAttempt >= maxAttempts;
     const eligible =
       Boolean(task.repository?.slug) &&
       automaticStates.has(task.state) &&
       task.state !== "Blocked" &&
-      !hasActiveLease;
+      !hasActiveLease &&
+      !retryCapped;
+    const dispatchStatus = eligible ? "eligible" : retryCapped ? "retry_capped" : "gated";
 
     return {
       id: task.identifier,
@@ -714,11 +722,16 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
       priority: priorityToDisplay(task.priority),
       labels: parseStringArray(task.labels),
       eligible,
+      dispatchStatus,
+      attempt: maxAttempt,
+      maxAttempts,
       lease: activeRun
         ? `held by ${activeRun.id}`
-        : task.repository?.slug
-          ? "available"
-          : "blocked: missing repo",
+        : retryCapped
+          ? `retry capped at ${maxAttempt}/${maxAttempts}`
+          : task.repository?.slug
+            ? "available"
+            : "blocked: missing repo",
     };
   });
   const summary = summarizeQueue(responseTasks, runsResponse.runs);
@@ -967,6 +980,7 @@ function summarizeQueue(tasks: TaskQueueItem[], runsResponse: Run[]): QueueSumma
   return {
     eligible: tasks.filter((task) => task.eligible).length,
     blocked: tasks.filter((task) => !task.eligible).length,
+    retryCapped: tasks.filter((task) => task.dispatchStatus === "retry_capped").length,
     running: runsResponse.filter((run) => run.status === "running").length,
     failed: runsResponse.filter((run) => run.status === "failed").length,
   };

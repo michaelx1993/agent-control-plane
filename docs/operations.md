@@ -100,6 +100,8 @@ Operational rule:
 - A new run gets `attempt = max(previous task attempts) + 1`.
 - Dispatch skips a task once its max attempt is greater than or equal to
   `WORKER_MAX_TASK_ATTEMPTS`.
+- The Task Queue exposes these tasks as `retry capped` with `attempt/maxAttempts`, so operators
+  can distinguish them from normal human gates.
 - Reviewers should add feedback or mark the task blocked/done after the retry cap is reached.
   This prevents failing tasks from looping silently through the worker.
 

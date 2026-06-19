@@ -186,6 +186,7 @@ P0 方案固化
 - 同一个 task 同一时间只能被一个 run 持有 lease。
 - worker 崩溃后 lease 过期，任务可重新派发。
 - 同一 task 的 run attempt 单调递增，达到 retry 上限后不再自动派发。
+- Task Queue 明确展示 `retry capped` 和 `attempt/maxAttempts`，避免重试耗尽任务被误判为普通 gate。
 - heartbeat 超时可标记 stalled。
 - run 状态变化不依赖 Plane comment。
 - run detail 可展示 heartbeat、events、feedback、OpenHands/Langfuse 链接。

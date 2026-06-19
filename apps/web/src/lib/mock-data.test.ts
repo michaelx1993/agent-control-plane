@@ -15,6 +15,8 @@ describe("control plane mock service", () => {
     expect(taskQueue.count).toBe(taskQueue.tasks.length);
     expect(taskQueue.tasks.every((task) => task.repo.length > 0)).toBe(true);
     expect(taskQueue.tasks.some((task) => task.labels.includes(`repo:${task.repo}`))).toBe(true);
+    expect(taskQueue.tasks.every((task) => task.maxAttempts >= task.attempt)).toBe(true);
+    expect(taskQueue.tasks.some((task) => task.dispatchStatus === "retry_capped")).toBe(true);
   });
 
   it("exposes OpenHands and Langfuse links for every run", async () => {
@@ -57,6 +59,9 @@ describe("control plane mock service", () => {
     const health = await getSystemHealth();
 
     expect(taskQueue.summary.eligible).toBe(taskQueue.tasks.filter((task) => task.eligible).length);
+    expect(taskQueue.summary.retryCapped).toBe(
+      taskQueue.tasks.filter((task) => task.dispatchStatus === "retry_capped").length,
+    );
     expect(taskQueue.summary.failed).toBe(
       runs.runs.filter((run) => run.status === "failed").length,
     );

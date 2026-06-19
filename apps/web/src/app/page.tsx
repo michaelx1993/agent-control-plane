@@ -4,7 +4,7 @@ import {
   getSystemHealth,
   getTaskQueue,
 } from "@/lib/control-plane-service";
-import { type HealthSignal, type RunStatus } from "@/lib/mock-data";
+import { type HealthSignal, type RunStatus, type TaskQueueItem } from "@/lib/mock-data";
 
 const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
   attention: "statusAttention",
@@ -16,6 +16,18 @@ const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
   nominal: "statusGood",
   queued: "statusInfo",
   running: "statusRun",
+};
+
+const dispatchStatusClass: Record<TaskQueueItem["dispatchStatus"], string> = {
+  eligible: "pill statusGood",
+  gated: "pill statusAttention",
+  retry_capped: "pill statusBad",
+};
+
+const dispatchStatusLabel: Record<TaskQueueItem["dispatchStatus"], string> = {
+  eligible: "eligible",
+  gated: "gated",
+  retry_capped: "retry capped",
 };
 
 const formatTokens = (input: number, output: number) =>
@@ -55,6 +67,7 @@ export default async function DashboardPage() {
         <div className="topStats" aria-label="Queue summary">
           <Metric label="Eligible" value={taskQueue.summary.eligible} />
           <Metric label="Blocked" value={taskQueue.summary.blocked} />
+          <Metric label="Capped" value={taskQueue.summary.retryCapped} tone="bad" />
           <Metric label="Running" value={taskQueue.summary.running} />
           <Metric label="Failed" value={taskQueue.summary.failed} tone="bad" />
         </div>
@@ -71,6 +84,7 @@ export default async function DashboardPage() {
                   <th>State</th>
                   <th>Priority</th>
                   <th>Dispatch</th>
+                  <th>Attempt</th>
                   <th>Lease</th>
                 </tr>
               </thead>
@@ -87,9 +101,12 @@ export default async function DashboardPage() {
                     <td>{task.state}</td>
                     <td>{task.priority}</td>
                     <td>
-                      <span className={task.eligible ? "pill statusGood" : "pill statusAttention"}>
-                        {task.eligible ? "eligible" : "gated"}
+                      <span className={dispatchStatusClass[task.dispatchStatus]}>
+                        {dispatchStatusLabel[task.dispatchStatus]}
                       </span>
+                    </td>
+                    <td>
+                      {task.attempt}/{task.maxAttempts}
                     </td>
                     <td>{task.lease}</td>
                   </tr>

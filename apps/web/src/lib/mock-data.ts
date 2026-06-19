@@ -23,6 +23,9 @@ export type TaskQueueItem = {
   priority: "P0" | "P1" | "P2";
   labels: string[];
   eligible: boolean;
+  dispatchStatus: "eligible" | "gated" | "retry_capped";
+  attempt: number;
+  maxAttempts: number;
   lease: string;
 };
 
@@ -109,6 +112,9 @@ export const taskQueue: TaskQueueItem[] = [
     priority: "P0",
     labels: ["repo:crs-src", "agent-ready"],
     eligible: true,
+    dispatchStatus: "eligible",
+    attempt: 0,
+    maxAttempts: 3,
     lease: "available",
   },
   {
@@ -120,6 +126,9 @@ export const taskQueue: TaskQueueItem[] = [
     priority: "P1",
     labels: ["repo:traffic", "webhook"],
     eligible: true,
+    dispatchStatus: "eligible",
+    attempt: 0,
+    maxAttempts: 3,
     lease: "available",
   },
   {
@@ -131,6 +140,9 @@ export const taskQueue: TaskQueueItem[] = [
     priority: "P1",
     labels: ["repo:sub3", "human-required"],
     eligible: false,
+    dispatchStatus: "gated",
+    attempt: 0,
+    maxAttempts: 3,
     lease: "blocked by human gate",
   },
   {
@@ -141,8 +153,11 @@ export const taskQueue: TaskQueueItem[] = [
     state: "In Merge",
     priority: "P2",
     labels: ["repo:crs-src"],
-    eligible: true,
-    lease: "held by run-7741",
+    eligible: false,
+    dispatchStatus: "retry_capped",
+    attempt: 3,
+    maxAttempts: 3,
+    lease: "retry capped at 3/3",
   },
 ];
 
@@ -325,6 +340,7 @@ export const healthSignals: HealthSignal[] = [
 export const queueSummary = {
   eligible: taskQueue.filter((task) => task.eligible).length,
   blocked: taskQueue.filter((task) => !task.eligible).length,
+  retryCapped: taskQueue.filter((task) => task.dispatchStatus === "retry_capped").length,
   running: runs.filter((run) => run.status === "running").length,
   failed: runs.filter((run) => run.status === "failed").length,
 };

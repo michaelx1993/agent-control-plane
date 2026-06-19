@@ -25,6 +25,7 @@ describe("new mock API routes", () => {
       blocked: expect.any(Number),
       eligible: expect.any(Number),
       failed: expect.any(Number),
+      retryCapped: expect.any(Number),
       running: expect.any(Number),
     });
     expect(payload.tasks[0]).toMatchObject({
@@ -32,6 +33,9 @@ describe("new mock API routes", () => {
       id: expect.any(String),
       labels: expect.any(Array),
       lease: expect.any(String),
+      attempt: expect.any(Number),
+      dispatchStatus: expect.stringMatching(/^(eligible|gated|retry_capped)$/),
+      maxAttempts: expect.any(Number),
       planeTask: expect.any(String),
       priority: expect.stringMatching(/^P[0-2]$/),
       project: expect.any(String),
