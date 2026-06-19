@@ -56,7 +56,9 @@ DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schem
 
 When `WORKER_MODE=live`, `release:check` also requires a non-empty PostgreSQL custom-format
 database backup that `pg_restore --list` can parse. It uses `BACKUP_FILE` when provided, otherwise
-the latest `agent-control-plane-*.dump` under `BACKUP_DIR` which defaults to `backups`.
+the latest `agent-control-plane-*.dump` under `BACKUP_DIR` which defaults to `backups`. Set
+`REQUIRE_RUNTIME_PROBE=1 RUNTIME_PROBE_MUTATE=true` to make the live release gate run the mutating
+OpenHands/Langfuse runtime protocol probe after preflight.
 
 ## Health Checks
 
@@ -493,7 +495,8 @@ Before using the worker against live systems:
 - `WORKER_MODE=live` is only enabled after a successful mock run and DB migration.
 - Seed baseline data exists for teams, active repositories, roles, and active agent definitions.
 - `pnpm release:check` passes; in live mode this includes backup verification, optional
-  `REQUIRE_RESTORE_DRILL=1` restore drill, and `pnpm live:preflight`.
+  `REQUIRE_RESTORE_DRILL=1` restore drill, `pnpm live:preflight`, and optional
+  `REQUIRE_RUNTIME_PROBE=1` runtime protocol mutation.
 
 ## Live Preflight
 
@@ -586,6 +589,8 @@ The local deployment manifest lives at `infra/docker/docker-compose.yml`.
   operator needs to inspect the database before restart.
 - `REQUIRE_RESTORE_DRILL=1 pnpm release:check` runs the restore drill before live deploy when
   `RESTORE_DRILL_DATABASE_URL` points at a disposable database.
+- `REQUIRE_RUNTIME_PROBE=1 RUNTIME_PROBE_MUTATE=true pnpm release:check` runs the mutating runtime
+  protocol probe after live preflight, before the release gate passes.
 
 Before using the `app` profile in live mode, run migrations, seed baseline rows, configure Plane /
 OpenHands / Langfuse endpoints in `.env`, then run `pnpm release:check`.

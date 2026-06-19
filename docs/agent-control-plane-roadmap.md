@@ -77,6 +77,9 @@ P0 方案固化
 - `pnpm release:check` 在 live 模式会强制校验非空且 `pg_restore --list` 可解析的数据库备份，再执行 live preflight。
 - 已有 `pnpm backup:drill`，可将备份还原到隔离 drill 数据库并校验 Control Plane seed
   baseline；`REQUIRE_RESTORE_DRILL=1` 可把它纳入 live release gate。
+- `REQUIRE_RUNTIME_PROBE=1 RUNTIME_PROBE_MUTATE=true pnpm release:check` 可把 mutating
+  OpenHands/Langfuse runtime protocol probe 纳入 live release gate；未开启时仍只做非破坏性
+  preflight。
 - 已有 Docker Compose `app` profile 和 app Dockerfile，可启动 web console 与
   `WORKER_RUN_LOOP=true` 的常驻 worker。
 - 已有 `pnpm deploy:compose` 和 `pnpm rollback:compose`，串联 release gate、compose app profile、

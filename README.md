@@ -173,6 +173,9 @@ For live rollout, run `scripts/db-backup.sh` first. `pnpm release:check` require
 Run `RESTORE_DRILL_DATABASE_URL=<disposable-db-url> BACKUP_FILE=<dump> pnpm backup:drill` before the
 first live rollout or backup/restore script changes. Set `REQUIRE_RESTORE_DRILL=1` during
 `WORKER_MODE=live pnpm release:check` when an isolated drill database is available.
+Set `REQUIRE_RUNTIME_PROBE=1 RUNTIME_PROBE_MUTATE=true` during `WORKER_MODE=live pnpm
+release:check` when disposable OpenHands/Langfuse targets are available and the release gate should
+prove runtime protocol mutation before any real task dispatch.
 Use `WORKER_MODE=live pnpm live:verify-once` for the first real Development task; it runs
 preflight first, dispatches one task, prints the JSON evidence bundle, and fails if Plane,
 post-dispatch task state, Plane completion comment, workspace, OpenHands, Langfuse, or Control

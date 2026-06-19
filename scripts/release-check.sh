@@ -7,6 +7,10 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
 fi
 
 if [[ "${WORKER_MODE:-}" == "live" ]]; then
+  if [[ "${REQUIRE_RUNTIME_PROBE:-}" == "1" && "${RUNTIME_PROBE_MUTATE:-}" != "true" ]]; then
+    echo "REQUIRE_RUNTIME_PROBE=1 requires RUNTIME_PROBE_MUTATE=true because runtime:probe creates OpenHands and Langfuse records." >&2
+    exit 1
+  fi
   scripts/check-backup.sh
   if [[ "${REQUIRE_RESTORE_DRILL:-}" == "1" ]]; then
     scripts/restore-drill.sh
@@ -29,6 +33,11 @@ fi
 
 if [[ "${WORKER_MODE:-}" == "live" ]]; then
   pnpm live:preflight
+  if [[ "${REQUIRE_RUNTIME_PROBE:-}" == "1" ]]; then
+    pnpm runtime:probe
+  else
+    echo "runtime protocol probe skipped; set REQUIRE_RUNTIME_PROBE=1 and RUNTIME_PROBE_MUTATE=true to include it in live release-check"
+  fi
 fi
 
 echo "release-check passed"
