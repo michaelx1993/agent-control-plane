@@ -68,6 +68,12 @@ pnpm test
 pnpm build
 ```
 
+Run the full release gate with a configured database:
+
+```bash
+DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" pnpm release:check
+```
+
 ## Design Docs
 
 - [PRD](docs/agent-control-plane-prd.md)

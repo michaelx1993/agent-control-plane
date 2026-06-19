@@ -41,6 +41,44 @@ pnpm build
 pnpm worker:dry-run
 ```
 
+Use the scripted release gate before any live worker rollout:
+
+```bash
+DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" \
+  CONTROL_PLANE_BASE_URL="http://127.0.0.1:3100" \
+  pnpm release:check
+```
+
+## Health Checks
+
+```bash
+CONTROL_PLANE_BASE_URL="http://127.0.0.1:3100" pnpm health
+```
+
+The check validates:
+
+- `/api/health`
+- `/api/tasks`
+- `/api/runs`
+- `/api/prompt-releases`
+- `/api/prompt-components`
+
+## Backup And Restore
+
+Create a PostgreSQL custom-format backup:
+
+```bash
+DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" \
+  scripts/db-backup.sh
+```
+
+Restore explicitly from a backup file:
+
+```bash
+DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" \
+  scripts/db-restore.sh backups/agent-control-plane-YYYYMMDDTHHMMSSZ.dump
+```
+
 ## Plane Fork
 
 The Plane fork for future self-host customization is:
@@ -60,4 +98,6 @@ Before using the worker against live systems:
 - `PLANE_WORKSPACE_SLUG` and `PLANE_PROJECT_ID` are known.
 - OpenHands adapter endpoint is verified.
 - Langfuse keys are configured.
+- `WORKER_DEFAULT_REPO_CONCURRENCY=1` unless a repo is known safe for parallel edits.
+- A database backup exists for the target environment.
 - `WORKER_MODE=live` is only enabled after a successful mock run and DB migration.
