@@ -3,9 +3,13 @@ import {
   DbControlPlaneStore,
   DispatchWorker,
   InMemoryControlPlaneStore,
+  LangfuseTraceRecorder,
   MockOpenHandsAdapter,
   MockTraceRecorder,
+  OpenHandsRuntimeAdapter,
   PlaneTaskSyncService,
+  createOpenHandsAdapter,
+  createTraceRecorder,
   createMockTask,
   loadConfig,
   normalizedPlaneTaskToDbInput,
@@ -49,6 +53,136 @@ describe("DispatchWorker", () => {
     expect(loadConfig({ WORKER_MODE: "mock" }).mode).toBe("mock");
     expect(loadConfig({ WORKER_MODE: "live" }).mode).toBe("live");
     expect(loadConfig({}).mode).toBe("mock");
+  });
+
+  it("fails fast when live runtime integrations are not configured", () => {
+    const config = loadConfig({ WORKER_MODE: "live" });
+
+    expect(() => createOpenHandsAdapter(config)).toThrow("OPENHANDS_BASE_URL");
+    expect(() => createTraceRecorder(config)).toThrow("LANGFUSE_BASE_URL");
+  });
+
+  it("maps OpenHands SDK conversations and results into worker run results", async () => {
+    const client = {
+      createConversation: vi.fn().mockResolvedValue({
+        id: "conversation-1",
+        url: "https://openhands.test/conversations/conversation-1",
+        repo: "crs-src",
+        taskId: "task-1",
+        runId: "run-1",
+      }),
+      startRun: vi.fn().mockResolvedValue(undefined),
+      listEvents: vi.fn().mockResolvedValue({ events: [] }),
+      getResult: vi.fn().mockResolvedValue({
+        conversationId: "conversation-1",
+        status: "completed",
+        summary: "Implemented and tested.",
+        eventCursor: "event-42",
+      }),
+    };
+    const adapter = new OpenHandsRuntimeAdapter(client, {
+      pollAttempts: 1,
+      pollIntervalMs: 0,
+    });
+
+    const result = await adapter.run({
+      task: createMockTask({ id: "task-1" }),
+      run: {
+        id: "run-1",
+        taskId: "task-1",
+        role: "Development Agent",
+        status: "running",
+        statusHistory: ["running"],
+        createdAt: new Date("2026-06-18T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+      },
+      prompt: "Implement task",
+      workspaceRepo: "crs-src",
+    });
+
+    expect(client.createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: "task-1",
+        runId: "run-1",
+        repo: "crs-src",
+        prompt: "Implement task",
+        metadata: expect.objectContaining({
+          role: "Development Agent",
+        }),
+      }),
+    );
+    expect(client.startRun).toHaveBeenCalledWith("conversation-1");
+    expect(result).toEqual({
+      status: "succeeded",
+      conversationId: "conversation-1",
+      conversationUrl: "https://openhands.test/conversations/conversation-1",
+      eventCursor: "event-42",
+      summary: "Implemented and tested.",
+    });
+  });
+
+  it("records Langfuse traces for worker run metadata", async () => {
+    const client = {
+      startTrace: vi.fn().mockResolvedValue({
+        traceId: "trace-1",
+        url: "https://langfuse.test/trace-1",
+        taskId: "task-1",
+        runId: "run-1",
+      }),
+      recordGeneration: vi.fn().mockResolvedValue(undefined),
+      finishTrace: vi.fn().mockResolvedValue({
+        trace: { traceId: "trace-1" },
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        cost: { inputCostUsd: 0, outputCostUsd: 0, totalCostUsd: 0, currency: "USD" },
+        generationCount: 1,
+      }),
+      getTraceSummary: vi.fn().mockResolvedValue(undefined),
+    };
+    const recorder = new LangfuseTraceRecorder(client);
+
+    const trace = await recorder.record({
+      task: createMockTask({ id: "task-1" }),
+      run: {
+        id: "run-1",
+        taskId: "task-1",
+        role: "Development Agent",
+        status: "running",
+        statusHistory: ["running"],
+        createdAt: new Date("2026-06-18T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+      },
+      conversationId: "conversation-1",
+      promptReleaseId: "prompt-release-1",
+      model: "gpt-5.5 medium",
+      repo: "crs-src",
+      role: "Development Agent",
+    });
+
+    expect(client.startTrace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "agent-run:Development Agent",
+        metadata: expect.objectContaining({
+          taskId: "task-1",
+          runId: "run-1",
+          conversationId: "conversation-1",
+          promptReleaseId: "prompt-release-1",
+        }),
+      }),
+    );
+    expect(client.recordGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        traceId: "trace-1",
+        name: "openhands-run",
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      }),
+    );
+    expect(client.finishTrace).toHaveBeenCalledWith("trace-1", {
+      conversationId: "conversation-1",
+    });
+    expect(trace).toEqual({
+      traceId: "trace-1",
+      url: "https://langfuse.test/trace-1",
+    });
   });
 
   it("maps DB-backed dispatchable tasks without connecting to a real database", async () => {

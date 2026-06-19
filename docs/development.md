@@ -32,3 +32,14 @@ mock Plane task
 
 The mock run must pass typecheck and unit tests before real Plane/OpenHands
 credentials are introduced.
+
+## Live Worker Preconditions
+
+`WORKER_MODE=live` intentionally fails fast unless the runtime integrations are
+configured:
+
+- `PLANE_BASE_URL`, `PLANE_WORKSPACE_SLUG`, and `PLANE_PROJECT_ID`
+- `OPENHANDS_BASE_URL`
+- `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY`
+
+The worker uses mock OpenHands and mock tracing only when `WORKER_MODE=mock`.

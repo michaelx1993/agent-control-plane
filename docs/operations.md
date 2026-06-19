@@ -98,6 +98,7 @@ Before using the worker against live systems:
 - `PLANE_WORKSPACE_SLUG` and `PLANE_PROJECT_ID` are known.
 - OpenHands adapter endpoint is verified.
 - Langfuse keys are configured.
+- `WORKER_MODE=live` has `OPENHANDS_BASE_URL`, `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY`; the worker fails fast without them.
 - `WORKER_DEFAULT_REPO_CONCURRENCY=1` unless a repo is known safe for parallel edits.
 - A database backup exists for the target environment.
 - `WORKER_MODE=live` is only enabled after a successful mock run and DB migration.

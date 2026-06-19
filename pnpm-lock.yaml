@@ -56,6 +56,12 @@ importers:
       "@agent-control-plane/db":
         specifier: workspace:*
         version: link:../../packages/db
+      "@agent-control-plane/langfuse":
+        specifier: workspace:*
+        version: link:../../packages/langfuse
+      "@agent-control-plane/openhands":
+        specifier: workspace:*
+        version: link:../../packages/openhands
       "@agent-control-plane/plane":
         specifier: workspace:*
         version: link:../../packages/plane

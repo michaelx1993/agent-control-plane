@@ -20,6 +20,15 @@ import {
   type PlaneClient,
 } from "@agent-control-plane/plane";
 import {
+  LangfuseHttpAdapter,
+  tokenUsage,
+  type LangfuseAdapter as LangfuseClient,
+} from "@agent-control-plane/langfuse";
+import {
+  HttpOpenHandsAdapter,
+  type OpenHandsAdapter as OpenHandsClient,
+} from "@agent-control-plane/openhands";
+import {
   evaluateRuntimePolicy,
   type RuntimePolicyConfig,
 } from "@agent-control-plane/runtime-policy";
@@ -47,7 +56,12 @@ export interface WorkerConfig {
   enabledTeams: string[];
   leaseMs: number;
   openHandsBaseUrl?: string;
+  openHandsApiKey?: string;
+  openHandsPollIntervalMs: number;
+  openHandsPollAttempts: number;
   langfuseBaseUrl?: string;
+  langfusePublicKey?: string;
+  langfuseSecretKey?: string;
   planeBaseUrl?: string;
   planeApiKey?: string;
   planeWorkspaceSlug?: string;
@@ -138,6 +152,8 @@ export interface OpenHandsRunInput {
 export interface OpenHandsRunResult {
   status: "succeeded" | "failed";
   conversationId: string;
+  conversationUrl?: string;
+  eventCursor?: string;
   summary: string;
   suggestedNextState?: TaskState;
 }
@@ -222,7 +238,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     enabledTeams,
     leaseMs: Number(env.WORKER_LEASE_MS ?? 15 * 60 * 1000),
     openHandsBaseUrl: env.OPENHANDS_BASE_URL,
+    openHandsApiKey: env.OPENHANDS_API_KEY,
+    openHandsPollIntervalMs: numberFromEnv(env.OPENHANDS_POLL_INTERVAL_MS, 1000),
+    openHandsPollAttempts: numberFromEnv(env.OPENHANDS_POLL_ATTEMPTS, 300),
     langfuseBaseUrl: env.LANGFUSE_BASE_URL,
+    langfusePublicKey: env.LANGFUSE_PUBLIC_KEY,
+    langfuseSecretKey: env.LANGFUSE_SECRET_KEY,
     planeBaseUrl: env.PLANE_BASE_URL,
     planeApiKey: env.PLANE_API_KEY,
     planeWorkspaceSlug: env.PLANE_WORKSPACE_SLUG,
@@ -425,6 +446,8 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       projectSlug: task.project,
       defaultRepoConcurrency: 1,
       defaultRoleConcurrency: 2,
+      openHandsPollIntervalMs: 1000,
+      openHandsPollAttempts: 300,
       costBudgetExceededAction: "waiting-approval",
     });
 
@@ -621,6 +644,8 @@ export class DbControlPlaneStore implements ControlPlaneStore {
     await dbRecordRunObservabilityRefs(this.db, {
       runId,
       conversationId: result.conversationId,
+      conversationUrl: result.conversationUrl,
+      eventCursor: result.eventCursor,
       traceId: traceRef.traceId,
       traceUrl: traceRef.url,
       model: "gpt-5.5 medium",
@@ -933,6 +958,88 @@ export class MockTraceRecorder implements TraceRecorder {
   }
 }
 
+export class OpenHandsRuntimeAdapter implements OpenHandsAdapter {
+  constructor(
+    private readonly client: OpenHandsClient,
+    private readonly options: {
+      pollIntervalMs: number;
+      pollAttempts: number;
+    },
+  ) {}
+
+  async run(input: OpenHandsRunInput): Promise<OpenHandsRunResult> {
+    const conversation = await this.client.createConversation({
+      taskId: input.task.id,
+      runId: input.run.id,
+      repo: input.workspaceRepo,
+      prompt: input.prompt,
+      metadata: {
+        role: input.run.role,
+        state: input.task.state,
+        project: input.task.project,
+      },
+    });
+    await this.client.startRun(conversation.id);
+
+    for (let attempt = 0; attempt < this.options.pollAttempts; attempt += 1) {
+      const result = await this.client.getResult(conversation.id);
+      if (result) {
+        return {
+          status: result.status === "completed" ? "succeeded" : "failed",
+          conversationId: result.conversationId,
+          conversationUrl: conversation.url,
+          eventCursor: result.eventCursor,
+          summary: result.error ?? result.summary,
+        };
+      }
+
+      if (this.options.pollIntervalMs > 0) {
+        await sleep(this.options.pollIntervalMs);
+      }
+    }
+
+    return {
+      status: "failed",
+      conversationId: conversation.id,
+      conversationUrl: conversation.url,
+      summary: `OpenHands run did not complete after ${this.options.pollAttempts} polling attempts.`,
+    };
+  }
+}
+
+export class LangfuseTraceRecorder implements TraceRecorder {
+  constructor(private readonly client: LangfuseClient) {}
+
+  async record(input: TraceInput): Promise<TraceRef> {
+    const trace = await this.client.startTrace({
+      name: `agent-run:${input.role}`,
+      metadata: {
+        taskId: input.task.id,
+        runId: input.run.id,
+        conversationId: input.conversationId,
+        promptReleaseId: input.promptReleaseId,
+        repo: input.repo,
+        role: input.role,
+        model: input.model,
+      },
+    });
+    await this.client.recordGeneration({
+      traceId: trace.traceId,
+      name: "openhands-run",
+      model: input.model,
+      input: { promptReleaseId: input.promptReleaseId },
+      output: { conversationId: input.conversationId },
+      usage: tokenUsage(0, 0),
+    });
+    await this.client.finishTrace(trace.traceId, { conversationId: input.conversationId });
+
+    return {
+      traceId: trace.traceId,
+      url: trace.url,
+    };
+  }
+}
+
 export function createMockTask(overrides: Partial<Task> = {}): Task {
   return {
     id: "task-dev-1",
@@ -985,10 +1092,51 @@ export async function runDryRun(): Promise<DispatchResult | undefined> {
   const worker = new DispatchWorker(
     config,
     store,
-    new MockOpenHandsAdapter(),
-    new MockTraceRecorder(),
+    createOpenHandsAdapter(config),
+    createTraceRecorder(config),
   );
   return worker.dispatchOnce();
+}
+
+export function createOpenHandsAdapter(config: WorkerConfig): OpenHandsAdapter {
+  if (config.mode !== "live") {
+    return new MockOpenHandsAdapter();
+  }
+
+  if (!config.openHandsBaseUrl) {
+    throw new Error("OPENHANDS_BASE_URL is required when WORKER_MODE=live");
+  }
+
+  return new OpenHandsRuntimeAdapter(
+    new HttpOpenHandsAdapter({
+      baseUrl: config.openHandsBaseUrl,
+      headers: config.openHandsApiKey ? { authorization: `Bearer ${config.openHandsApiKey}` } : {},
+    }),
+    {
+      pollIntervalMs: config.openHandsPollIntervalMs,
+      pollAttempts: config.openHandsPollAttempts,
+    },
+  );
+}
+
+export function createTraceRecorder(config: WorkerConfig): TraceRecorder {
+  if (config.mode !== "live") {
+    return new MockTraceRecorder();
+  }
+
+  if (!config.langfuseBaseUrl || !config.langfusePublicKey || !config.langfuseSecretKey) {
+    throw new Error(
+      "LANGFUSE_BASE_URL, LANGFUSE_PUBLIC_KEY, and LANGFUSE_SECRET_KEY are required when WORKER_MODE=live",
+    );
+  }
+
+  return new LangfuseTraceRecorder(
+    new LangfuseHttpAdapter({
+      baseUrl: config.langfuseBaseUrl,
+      publicKey: config.langfusePublicKey,
+      secretKey: config.langfuseSecretKey,
+    }),
+  );
 }
 
 function toDbTaskState(state: TaskState): DbTaskState {
@@ -1023,6 +1171,10 @@ function optionalNumberFromEnv(value: string | undefined): number | undefined {
   if (!value) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function parseStringArray(value: unknown): string[] {
