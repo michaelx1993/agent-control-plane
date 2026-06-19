@@ -101,6 +101,31 @@ export async function getPromptReleases(): Promise<PromptReleasesResponse> {
 export async function getSystemHealth(): Promise<SystemHealthResponse> {
   const taskQueueResponse = await getTaskQueue();
 
+  if (shouldUseDatabase()) {
+    const dbSignals: HealthSignal[] = [
+      {
+        name: "Database",
+        state: "nominal",
+        value: `${taskQueueResponse.count} tasks`,
+        detail: "Control Plane API is reading from PostgreSQL.",
+      },
+      {
+        name: "Lease manager",
+        state: taskQueueResponse.summary.failed > 0 ? "attention" : "nominal",
+        value: `${taskQueueResponse.summary.running} running`,
+        detail: `${taskQueueResponse.summary.eligible} eligible, ${taskQueueResponse.summary.blocked} blocked.`,
+      },
+    ];
+
+    return {
+      service: "agent-control-plane-web",
+      status: dbSignals.some((signal) => signal.state === "degraded") ? "degraded" : "ok",
+      checkedAt: new Date().toISOString(),
+      queue: taskQueueResponse.summary,
+      signals: dbSignals,
+    };
+  }
+
   return {
     service: "agent-control-plane-web",
     status: healthSignals.some((signal) => signal.state === "degraded") ? "degraded" : "ok",
