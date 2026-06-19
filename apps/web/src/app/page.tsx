@@ -15,6 +15,7 @@ import {
 } from "@/lib/mock-data";
 import { OperatorTokenPanel } from "./OperatorTokenPanel";
 import { RetryTaskButton } from "./RetryTaskButton";
+import { TaskTransitionControl } from "./TaskTransitionControl";
 
 const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
   attention: "statusAttention",
@@ -126,6 +127,7 @@ export default async function DashboardPage() {
                   <th>Dispatch</th>
                   <th>Attempt</th>
                   <th>Lease</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -153,6 +155,9 @@ export default async function DashboardPage() {
                       {task.dispatchStatus === "retry_capped" ? (
                         <RetryTaskButton taskId={task.id} />
                       ) : null}
+                    </td>
+                    <td>
+                      <TaskTransitionControl taskId={task.id} state={task.state} />
                     </td>
                   </tr>
                 ))}

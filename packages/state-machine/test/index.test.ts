@@ -45,6 +45,11 @@ describe("validateTransition", () => {
       ok: true,
       value: { from: "Development", to: "Done", kind: "shortcut" },
     });
+
+    expect(validateTransition("Development", "Blocked")).toEqual({
+      ok: true,
+      value: { from: "Development", to: "Blocked", kind: "shortcut" },
+    });
   });
 
   it("allows reviewer rework back to Development", () => {

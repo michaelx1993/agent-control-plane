@@ -127,6 +127,10 @@ export function validateTransition(from: TaskState, to: TaskState): Result<Trans
     return ok({ from, to, kind: "shortcut" });
   }
 
+  if (to === "Blocked") {
+    return ok({ from, to, kind: "shortcut" });
+  }
+
   if (to === "Development" && reworkStateSet.has(from)) {
     return ok({ from, to, kind: "rework" });
   }

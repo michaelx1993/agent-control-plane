@@ -502,6 +502,10 @@ Protected write paths include:
 
 Read-only dashboard APIs remain open in this first personal-ops version.
 
+The Task Queue table exposes manual task transitions for operator gates. It offers the next main
+workflow state, rework back to `Development` where the state machine allows it, `Blocked`, `Done`,
+and `Canceled`. The API still validates every requested transition with the shared state machine.
+
 ## Plane API Probe
 
 Use the Plane probe during the self-host spike after `live:preflight` proves basic connectivity.

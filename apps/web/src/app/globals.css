@@ -266,7 +266,7 @@ small,
 
 table {
   width: 100%;
-  min-width: 860px;
+  min-width: 1040px;
   border-collapse: collapse;
 }
 
@@ -413,6 +413,28 @@ dd {
 
 .retryAction small {
   color: var(--bad);
+}
+
+.transitionAction {
+  display: grid;
+  min-width: 210px;
+  gap: 6px;
+}
+
+.transitionAction select,
+.transitionAction input {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font: inherit;
+  padding: 5px 8px;
+}
+
+.transitionAction small,
+.mutedText {
+  color: var(--muted);
 }
 
 .inlineIconButton {
