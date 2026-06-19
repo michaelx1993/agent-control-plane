@@ -16,6 +16,7 @@ import {
   normalizedPlaneTaskToDbInput,
   planeStateNameToDbTaskState,
   redactRuntimeSecrets,
+  runWorkerLoop,
 } from "../src/index.js";
 import {
   parseLiveDispatchEvidence,
@@ -478,6 +479,11 @@ describe("DispatchWorker", () => {
     expect(config.planeSyncPerPage).toBe(100);
   });
 
+  it("loads worker loop interval from env", () => {
+    expect(loadConfig({ WORKER_LOOP_INTERVAL_MS: "120000" }).workerLoopIntervalMs).toBe(120_000);
+    expect(loadConfig({}).workerLoopIntervalMs).toBe(60_000);
+  });
+
   it("loads OpenHands endpoint paths from env", () => {
     const config = loadConfig({
       OPENHANDS_CONVERSATIONS_PATH: "/v1/conversations",
@@ -503,6 +509,29 @@ describe("DispatchWorker", () => {
 
     expect(() => createOpenHandsAdapter(config)).toThrow("OPENHANDS_BASE_URL");
     expect(() => createTraceRecorder(config)).toThrow("LANGFUSE_BASE_URL");
+  });
+
+  it("runs the long worker loop for a bounded iteration in tests", async () => {
+    const previousMode = process.env.WORKER_MODE;
+    const previousEnabledTeams = process.env.WORKER_ENABLED_TEAMS;
+    const previousLoopInterval = process.env.WORKER_LOOP_INTERVAL_MS;
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    process.env.WORKER_MODE = "mock";
+    process.env.WORKER_ENABLED_TEAMS = "token-team";
+    process.env.WORKER_LOOP_INTERVAL_MS = "0";
+
+    try {
+      await runWorkerLoop({ maxIterations: 1 });
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('"status": "succeeded"'));
+    } finally {
+      if (previousMode === undefined) delete process.env.WORKER_MODE;
+      else process.env.WORKER_MODE = previousMode;
+      if (previousEnabledTeams === undefined) delete process.env.WORKER_ENABLED_TEAMS;
+      else process.env.WORKER_ENABLED_TEAMS = previousEnabledTeams;
+      if (previousLoopInterval === undefined) delete process.env.WORKER_LOOP_INTERVAL_MS;
+      else process.env.WORKER_LOOP_INTERVAL_MS = previousLoopInterval;
+      log.mockRestore();
+    }
   });
 
   it("maps OpenHands SDK conversations and results into worker run results", async () => {

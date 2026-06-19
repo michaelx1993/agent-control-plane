@@ -16,5 +16,42 @@ services:
       timeout: 5s
       retries: 10
 
+  web:
+    profiles: ["app"]
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: web
+    container_name: agent-control-plane-web
+    env_file:
+      - path: ../../.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://agent:agent@postgres:5432/agent_control_plane?schema=public
+      CONTROL_PLANE_BASE_URL: http://web:3100
+      PORT: "3100"
+    ports:
+      - "3100:3100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: worker
+    container_name: agent-control-plane-worker
+    env_file:
+      - path: ../../.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://agent:agent@postgres:5432/agent_control_plane?schema=public
+      WORKER_RUN_LOOP: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   agent-control-plane-postgres:

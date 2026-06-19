@@ -92,6 +92,18 @@ Run the full release gate with a configured database:
 DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" pnpm release:check
 ```
 
+Run the containerized deployment profile locally:
+
+```bash
+docker compose -f infra/docker/docker-compose.yml up -d postgres
+pnpm --filter @agent-control-plane/db prisma:migrate
+pnpm --filter @agent-control-plane/db seed:demo
+docker compose -f infra/docker/docker-compose.yml --profile app up --build
+```
+
+The `app` profile builds the web console on port `3100` and a long-running worker using
+`WORKER_RUN_LOOP=true`. Keep live external endpoints in `.env` before enabling live mode.
+
 Before turning on `WORKER_MODE=live`, run the non-mutating live preflight:
 
 ```bash

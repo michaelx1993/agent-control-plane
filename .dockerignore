@@ -1,0 +1,11 @@
+.git
+.next
+backups
+coverage
+dist
+node_modules
+*.log
+*.tsbuildinfo
+apps/web/.next
+apps/web/out
+packages/*/dist

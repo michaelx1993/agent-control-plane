@@ -72,6 +72,7 @@ export interface WorkerConfig {
   openHandsPollIntervalMs: number;
   openHandsPollAttempts: number;
   workerHeartbeatIntervalMs: number;
+  workerLoopIntervalMs: number;
   maxTaskAttempts: number;
   langfuseBaseUrl?: string;
   langfusePublicKey?: string;
@@ -303,6 +304,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     openHandsPollIntervalMs: numberFromEnv(env.OPENHANDS_POLL_INTERVAL_MS, 1000),
     openHandsPollAttempts: numberFromEnv(env.OPENHANDS_POLL_ATTEMPTS, 300),
     workerHeartbeatIntervalMs: numberFromEnv(env.WORKER_HEARTBEAT_INTERVAL_MS, 30_000),
+    workerLoopIntervalMs: numberFromEnv(env.WORKER_LOOP_INTERVAL_MS, 60_000),
     maxTaskAttempts: numberFromEnv(env.WORKER_MAX_TASK_ATTEMPTS, 3),
     langfuseBaseUrl: env.LANGFUSE_BASE_URL,
     langfusePublicKey: env.LANGFUSE_PUBLIC_KEY,
@@ -603,6 +605,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       openHandsPollIntervalMs: 1000,
       openHandsPollAttempts: 300,
       workerHeartbeatIntervalMs: 30_000,
+      workerLoopIntervalMs: 60_000,
       maxTaskAttempts: 3,
       costBudgetExceededAction: "waiting-approval",
     });
@@ -1609,19 +1612,50 @@ export function createMockTask(overrides: Partial<Task> = {}): Task {
 
 export async function runDryRun(): Promise<DispatchResult | undefined> {
   const config = loadConfig();
+  const worker = createDispatchWorker(config);
+  return worker.dispatchOnce();
+}
+
+export type WorkerLoopOptions = {
+  maxIterations?: number;
+  shouldStop?: () => boolean;
+};
+
+export async function runWorkerLoop(options: WorkerLoopOptions = {}): Promise<void> {
+  const config = loadConfig();
+  const worker = createDispatchWorker(config);
+  let iterations = 0;
+
+  while (!options.shouldStop?.()) {
+    const result = await worker.dispatchOnce();
+    if (result) {
+      console.log(JSON.stringify(formatLiveDispatchResult(result), null, 2));
+    } else {
+      console.log("No dispatchable tasks found.");
+    }
+
+    iterations += 1;
+    if (options.maxIterations && iterations >= options.maxIterations) {
+      return;
+    }
+
+    await sleep(config.workerLoopIntervalMs);
+  }
+}
+
+function createDispatchWorker(config: WorkerConfig): DispatchWorker {
   const store =
     config.mode === "live"
       ? new DbControlPlaneStore(prisma, {
           planeSync: createPlaneTaskSyncService(config, prisma),
         })
       : new InMemoryControlPlaneStore();
-  const worker = new DispatchWorker(
+  return new DispatchWorker(
     config,
     store,
     createOpenHandsAdapter(config),
     createTraceRecorder(config),
   );
-  return worker.dispatchOnce();
 }
 
 export function createOpenHandsAdapter(config: WorkerConfig): OpenHandsAdapter {
@@ -1846,6 +1880,11 @@ function sha256Hex(value: string): string {
 }
 
 async function main(): Promise<void> {
+  if (process.env.WORKER_RUN_LOOP === "true") {
+    await runWorkerLoop();
+    return;
+  }
+
   const result = await runDryRun();
   if (!result) {
     console.log("No dispatchable tasks found.");

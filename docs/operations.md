@@ -103,6 +103,7 @@ Default configuration:
 ```bash
 WORKER_LEASE_MS="900000"
 WORKER_HEARTBEAT_INTERVAL_MS="30000"
+WORKER_LOOP_INTERVAL_MS="60000"
 WORKER_MAX_TASK_ATTEMPTS="3"
 OPENHANDS_POLL_INTERVAL_MS="1000"
 OPENHANDS_POLL_ATTEMPTS="300"
@@ -196,6 +197,25 @@ Operational rule:
   Plane state.
 - These gates are shown separately from `gated`, `retry capped`, and `budget blocked` so operators
   can distinguish normal backpressure from human review or failure handling.
+
+## Worker Loop
+
+Use one-shot commands for smoke tests and the loop command for normal worker operation:
+
+```bash
+WORKER_MODE="live" pnpm worker:loop
+```
+
+The loop dispatches at most one eligible task per iteration, prints the same JSON evidence bundle as
+`live:dispatch-once` when work runs, and sleeps for `WORKER_LOOP_INTERVAL_MS` between iterations.
+Default interval is `60000` ms.
+
+Operational rule:
+
+- Run `pnpm live:verify-once` before starting the loop in a new environment.
+- Keep `PLANE_SYNC_MIN_INTERVAL_MS` at or above `60000` unless Plane rate-limit behavior has been
+  revalidated.
+- Stop the loop before schema migrations, backup restores, or Plane/OpenHands endpoint upgrades.
 
 ## Plane Polling Fallback
 
@@ -425,6 +445,23 @@ Checks:
 
 Exit code is `0` only when all checks pass. Use this before starting a live worker and after any
 credential, endpoint, or self-host upgrade change.
+
+## Container Deployment
+
+The local deployment manifest lives at `infra/docker/docker-compose.yml`.
+
+- Default `docker compose -f infra/docker/docker-compose.yml up -d postgres` still starts only
+  PostgreSQL for development.
+- `docker compose -f infra/docker/docker-compose.yml --profile app up --build` starts PostgreSQL,
+  the Next.js web console, and a long-running worker.
+- The web service listens on `3100`.
+- The worker service sets `WORKER_RUN_LOOP=true` and dispatches repeatedly with
+  `WORKER_LOOP_INTERVAL_MS` between passes.
+- Both app services read `../../.env`; the compose file overrides `DATABASE_URL` to use the
+  internal `postgres` hostname.
+
+Before using the `app` profile in live mode, run migrations, seed baseline rows, configure Plane /
+OpenHands / Langfuse endpoints in `.env`, then run `pnpm release:check`.
 
 ## Plane API Probe
 

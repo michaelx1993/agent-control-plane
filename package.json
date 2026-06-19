@@ -22,6 +22,7 @@
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "worker": "pnpm --filter @agent-control-plane/worker dev",
+    "worker:loop": "pnpm --filter @agent-control-plane/worker loop",
     "worker:dry-run": "pnpm --filter @agent-control-plane/worker dry-run"
   },
   "devDependencies": {

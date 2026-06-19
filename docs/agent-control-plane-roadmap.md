@@ -54,6 +54,8 @@ P0 方案固化
 - `pnpm live:verify-once` 会在 one-shot live dispatch 后校验 evidence bundle，缺少 Plane、
   workspace、OpenHands、Langfuse 或 Run Detail 证据时失败。
 - `pnpm release:check` 在 live 模式会强制校验非空数据库备份，再执行 live preflight。
+- 已有 Docker Compose `app` profile 和 app Dockerfile，可启动 web console 与
+  `WORKER_RUN_LOOP=true` 的常驻 worker。
 - Task Queue 可区分 repo concurrency、role concurrency、retry capped、budget blocked 和普通 gate。
 - 已有 Linear 离线迁移草案工具，可将 JSON/CSV export 转换为 Plane import draft，并标出缺失 repo 的任务。
 

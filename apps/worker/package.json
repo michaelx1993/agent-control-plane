@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "dry-run": "WORKER_MODE=mock tsx src/index.ts",
+    "loop": "WORKER_RUN_LOOP=true tsx src/index.ts",
     "live-once": "tsx src/index.ts",
     "live-preflight": "tsx src/live-preflight.ts",
     "plane-probe": "tsx src/plane-probe.ts",
