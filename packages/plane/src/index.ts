@@ -1,4 +1,19 @@
-export type PlaneLabel = string | { name?: string | null; slug?: string | null };
+export type PlaneLabel =
+  | string
+  | { id?: string | null; name?: string | null; slug?: string | null };
+
+export type PlaneProjectLabelPayload = {
+  id?: string;
+  name?: string | null;
+  slug?: string | null;
+  [key: string]: unknown;
+};
+
+export type PlaneLabelResolver = (label: PlaneLabel) => PlaneLabel | string | undefined;
+
+export type NormalizePlaneTaskOptions = {
+  labelResolver?: PlaneLabelResolver;
+};
 
 export type PlaneTaskState = {
   id?: string;
@@ -72,6 +87,11 @@ export type ListPlaneTasksParams = {
   perPage?: number;
 };
 
+export type ListPlaneLabelsParams = {
+  workspaceSlug?: string;
+  projectId?: string;
+};
+
 export type PlaneTaskListPage = {
   results: PlaneTaskPayload[];
   nextCursor?: string;
@@ -99,6 +119,7 @@ export type PlaneClient = {
   getTask(taskId: string): Promise<PlaneTaskPayload>;
   listTasks(params?: ListPlaneTasksParams): Promise<PlaneTaskPayload[]>;
   listTaskPage(params?: ListPlaneTasksParams): Promise<PlaneTaskListPage>;
+  listLabels?(params?: ListPlaneLabelsParams): Promise<PlaneProjectLabelPayload[]>;
   createTask(input: PlaneTaskCreate): Promise<PlaneTaskPayload>;
   updateTask(taskId: string, update: PlaneTaskUpdate): Promise<PlaneTaskPayload>;
   addComment(taskId: string, body: string): Promise<{ id: string; body: string }>;
@@ -224,6 +245,14 @@ export class HttpPlaneClient implements PlaneClient {
     });
   }
 
+  async listLabels(params: ListPlaneLabelsParams = {}): Promise<PlaneProjectLabelPayload[]> {
+    const response = await this.request<
+      PlaneProjectLabelPayload[] | { results?: PlaneProjectLabelPayload[] }
+    >(this.labelsPath(params));
+
+    return Array.isArray(response) ? response : (response.results ?? []);
+  }
+
   async updateTask(taskId: string, update: PlaneTaskUpdate): Promise<PlaneTaskPayload> {
     return this.request<PlaneTaskPayload>(
       `${this.workItemsPath()}/${encodeURIComponent(taskId)}/`,
@@ -285,6 +314,18 @@ export class HttpPlaneClient implements PlaneClient {
       projectId,
     )}/work-items`;
   }
+
+  private labelsPath(params: ListPlaneLabelsParams = {}) {
+    const workspaceSlug = params.workspaceSlug ?? this.workspaceSlug;
+    const projectId = params.projectId ?? this.projectId;
+    if (!workspaceSlug || !projectId) {
+      throw new Error("Plane workspaceSlug and projectId are required for labels API paths");
+    }
+
+    return `/api/v1/workspaces/${encodeURIComponent(workspaceSlug)}/projects/${encodeURIComponent(
+      projectId,
+    )}/labels/`;
+  }
 }
 
 export function parsePlaneWebhookPayload(payload: unknown): ParsedPlaneWebhook {
@@ -305,13 +346,16 @@ export function parsePlaneWebhookPayload(payload: unknown): ParsedPlaneWebhook {
   };
 }
 
-export function normalizePlaneTask(task: PlaneTaskPayload): NormalizedPlaneTask {
+export function normalizePlaneTask(
+  task: PlaneTaskPayload,
+  options: NormalizePlaneTaskOptions = {},
+): NormalizedPlaneTask {
   const sourceId = task.id ?? task.issue_id ?? task.work_item_id;
   if (!sourceId) {
     throw new Error("Plane task is missing id");
   }
 
-  const labels = normalizeLabels(task.labels);
+  const labels = normalizeLabels(task.labels, options.labelResolver);
   const repo = extractRepo(task, labels);
   const title = task.name ?? task.title ?? task.identifier ?? sourceId;
   const stateName = typeof task.state === "string" ? task.state : task.state?.name;
@@ -349,6 +393,32 @@ export function parseRepoFromLabels(
   }
 
   return undefined;
+}
+
+export function createPlaneLabelResolver(
+  labels: PlaneProjectLabelPayload[] = [],
+): PlaneLabelResolver {
+  const labelByKey = new Map<string, string>();
+  for (const label of labels) {
+    const resolved = stringValue(label.name) ?? stringValue(label.slug);
+    if (!resolved) continue;
+
+    for (const key of [label.id, label.slug, label.name]) {
+      const normalizedKey = stringValue(key);
+      if (normalizedKey) {
+        labelByKey.set(normalizedKey, resolved);
+      }
+    }
+  }
+
+  return (label) => {
+    const key =
+      typeof label === "string"
+        ? stringValue(label)
+        : (stringValue(label.id) ?? stringValue(label.slug) ?? stringValue(label.name));
+    if (!key) return label;
+    return labelByKey.get(key) ?? label;
+  };
 }
 
 export function extractRepo(
@@ -470,11 +540,12 @@ export function planeImportDraftToCreatePayload(draft: PlaneImportDraft): PlaneT
   };
 }
 
-function normalizeLabels(labels: PlaneLabel[] = []): string[] {
+function normalizeLabels(labels: PlaneLabel[] = [], resolver?: PlaneLabelResolver): string[] {
   return labels
     .map((label) => {
-      if (typeof label === "string") return label;
-      return label.name ?? label.slug ?? "";
+      const resolved = resolver?.(label) ?? label;
+      if (typeof resolved === "string") return resolved;
+      return resolved.name ?? resolved.slug ?? "";
     })
     .map((label) => label.trim())
     .filter(Boolean);

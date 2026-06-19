@@ -18,10 +18,12 @@ import {
 } from "@agent-control-plane/db";
 import {
   HttpPlaneClient,
+  createPlaneLabelResolver,
   normalizePlaneTask,
   type ListPlaneTasksParams,
   type NormalizedPlaneTask,
   type PlaneClient,
+  type PlaneLabelResolver,
   type PlaneTaskPayload,
 } from "@agent-control-plane/plane";
 import {
@@ -1323,13 +1325,14 @@ export class PlaneTaskSyncService {
       perPage: this.options.perPage ?? 100,
       ...(this.updatedSinceCursor ? { updatedSince: this.updatedSinceCursor } : {}),
     };
+    const labelResolver = await this.loadLabelResolver();
     const payloads = await this.listTaskPages(listParams);
 
     let upserted = 0;
     let blockedMissingRepo = 0;
 
     for (const payload of payloads) {
-      const normalized = normalizePlaneTask(payload);
+      const normalized = normalizePlaneTask(payload, { labelResolver });
       if (!normalized.repo) {
         blockedMissingRepo += 1;
       }
@@ -1347,6 +1350,16 @@ export class PlaneTaskSyncService {
       upserted,
       blockedMissingRepo,
     };
+  }
+
+  private async loadLabelResolver(): Promise<PlaneLabelResolver | undefined> {
+    if (!this.plane.listLabels) return undefined;
+
+    const labels = await this.plane.listLabels({
+      workspaceSlug: this.options.workspaceSlug,
+      projectId: this.options.projectId,
+    });
+    return createPlaneLabelResolver(labels);
   }
 
   private async listTaskPages(params: ListPlaneTasksParams): Promise<PlaneTaskPayload[]> {

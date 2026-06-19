@@ -18,6 +18,9 @@ describe("Plane probe", () => {
   it("lists and normalizes repo routing without mutating Plane", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (url, init) => {
       expect(init?.method ?? "GET").toBe("GET");
+      if (String(url).endsWith("/labels/")) {
+        return jsonResponse({ results: [{ id: "label-repo-crs", name: "repo:crs-src" }] });
+      }
       if (String(url).includes("/work-items?per_page=2")) {
         return jsonResponse({
           next_cursor: "page-2",
@@ -26,7 +29,7 @@ describe("Plane probe", () => {
               id: "task-1",
               identifier: "TOK-1",
               name: "Probe me",
-              labels: [{ name: "repo:crs-src" }],
+              labels: ["label-repo-crs"],
             },
           ],
         });
@@ -36,7 +39,7 @@ describe("Plane probe", () => {
           id: "task-1",
           identifier: "TOK-1",
           name: "Probe me",
-          labels: [{ name: "repo:crs-src" }],
+          labels: ["label-repo-crs"],
         });
       }
       return jsonResponse({ error: "unexpected" }, 404);
@@ -58,6 +61,7 @@ describe("Plane probe", () => {
       status: "ready",
       mutating: false,
       steps: expect.arrayContaining([
+        expect.objectContaining({ id: "labels", status: "pass" }),
         expect.objectContaining({ id: "list", status: "pass" }),
         expect.objectContaining({ id: "repo", status: "pass" }),
         expect.objectContaining({ id: "get", status: "pass" }),
@@ -69,6 +73,9 @@ describe("Plane probe", () => {
   it("runs explicit PATCH and comment probes only in mutating mode", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (url, init) => {
       const method = init?.method ?? "GET";
+      if (String(url).endsWith("/labels/")) {
+        return jsonResponse({ results: [] });
+      }
       if (String(url).includes("/work-items?per_page=5")) {
         return jsonResponse({ results: [] });
       }

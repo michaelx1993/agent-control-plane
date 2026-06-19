@@ -1382,6 +1382,63 @@ describe("DispatchWorker", () => {
     );
   });
 
+  it("resolves Plane label ids while syncing work items", async () => {
+    const listTaskPage = vi.fn().mockResolvedValue({
+      results: [
+        {
+          id: "plane-uuid-label",
+          identifier: "TOK-9",
+          name: "UUID label routing",
+          state: { name: "Todo" },
+          labels: ["label-repo-crs"],
+        },
+      ] satisfies PlaneTaskPayload[],
+    });
+    const listLabels = vi.fn().mockResolvedValue([{ id: "label-repo-crs", name: "repo:crs-src" }]);
+    const plane = {
+      listTaskPage,
+      listLabels,
+    } as unknown as PlaneClient;
+    const upsert = vi.fn().mockResolvedValue({});
+    const db = {
+      $transaction: vi.fn(async (callback) => {
+        return callback({
+          project: {
+            findFirst: vi.fn().mockResolvedValue({ id: "project-1" }),
+          },
+          repository: {
+            findFirst: vi.fn().mockResolvedValue({ id: "repo-crs-src" }),
+          },
+          task: {
+            upsert,
+          },
+        });
+      }),
+    } as unknown as DbClient;
+    const sync = new PlaneTaskSyncService(db, plane, {
+      projectSlug: "token",
+      workspaceSlug: "aiworkspace",
+      projectId: "project-plane-1",
+      perPage: 10,
+    });
+
+    const result = await sync.sync();
+
+    expect(listLabels).toHaveBeenCalledWith({
+      workspaceSlug: "aiworkspace",
+      projectId: "project-plane-1",
+    });
+    expect(result).toEqual({ fetched: 1, upserted: 1, blockedMissingRepo: 0 });
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          labels: ["repo:crs-src"],
+          repositoryId: "repo-crs-src",
+        }),
+      }),
+    );
+  });
+
   it("paginates Plane polling fallback before upserting tasks", async () => {
     const listTaskPage = vi
       .fn()

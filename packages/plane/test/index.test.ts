@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   HttpPlaneClient,
+  createPlaneLabelResolver,
   linearExportToPlaneImportDrafts,
   linearIssueToPlaneImportDraft,
   normalizePlaneTask,
@@ -24,6 +25,25 @@ describe("repo parsing", () => {
 
   it("falls back to repo labels", () => {
     expect(parseRepoFromLabels([{ name: "repo:sub3" }, "blocked"])).toBe("sub3");
+  });
+
+  it("resolves Plane label ids before repo parsing", () => {
+    const labelResolver = createPlaneLabelResolver([
+      { id: "label-repo-crs", name: "repo:crs-src" },
+      { id: "label-feature", name: "Feature" },
+    ]);
+    const task = normalizePlaneTask(
+      {
+        id: "task-label-id",
+        name: "Label id task",
+        labels: ["label-repo-crs", "label-feature"],
+      },
+      { labelResolver },
+    );
+
+    expect(task.repo).toBe("crs-src");
+    expect(task.labels).toEqual(["repo:crs-src", "Feature"]);
+    expect(task.isDispatchable).toBe(true);
   });
 
   it("blocks dispatch when repo is missing", () => {
@@ -281,6 +301,31 @@ describe("HTTP client skeleton", () => {
       nextCursor: "page-2",
       results: [{ id: "task-1" }],
     });
+  });
+
+  it("lists project labels for label-id resolution", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ results: [{ id: "label-1", name: "repo:crs-src" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const client = new HttpPlaneClient({
+      baseUrl: "https://plane.example",
+      apiKey: "secret",
+      workspaceSlug: "bob-x-space",
+      projectId: "token",
+      fetch: fetchMock,
+    });
+
+    await expect(client.listLabels()).resolves.toEqual([{ id: "label-1", name: "repo:crs-src" }]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://plane.example/api/v1/workspaces/bob-x-space/projects/token/labels/",
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-API-Key": "secret" }),
+      }),
+    );
   });
 
   it("requires workspace and project unless basePath is supplied", async () => {

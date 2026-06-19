@@ -278,6 +278,10 @@ Plane webhook sync and polling fallback both use the same task upsert path. They
 identifier, title, state, repo, priority, assignee, labels, URL, and sync cursor into Control Plane.
 This keeps webhook-driven updates and reconciliation-driven updates from drifting.
 
+Plane may return work-item labels as project label IDs instead of `{name, slug}` objects. The Plane
+client therefore reads the project labels API first and resolves label IDs before repo routing. This
+keeps the MVP fallback label `repo:<name>` usable with both API shapes.
+
 ## Runtime Secret Redaction
 
 Before prompt content is handed to OpenHands or stored as a prompt release snapshot, the worker
@@ -605,6 +609,7 @@ feedback count, workspace path, and result/failure summary for fast operator tri
 Use the Plane probe during the self-host spike after `live:preflight` proves basic connectivity.
 By default it is non-mutating: it lists work items, loads a probe task, and verifies repo routing can
 be parsed from structured fields or `repo:<name>` labels.
+It also reads project labels first so Plane label IDs can be resolved before repo parsing.
 
 ```bash
 PLANE_BASE_URL="https://plane.example" \
@@ -627,6 +632,10 @@ pnpm plane:probe
 
 The probe fails if listing, repo parsing, task load, PATCH, or comment checks fail. Keep the mutating
 probe pointed at a disposable spike work item.
+
+Local spike evidence on 2026-06-19: self-host Plane at `http://127.0.0.1:3200` passed non-mutating
+`pnpm plane:probe` for project `token`; project labels, work-item listing, repo parsing, and task get
+all passed, with the probe work item resolving `repo=crs-src` from a Plane label ID.
 
 ## Live Dispatch Smoke Test
 

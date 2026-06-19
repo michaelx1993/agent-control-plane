@@ -1,6 +1,12 @@
 import { fileURLToPath } from "node:url";
 
-import { HttpPlaneClient, normalizePlaneTask, type PlaneClient } from "@agent-control-plane/plane";
+import {
+  HttpPlaneClient,
+  createPlaneLabelResolver,
+  normalizePlaneTask,
+  type PlaneClient,
+  type PlaneLabelResolver,
+} from "@agent-control-plane/plane";
 
 export type PlaneProbeStatus = "pass" | "fail" | "skip";
 
@@ -54,6 +60,7 @@ export async function runPlaneProbe(options: PlaneProbeOptions = {}): Promise<Pl
 
   const perPage = boundedPerPage(env.PLANE_PROBE_PER_PAGE ?? env.PLANE_SYNC_PER_PAGE);
   let firstTaskId = env.PLANE_PROBE_TASK_ID?.trim();
+  const labelResolver = await loadLabelResolver(client, steps);
 
   try {
     const page = await client.listTaskPage({ perPage });
@@ -64,7 +71,7 @@ export async function runPlaneProbe(options: PlaneProbeOptions = {}): Promise<Pl
       detail: `Plane returned ${page.results.length} work item(s); nextCursor=${page.nextCursor ?? "none"}.`,
     });
 
-    const normalized = page.results.map((task) => normalizePlaneTask(task));
+    const normalized = page.results.map((task) => normalizePlaneTask(task, { labelResolver }));
     const missingRepo = normalized.filter((task) => !task.repo).length;
     steps.push({
       id: "repo",
@@ -100,7 +107,7 @@ export async function runPlaneProbe(options: PlaneProbeOptions = {}): Promise<Pl
 
   try {
     const task = await client.getTask(firstTaskId);
-    const normalized = normalizePlaneTask(task);
+    const normalized = normalizePlaneTask(task, { labelResolver });
     steps.push({
       id: "get",
       label: "Get work item",
@@ -179,6 +186,32 @@ export async function runPlaneProbe(options: PlaneProbeOptions = {}): Promise<Pl
 }
 
 const requiredEnv = ["PLANE_BASE_URL", "PLANE_WORKSPACE_SLUG", "PLANE_PROJECT_ID"] as const;
+
+async function loadLabelResolver(
+  client: PlaneClient,
+  steps: PlaneProbeStep[],
+): Promise<PlaneLabelResolver | undefined> {
+  if (!client.listLabels) return undefined;
+
+  try {
+    const labels = await client.listLabels();
+    steps.push({
+      id: "labels",
+      label: "List project labels",
+      status: "pass",
+      detail: `Plane returned ${labels.length} project label(s) for ID resolution.`,
+    });
+    return createPlaneLabelResolver(labels);
+  } catch (error) {
+    steps.push({
+      id: "labels",
+      label: "List project labels",
+      status: "fail",
+      detail: errorDetail(error),
+    });
+    return undefined;
+  }
+}
 
 function boundedPerPage(value?: string): number {
   const parsed = Number(value ?? 5);

@@ -93,10 +93,10 @@ the target Plane deployment explicitly requires OAuth-compatible `Authorization`
 
 ## P0.5 验收 Checklist
 
-- [ ] self-host Plane 可启动并完成登录。
-- [ ] 已创建 spike workspace、project、work item。
-- [ ] 已生成 API key，确认 self-host API base URL 可用。
-- [ ] `GET /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/` 可拉取 work items。
+- [x] self-host Plane 可启动并完成登录。2026-06-19 本机 `http://127.0.0.1:3200` 返回 200。
+- [x] 已创建 spike workspace、project、work item。实测 workspace `aiworkspace`，project `token`。
+- [x] 已生成 API key，确认 self-host API base URL 可用。API key 已脱敏，仅用于本机 probe。
+- [x] `GET /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/` 可拉取 work items。
       使用 `pnpm plane:probe` 的 non-mutating 模式记录结果。
 - [ ] `PATCH` work item 可更新状态和 labels。使用 `PLANE_PROBE_MUTATE=true` 和
       `PLANE_PROBE_PATCH_JSON` 对 disposable spike task 实测。
@@ -104,7 +104,9 @@ the target Plane deployment explicitly requires OAuth-compatible `Authorization`
       `PLANE_PROBE_COMMENT_BODY` 对 disposable spike task 实测。
 - [ ] API rate limit 60 req/min 已在 self-host 实例实测或确认行为一致。
 - [ ] custom property `repo` 可创建、写入、读取。
-- [ ] `repo:<name>` label fallback 可创建、读取、解析。
+- [x] `repo:<name>` label fallback 可创建、读取、解析。Plane 返回 work-item label ID 时，
+      Control Plane 会先读 project labels API，再把 label ID 解析为 `repo:<name>`；2026-06-19
+      probe 已解析出 `repo=crs-src`。
 - [ ] webhook receiver 能收到 issue create/update/delete。
 - [ ] webhook receiver 能收到 issue comment。
 - [ ] state change 是否表现为 issue update 已实测并记录。
