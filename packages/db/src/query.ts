@@ -104,6 +104,16 @@ export async function findDispatchableTasks(
         },
         take: 20,
       },
+      runs: {
+        select: {
+          attempt: true,
+          status: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 20,
+      },
     },
     orderBy: [{ priority: { sort: "asc", nulls: "last" } }, { updatedAt: "asc" }],
     take: options.limit,
@@ -248,6 +258,20 @@ export async function startRun(db: DbClient, input: StartRunInput) {
       throw new Error(`No active agent definition found for role ${role.key}`);
     }
 
+    const previousRuns = await tx.run.findMany({
+      where: {
+        taskId: task.id,
+      },
+      select: {
+        attempt: true,
+      },
+      orderBy: {
+        attempt: "desc",
+      },
+      take: 1,
+    });
+    const attempt = (previousRuns[0]?.attempt ?? 0) + 1;
+
     const promptRelease = await tx.promptRelease.create({
       data: {
         taskId: task.id,
@@ -270,6 +294,7 @@ export async function startRun(db: DbClient, input: StartRunInput) {
         leaseOwner: input.leaseOwner,
         leaseExpiresAt,
         heartbeatAt: now,
+        attempt,
         startedAt: now,
       },
       include: {
@@ -287,6 +312,7 @@ export async function startRun(db: DbClient, input: StartRunInput) {
           leaseOwner: input.leaseOwner,
           leaseExpiresAt: leaseExpiresAt.toISOString(),
           promptReleaseId: promptRelease.id,
+          attempt,
         } satisfies Prisma.InputJsonObject,
       },
     });

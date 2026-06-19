@@ -49,6 +49,30 @@ describe("DispatchWorker", () => {
     expect(runs[0].promptSnapshot).toContain("Role: Development Agent");
   });
 
+  it("does not dispatch an in-memory task after the configured attempt limit is reached", async () => {
+    const task = createMockTask({ id: "task-dev-1", state: "Development" });
+    const store = new InMemoryControlPlaneStore([task]);
+    store.runs.set("run-failed-1", {
+      id: "run-failed-1",
+      taskId: task.id,
+      role: "Development Agent",
+      status: "failed",
+      attempt: 1,
+      statusHistory: ["failed"],
+      createdAt: new Date("2026-06-18T00:00:00.000Z"),
+      updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+    });
+
+    const tasks = await store.findDispatchableTasks(
+      loadConfig({
+        WORKER_ENABLED_TEAMS: "token-team",
+        WORKER_MAX_TASK_ATTEMPTS: "1",
+      }),
+    );
+
+    expect(tasks).toEqual([]);
+  });
+
   it("records throttled OpenHands poll heartbeats while a run is active", async () => {
     const task = createMockTask({ state: "Development" });
     const store = new InMemoryControlPlaneStore([task]);
@@ -147,6 +171,7 @@ describe("DispatchWorker", () => {
         taskId: "task-1",
         role: "Development Agent",
         status: "running",
+        attempt: 1,
         statusHistory: ["running"],
         createdAt: new Date("2026-06-18T00:00:00.000Z"),
         updatedAt: new Date("2026-06-18T00:00:00.000Z"),
@@ -220,6 +245,7 @@ describe("DispatchWorker", () => {
         taskId: "task-1",
         role: "Development Agent",
         status: "running",
+        attempt: 1,
         statusHistory: ["running"],
         createdAt: new Date("2026-06-18T00:00:00.000Z"),
         updatedAt: new Date("2026-06-18T00:00:00.000Z"),
@@ -271,6 +297,7 @@ describe("DispatchWorker", () => {
         state: "Development",
         labels: ["repo:crs-src", "kind:worker"],
         repositoryId: "repo-1",
+        runs: [],
         feedbackItems: [
           {
             source: "code_review",
@@ -347,6 +374,7 @@ describe("DispatchWorker", () => {
         createdAt: new Date("2026-06-18T10:00:00.000Z"),
         labels: ["repo:crs-src"],
         repositoryId: "repo-crs",
+        runs: [],
         repository: {
           slug: "crs-src",
           status: "active",
@@ -370,6 +398,7 @@ describe("DispatchWorker", () => {
         createdAt: new Date("2026-06-18T11:00:00.000Z"),
         labels: ["repo:traffic"],
         repositoryId: "repo-traffic",
+        runs: [],
         repository: {
           slug: "traffic",
           status: "active",
@@ -416,6 +445,59 @@ describe("DispatchWorker", () => {
 
     expect(activeRunFindMany).toHaveBeenCalled();
     expect(tasks.map((task) => task.id)).toEqual(["task-traffic"]);
+  });
+
+  it("does not return DB-backed tasks after the configured attempt limit is reached", async () => {
+    const taskFindMany = vi.fn().mockResolvedValue([
+      {
+        id: "task-exhausted",
+        externalTaskId: "plane-exhausted",
+        title: "Repeatedly failing task",
+        url: "https://plane.test/token/TOK-3",
+        state: "Development",
+        priority: 1,
+        createdAt: new Date("2026-06-18T10:00:00.000Z"),
+        labels: ["repo:crs-src"],
+        repositoryId: "repo-crs",
+        runs: [
+          {
+            attempt: 3,
+            status: "failed",
+          },
+        ],
+        repository: {
+          slug: "crs-src",
+          status: "active",
+        },
+        project: {
+          slug: "token",
+          team: {
+            name: "token-team",
+            key: "TOK",
+            externalTeamId: "token-team",
+          },
+        },
+      },
+    ]);
+    const db = {
+      task: {
+        findMany: taskFindMany,
+      },
+      run: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    } as unknown as DbClient;
+    const store = new DbControlPlaneStore(db);
+
+    const tasks = await store.findDispatchableTasks(
+      loadConfig({
+        WORKER_MODE: "live",
+        WORKER_ENABLED_TEAMS: "token-team",
+        WORKER_MAX_TASK_ATTEMPTS: "3",
+      }),
+    );
+
+    expect(tasks).toEqual([]);
   });
 
   it("assembles DB-backed prompt components in platform order", async () => {
@@ -472,6 +554,7 @@ describe("DispatchWorker", () => {
         taskId: "task-dev-1",
         status: "claimed",
         role: "Development",
+        attempt: 1,
         statusHistory: ["claimed"],
         createdAt: new Date("2026-06-18T00:00:00.000Z"),
         updatedAt: new Date("2026-06-18T00:00:00.000Z"),
@@ -647,6 +730,7 @@ describe("DispatchWorker", () => {
       status: "running" as const,
       role: "Development Agent",
       workerId: "worker-1",
+      attempt: 1,
       statusHistory: ["running" as const],
       createdAt: new Date("2026-06-18T00:00:00.000Z"),
       updatedAt: new Date("2026-06-18T00:00:00.000Z"),

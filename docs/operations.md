@@ -79,6 +79,7 @@ Default configuration:
 ```bash
 WORKER_LEASE_MS="900000"
 WORKER_HEARTBEAT_INTERVAL_MS="30000"
+WORKER_MAX_TASK_ATTEMPTS="3"
 OPENHANDS_POLL_INTERVAL_MS="1000"
 OPENHANDS_POLL_ATTEMPTS="300"
 ```
@@ -88,6 +89,19 @@ Operational rule:
 - Keep `WORKER_HEARTBEAT_INTERVAL_MS` lower than `WORKER_LEASE_MS`.
 - Set it high enough to avoid noisy `run_events`; `30000` means at most two heartbeat events per minute per active run.
 - Use run detail and dashboard heartbeat age to distinguish active long-running work from a stale lease.
+
+## Worker Retry Limit
+
+`WORKER_MAX_TASK_ATTEMPTS` caps how many runs a task can receive before the worker stops
+dispatching it automatically. The default is `3`.
+
+Operational rule:
+
+- A new run gets `attempt = max(previous task attempts) + 1`.
+- Dispatch skips a task once its max attempt is greater than or equal to
+  `WORKER_MAX_TASK_ATTEMPTS`.
+- Reviewers should add feedback or mark the task blocked/done after the retry cap is reached.
+  This prevents failing tasks from looping silently through the worker.
 
 ## Review Rework Feedback
 

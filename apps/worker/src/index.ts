@@ -65,6 +65,7 @@ export interface WorkerConfig {
   openHandsPollIntervalMs: number;
   openHandsPollAttempts: number;
   workerHeartbeatIntervalMs: number;
+  maxTaskAttempts: number;
   langfuseBaseUrl?: string;
   langfusePublicKey?: string;
   langfuseSecretKey?: string;
@@ -111,6 +112,7 @@ export interface Run {
   summary?: string;
   nextState?: TaskState;
   error?: string;
+  attempt: number;
   statusHistory: RunStatus[];
   createdAt: Date;
   updatedAt: Date;
@@ -282,6 +284,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     openHandsPollIntervalMs: numberFromEnv(env.OPENHANDS_POLL_INTERVAL_MS, 1000),
     openHandsPollAttempts: numberFromEnv(env.OPENHANDS_POLL_ATTEMPTS, 300),
     workerHeartbeatIntervalMs: numberFromEnv(env.WORKER_HEARTBEAT_INTERVAL_MS, 30_000),
+    maxTaskAttempts: numberFromEnv(env.WORKER_MAX_TASK_ATTEMPTS, 3),
     langfuseBaseUrl: env.LANGFUSE_BASE_URL,
     langfusePublicKey: env.LANGFUSE_PUBLIC_KEY,
     langfuseSecretKey: env.LANGFUSE_SECRET_KEY,
@@ -530,6 +533,12 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
         activeRun?.leaseExpiresAt !== undefined &&
         activeRun.leaseExpiresAt.getTime() > now &&
         ["claimed", "running"].includes(activeRun.status);
+      const maxAttempt = Math.max(
+        0,
+        ...[...this.runs.values()]
+          .filter((run) => run.taskId === task.id)
+          .map((run) => run.attempt),
+      );
 
       return (
         config.enabledTeams.includes(task.team) &&
@@ -537,7 +546,8 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
         Boolean(task.repo) &&
         !task.blocked &&
         !task.humanRequired &&
-        !hasActiveLease
+        !hasActiveLease &&
+        maxAttempt < config.maxTaskAttempts
       );
     });
   }
@@ -555,6 +565,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       openHandsPollIntervalMs: 1000,
       openHandsPollAttempts: 300,
       workerHeartbeatIntervalMs: 30_000,
+      maxTaskAttempts: 3,
       costBudgetExceededAction: "waiting-approval",
     });
 
@@ -570,6 +581,13 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       role: roleByState[task.state] ?? "Development Agent",
       workerId,
       leaseExpiresAt: new Date(now.getTime() + leaseMs),
+      attempt:
+        Math.max(
+          0,
+          ...[...this.runs.values()]
+            .filter((candidate) => candidate.taskId === taskId)
+            .map((candidate) => candidate.attempt),
+        ) + 1,
       statusHistory: ["queued", "claimed"],
       createdAt: now,
       updatedAt: now,
@@ -670,6 +688,29 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
 }
 
 type DbTaskWithDispatchContext = Awaited<ReturnType<typeof dbFindDispatchableTasks>>[number];
+type DbTaskWithWorkerContext = {
+  id: string;
+  externalTaskId: string;
+  title: string;
+  url: string | null;
+  state: DbTaskState;
+  labels: unknown;
+  repository?: { slug: string } | null;
+  project: {
+    slug: string;
+    team: {
+      name: string;
+      key: string;
+      externalTeamId: string;
+    };
+  };
+  feedbackItems?: Array<{
+    source: string;
+    severity: string;
+    body: string;
+    externalUrl: string | null;
+  }>;
+};
 type DbRunWithContext = DbRun & {
   role?: { name: string } | null;
   promptRelease?: { renderedContent: string } | null;
@@ -695,9 +736,10 @@ export class DbControlPlaneStore implements ControlPlaneStore {
   }
 
   async findDispatchableTasks(config: WorkerConfig): Promise<Task[]> {
-    const tasks = await dbFindDispatchableTasks(this.db, { limit: 25 });
+    const tasks = await dbFindDispatchableTasks(this.db, { limit: 100 });
     const enabledTaskPairs = tasks
       .filter((task) => this.isEnabledTeam(task, config.enabledTeams))
+      .filter((task) => this.hasAttemptsRemaining(task, config.maxTaskAttempts))
       .map((task) => ({
         dbTask: task,
         workerTask: this.toWorkerTask(task),
@@ -940,7 +982,7 @@ export class DbControlPlaneStore implements ControlPlaneStore {
     return task ? this.toWorkerTask(task) : undefined;
   }
 
-  private isEnabledTeam(task: DbTaskWithDispatchContext, enabledTeams: string[]): boolean {
+  private isEnabledTeam(task: DbTaskWithWorkerContext, enabledTeams: string[]): boolean {
     return enabledTeams.some((team) => {
       return (
         team === task.project.team.name ||
@@ -950,7 +992,12 @@ export class DbControlPlaneStore implements ControlPlaneStore {
     });
   }
 
-  private toWorkerTask(task: DbTaskWithDispatchContext): Task {
+  private hasAttemptsRemaining(task: DbTaskWithDispatchContext, maxTaskAttempts: number): boolean {
+    const maxAttempt = Math.max(0, ...task.runs.map((run) => run.attempt));
+    return maxAttempt < maxTaskAttempts;
+  }
+
+  private toWorkerTask(task: DbTaskWithWorkerContext): Task {
     const feedbackComments =
       "feedbackItems" in task && Array.isArray(task.feedbackItems)
         ? task.feedbackItems.map(
@@ -989,6 +1036,7 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       promptSnapshot: run.promptRelease?.renderedContent,
       summary: run.resultSummary ?? undefined,
       error: run.failureReason ?? undefined,
+      attempt: run.attempt,
       nextState: run.nextState ? workerStateByDbState[run.nextState] : undefined,
       statusHistory: [run.status === "canceled" ? "failed" : run.status],
       createdAt: run.createdAt,

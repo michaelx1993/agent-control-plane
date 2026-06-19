@@ -6,6 +6,7 @@ import {
   markRunRunning,
   recordRunExternalEvents,
   recordRunObservabilityRefs,
+  startRun,
 } from "./query.js";
 import type { DbClient } from "./query.js";
 
@@ -30,6 +31,90 @@ describe("isDispatchableTaskCandidate", () => {
         runs: [],
       }),
     ).toBe(true);
+  });
+
+  it("increments run attempt from the previous max attempt when starting a run", async () => {
+    const promptReleaseCreate = viLike();
+    const runCreate = viLike();
+    const eventCreate = viLike();
+    const db = {
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+        return callback({
+          task: {
+            findUnique: async () => ({
+              id: "task-1",
+              state: "Development",
+              repositoryId: "repo-1",
+              repository: { id: "repo-1" },
+            }),
+          },
+          role: {
+            findFirst: async () => ({
+              id: "role-1",
+              key: "development",
+            }),
+          },
+          agentDefinition: {
+            findFirst: async () => ({
+              id: "agent-1",
+            }),
+          },
+          run: {
+            findMany: async () => [{ attempt: 2 }],
+            create: async (input: unknown) => {
+              runCreate(input);
+              return {
+                id: "run-1",
+                taskId: "task-1",
+                promptReleaseId: "prompt-release-1",
+                attempt: 3,
+              };
+            },
+          },
+          promptRelease: {
+            create: async (input: unknown) => {
+              promptReleaseCreate(input);
+              return { id: "prompt-release-1" };
+            },
+          },
+          runEvent: {
+            create: async (input: unknown) => {
+              eventCreate(input);
+              return {};
+            },
+          },
+        });
+      },
+    } as unknown as DbClient;
+
+    const result = await startRun(db, {
+      taskId: "task-1",
+      leaseOwner: "worker-1",
+      renderedPrompt: "prompt",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: "run-1",
+        attempt: 3,
+      }),
+    );
+    expect(runCreate.calls[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          attempt: 3,
+        }),
+      }),
+    );
+    expect(eventCreate.calls[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          payload: expect.objectContaining({
+            attempt: 3,
+          }),
+        }),
+      }),
+    );
   });
 
   it("marks expired claimed/running leases as failed and records events", async () => {

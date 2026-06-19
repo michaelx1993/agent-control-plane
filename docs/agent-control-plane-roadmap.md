@@ -169,7 +169,7 @@ P0 方案固化
 - 记录 heartbeat。
 - 记录 queued / claimed / running / blocked / completed / failed。
 - 低频状态写回 Plane comment，但高频 heartbeat 只写本地。
-- 失败后按策略 retry。
+- 失败后按策略 retry；默认 `WORKER_MAX_TASK_ATTEMPTS=3`，超过后停止自动派发，等待人工反馈或改状态。
 - 对外提供 run 查询 API。
 
 交付物：
@@ -185,6 +185,7 @@ P0 方案固化
 
 - 同一个 task 同一时间只能被一个 run 持有 lease。
 - worker 崩溃后 lease 过期，任务可重新派发。
+- 同一 task 的 run attempt 单调递增，达到 retry 上限后不再自动派发。
 - heartbeat 超时可标记 stalled。
 - run 状态变化不依赖 Plane comment。
 - run detail 可展示 heartbeat、events、feedback、OpenHands/Langfuse 链接。
