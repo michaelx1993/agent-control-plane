@@ -25,6 +25,8 @@ describe("control plane mock service", () => {
     for (const run of runs.runs) {
       expect(run.openHandsUrl).toContain("/conversations/");
       expect(run.langfuseUrl).toContain("/traces/");
+      expect(run.tokenInput + run.tokenOutput).toBeGreaterThan(0);
+      expect(Number(run.costUsd)).toBeGreaterThan(0);
     }
   });
 

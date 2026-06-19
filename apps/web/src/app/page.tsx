@@ -18,6 +18,22 @@ const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
   running: "statusRun",
 };
 
+const formatTokens = (input: number, output: number) =>
+  new Intl.NumberFormat("en-US").format(input + output);
+
+const formatCost = (costUsd: string) => {
+  const parsed = Number(costUsd);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return "$0.00";
+  }
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: 4,
+    minimumFractionDigits: 2,
+    style: "currency",
+  }).format(parsed);
+};
+
 export default async function DashboardPage() {
   const [taskQueue, runs, promptReleases, systemHealth] = await Promise.all([
     getTaskQueue(),
@@ -110,6 +126,14 @@ export default async function DashboardPage() {
                   <div>
                     <dt>Heartbeat</dt>
                     <dd>{run.heartbeat}</dd>
+                  </div>
+                  <div>
+                    <dt>Tokens</dt>
+                    <dd>{formatTokens(run.tokenInput, run.tokenOutput)}</dd>
+                  </div>
+                  <div>
+                    <dt>Cost</dt>
+                    <dd>{formatCost(run.costUsd)}</dd>
                   </div>
                 </dl>
                 <div className="links">

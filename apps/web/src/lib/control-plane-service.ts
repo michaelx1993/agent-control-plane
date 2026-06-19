@@ -616,6 +616,9 @@ async function getRunsFromDb(): Promise<RunsResponse> {
           ? `openhands://conversations/${run.conversationRef.conversationId}`
           : ""),
       langfuseUrl: trace?.uiUrl ?? (trace?.traceId ? `langfuse://traces/${trace.traceId}` : ""),
+      tokenInput: Number(trace?.inputTokens ?? run.tokenInput ?? 0),
+      tokenOutput: Number(trace?.outputTokens ?? run.tokenOutput ?? 0),
+      costUsd: (trace?.costUsd ?? run.costUsd ?? 0).toString(),
     };
   });
 
@@ -783,6 +786,9 @@ function runToApiRun(input: {
       input.conversationUrl ??
       (input.conversationId ? `openhands://conversations/${input.conversationId}` : ""),
     langfuseUrl: input.traceUrl ?? (input.traceId ? `langfuse://traces/${input.traceId}` : ""),
+    tokenInput: 0,
+    tokenOutput: 0,
+    costUsd: "0",
   };
 }
 

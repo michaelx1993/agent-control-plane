@@ -332,9 +332,16 @@ tbody tr:hover {
 .runMeta,
 .release dl {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin: 12px 0 0;
+}
+
+.runMeta {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.release dl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 dt {

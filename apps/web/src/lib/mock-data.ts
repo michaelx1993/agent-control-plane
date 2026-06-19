@@ -37,6 +37,9 @@ export type Run = {
   heartbeat: string;
   openHandsUrl: string;
   langfuseUrl: string;
+  tokenInput: number;
+  tokenOutput: number;
+  costUsd: string;
 };
 
 export type RunEvent = {
@@ -153,6 +156,9 @@ export const runs: Run[] = [
     heartbeat: "24s ago",
     openHandsUrl: "https://openhands.local/conversations/conv-7741",
     langfuseUrl: "https://langfuse.local/project/acp/traces/trace-7741",
+    tokenInput: 20980,
+    tokenOutput: 4820,
+    costUsd: "1.02",
   },
   {
     id: "run-7736",
@@ -165,6 +171,9 @@ export const runs: Run[] = [
     heartbeat: "completed",
     openHandsUrl: "https://openhands.local/conversations/conv-7736",
     langfuseUrl: "https://langfuse.local/project/acp/traces/trace-7736",
+    tokenInput: 18612,
+    tokenOutput: 5319,
+    costUsd: "0.87",
   },
   {
     id: "run-7728",
@@ -177,6 +186,9 @@ export const runs: Run[] = [
     heartbeat: "stalled after 11m",
     openHandsUrl: "https://openhands.local/conversations/conv-7728",
     langfuseUrl: "https://langfuse.local/project/acp/traces/trace-7728",
+    tokenInput: 12840,
+    tokenOutput: 2048,
+    costUsd: "0.42",
   },
 ];
 
@@ -207,9 +219,6 @@ export const runDetails: RunDetail[] = runs.map((run) => ({
   conversationId: run.openHandsUrl.split("/").at(-1) ?? "",
   eventCursor: run.id === "run-7728" ? "event-91" : "event-128",
   traceId: run.langfuseUrl.split("/").at(-1) ?? "",
-  tokenInput: run.status === "failed" ? 12840 : 18612,
-  tokenOutput: run.status === "failed" ? 2048 : 5319,
-  costUsd: run.status === "failed" ? "0.42" : "0.87",
   events: [
     {
       id: `${run.id}-claimed`,
