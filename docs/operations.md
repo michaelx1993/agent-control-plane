@@ -426,6 +426,34 @@ Checks:
 Exit code is `0` only when all checks pass. Use this before starting a live worker and after any
 credential, endpoint, or self-host upgrade change.
 
+## Plane API Probe
+
+Use the Plane probe during the self-host spike after `live:preflight` proves basic connectivity.
+By default it is non-mutating: it lists work items, loads a probe task, and verifies repo routing can
+be parsed from structured fields or `repo:<name>` labels.
+
+```bash
+PLANE_BASE_URL="https://plane.example" \
+PLANE_WORKSPACE_SLUG="workspace" \
+PLANE_PROJECT_ID="project" \
+PLANE_API_KEY="..." \
+PLANE_PROBE_TASK_ID="task-id-from-plane" \
+pnpm plane:probe
+```
+
+To explicitly verify PATCH and comment APIs, opt into mutation against a disposable spike task:
+
+```bash
+PLANE_PROBE_MUTATE="true" \
+PLANE_PROBE_TASK_ID="task-id-from-plane" \
+PLANE_PROBE_PATCH_JSON='{"labels":["repo:crs-src","control-plane-probe"]}' \
+PLANE_PROBE_COMMENT_BODY="Agent Control Plane probe" \
+pnpm plane:probe
+```
+
+The probe fails if listing, repo parsing, task load, PATCH, or comment checks fail. Keep the mutating
+probe pointed at a disposable spike work item.
+
 ## Live Dispatch Smoke Test
 
 After `release:check` and `live:preflight` pass, run exactly one live dispatch to validate the

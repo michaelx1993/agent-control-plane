@@ -47,10 +47,14 @@ P0 方案固化
 - 已有 Readiness API/UI，展示 Plane/OpenHands/Langfuse/DB/Worker 配置缺口，并在 DB 配置后展示 seed baseline 状态。
 - 已有人工 task transition API，状态跳转受 state-machine 校验。
 - `pnpm live:preflight` 会校验 DB 连通性和 Control Plane seed baseline，避免空库启动 live worker。
+- `pnpm plane:probe` 可对 self-host Plane work-items API、repo 路由解析、可选 PATCH/comment
+  mutation 做 spike 验证。
 - `pnpm live:dispatch-once` 会先执行 live preflight，再派发一个真实任务，并输出 task/run/
   OpenHands/Langfuse/next-state evidence bundle 用于 Development run smoke test。
 - `pnpm live:verify-once` 会在 one-shot live dispatch 后校验 evidence bundle，缺少 Plane、
   workspace、OpenHands、Langfuse 或 Run Detail 证据时失败。
+- `pnpm plane:probe` 可在 Plane self-host spike 中验证 work item list/get、repo 解析，并在显式
+  mutating 模式下验证 PATCH/comment API。
 - `pnpm release:check` 在 live 模式会强制校验非空数据库备份，再执行 live preflight。
 - Task Queue 可区分 repo concurrency、role concurrency、retry capped、budget blocked 和普通 gate。
 - 已有 Linear 离线迁移草案工具，可将 JSON/CSV export 转换为 Plane import draft，并标出缺失 repo 的任务。

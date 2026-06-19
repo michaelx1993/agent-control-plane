@@ -90,7 +90,17 @@ export function parseLiveDispatchEvidence(value: string): unknown {
     throw new Error("No live dispatch output was provided.");
   }
 
-  return JSON.parse(trimmed);
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const firstJson = trimmed.indexOf("{");
+    const lastJson = trimmed.lastIndexOf("}");
+    if (firstJson === -1 || lastJson === -1 || lastJson <= firstJson) {
+      throw new Error("Live dispatch output did not contain a JSON evidence object.");
+    }
+
+    return JSON.parse(trimmed.slice(firstJson, lastJson + 1));
+  }
 }
 
 function requireString(errors: string[], value: unknown, path: string): void {

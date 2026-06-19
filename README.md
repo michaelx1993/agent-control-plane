@@ -116,6 +116,9 @@ health, and Langfuse health without creating tasks, conversations, or traces. Th
 panel shows the same DB baseline risk when `DATABASE_URL` is configured.
 Plane self-host Personal Access Tokens use `X-API-Key` by default; set
 `PLANE_API_KEY_HEADER=Authorization` only for OAuth/bearer-compatible deployments.
+Use `pnpm plane:probe` during the Plane self-host spike to verify list/get/repo parsing; set
+`PLANE_PROBE_MUTATE=true` with `PLANE_PROBE_TASK_ID`, `PLANE_PROBE_PATCH_JSON`, and
+`PLANE_PROBE_COMMENT_BODY` only against a disposable spike task when validating PATCH/comment APIs.
 
 For live rollout, run `scripts/db-backup.sh` first. `pnpm release:check` requires a non-empty
 `BACKUP_FILE` or the latest `agent-control-plane-*.dump` under `BACKUP_DIR` when `WORKER_MODE=live`.

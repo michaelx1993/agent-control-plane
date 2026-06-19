@@ -17,7 +17,10 @@ import {
   planeStateNameToDbTaskState,
   redactRuntimeSecrets,
 } from "../src/index.js";
-import { validateLiveDispatchEvidence } from "../src/live-verification.js";
+import {
+  parseLiveDispatchEvidence,
+  validateLiveDispatchEvidence,
+} from "../src/live-verification.js";
 import type { DbClient } from "@agent-control-plane/db";
 import type { PlaneClient, PlaneTaskPayload } from "@agent-control-plane/plane";
 
@@ -149,6 +152,37 @@ describe("DispatchWorker", () => {
     });
 
     expect(validateLiveDispatchEvidence(evidence)).toEqual({ ok: true, errors: [] });
+  });
+
+  it("parses live dispatch JSON from package manager script output", () => {
+    const output = [
+      "$ tsx src/index.ts",
+      JSON.stringify({
+        task: { id: "task-1", planeId: "plane-1", repo: "crs-src" },
+        run: {
+          id: "run-1",
+          status: "succeeded",
+          role: "Development Agent",
+          attempt: 1,
+          promptReleaseId: "prompt-release-1",
+          workspacePath: "/tmp/crs-src/runs/run-1",
+          nextState: "Code Review",
+          summary: "Implemented.",
+        },
+        verification: {
+          runDetailPath: "/runs/run-1",
+          planeEvidence: "plane-1",
+          openHandsEvidence: "conversation-1",
+          langfuseEvidence: "trace-1",
+          expectedNextState: "Code Review",
+        },
+      }),
+    ].join("\n");
+
+    expect(parseLiveDispatchEvidence(output)).toMatchObject({
+      task: { id: "task-1" },
+      run: { id: "run-1" },
+    });
   });
 
   it("rejects live dispatch evidence without OpenHands and Langfuse refs", () => {

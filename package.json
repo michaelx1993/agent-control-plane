@@ -17,6 +17,7 @@
     "live:preflight": "pnpm --filter @agent-control-plane/worker live-preflight",
     "live:dispatch-once": "scripts/live-dispatch-once.sh",
     "live:verify-once": "scripts/live-verify-once.sh",
+    "plane:probe": "pnpm --filter @agent-control-plane/worker plane-probe",
     "release:check": "scripts/release-check.sh",
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
