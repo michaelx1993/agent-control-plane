@@ -39,7 +39,7 @@ P0 方案固化
 - 已有 Prompt Manager、prompt component/binding/release、scope lookup API、prompt diff 和 rollback。
 - Worker 在交给 OpenHands 和保存 prompt release snapshot 前，会对运行时 prompt 执行最低限度
   secret redaction，覆盖常见 API key、bearer token 和 private key block。
-- 已有 OpenHands adapter skeleton、conversation refs、poll heartbeat hook。
+- 已有 OpenHands adapter、可配置 runtime endpoint paths、conversation refs、poll heartbeat hook。
 - 已有 Langfuse trace refs、token/cost summary 写入、prompt version metrics 和 dashboard 展示。
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
 - 已有 Run Detail feedback 表单和 feedback API，支持打回 Development。
@@ -48,6 +48,7 @@ P0 方案固化
 - 已有人工 task transition API，状态跳转受 state-machine 校验。
 - `pnpm live:preflight` 会校验 DB 连通性和 Control Plane seed baseline，避免空库启动 live worker。
 - `pnpm release:check` 在 live 模式会强制校验非空数据库备份，再执行 live preflight。
+- Task Queue 可区分 repo concurrency、role concurrency、retry capped、budget blocked 和普通 gate。
 - 已有 Linear 离线迁移草案工具，可将 JSON/CSV export 转换为 Plane import draft，并标出缺失 repo 的任务。
 
 当前完成度判定：

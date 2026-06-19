@@ -19,6 +19,7 @@ describe("control plane mock service", () => {
     expect(taskQueue.tasks.every((task) => task.maxAttempts >= task.attempt)).toBe(true);
     expect(taskQueue.tasks.some((task) => task.dispatchStatus === "retry_capped")).toBe(true);
     expect(taskQueue.tasks.some((task) => task.dispatchStatus === "budget_blocked")).toBe(true);
+    expect(taskQueue.tasks.some((task) => task.dispatchStatus === "repo_concurrency")).toBe(true);
   });
 
   it("exposes OpenHands and Langfuse links for every run", async () => {

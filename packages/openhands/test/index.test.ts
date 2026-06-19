@@ -124,6 +124,47 @@ describe("HttpOpenHandsAdapter", () => {
       eventCursor: "def",
     });
   });
+
+  it("supports custom endpoint paths without losing defaults", async () => {
+    const requests: string[] = [];
+    const fetch = async (input: string) => {
+      requests.push(input);
+
+      if (input === "https://openhands.example/v1/conversations") {
+        return jsonResponse({
+          conversation: {
+            id: "conversation-2",
+          },
+        });
+      }
+
+      if (input === "https://openhands.example/api/runs") {
+        return jsonResponse({ ok: true });
+      }
+
+      throw new Error(`Unexpected request: ${input}`);
+    };
+    const adapter = new HttpOpenHandsAdapter({
+      baseUrl: "https://openhands.example",
+      fetch,
+      endpoints: {
+        conversations: "/v1/conversations",
+      },
+    });
+
+    const conversation = await adapter.createConversation({
+      taskId: "task-2",
+      runId: "run-2",
+      repo: "repo-2",
+      prompt: "Fix another task",
+    });
+    await adapter.startRun(conversation.id);
+
+    expect(requests).toEqual([
+      "https://openhands.example/v1/conversations",
+      "https://openhands.example/api/runs",
+    ]);
+  });
 });
 
 function jsonResponse(body: unknown) {

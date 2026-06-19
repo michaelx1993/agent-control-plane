@@ -67,6 +67,8 @@ export interface WorkerConfig {
   leaseMs: number;
   openHandsBaseUrl?: string;
   openHandsApiKey?: string;
+  openHandsConversationsPath?: string;
+  openHandsRunsPath?: string;
   openHandsPollIntervalMs: number;
   openHandsPollAttempts: number;
   workerHeartbeatIntervalMs: number;
@@ -290,6 +292,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     leaseMs: Number(env.WORKER_LEASE_MS ?? 15 * 60 * 1000),
     openHandsBaseUrl: env.OPENHANDS_BASE_URL,
     openHandsApiKey: env.OPENHANDS_API_KEY,
+    openHandsConversationsPath: env.OPENHANDS_CONVERSATIONS_PATH,
+    openHandsRunsPath: env.OPENHANDS_RUNS_PATH,
     openHandsPollIntervalMs: numberFromEnv(env.OPENHANDS_POLL_INTERVAL_MS, 1000),
     openHandsPollAttempts: numberFromEnv(env.OPENHANDS_POLL_ATTEMPTS, 300),
     workerHeartbeatIntervalMs: numberFromEnv(env.WORKER_HEARTBEAT_INTERVAL_MS, 30_000),
@@ -1614,6 +1618,10 @@ export function createOpenHandsAdapter(config: WorkerConfig): OpenHandsAdapter {
     new HttpOpenHandsAdapter({
       baseUrl: config.openHandsBaseUrl,
       headers: config.openHandsApiKey ? { authorization: `Bearer ${config.openHandsApiKey}` } : {},
+      endpoints: {
+        conversations: config.openHandsConversationsPath,
+        runs: config.openHandsRunsPath,
+      },
     }),
     {
       pollIntervalMs: config.openHandsPollIntervalMs,

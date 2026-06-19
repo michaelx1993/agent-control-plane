@@ -24,7 +24,13 @@ export type TaskQueueItem = {
   priority: "P0" | "P1" | "P2";
   labels: string[];
   eligible: boolean;
-  dispatchStatus: "eligible" | "gated" | "retry_capped" | "budget_blocked";
+  dispatchStatus:
+    | "eligible"
+    | "gated"
+    | "retry_capped"
+    | "budget_blocked"
+    | "repo_concurrency"
+    | "role_concurrency";
   attempt: number;
   maxAttempts: number;
   lease: string;
@@ -239,6 +245,20 @@ export const taskQueue: TaskQueueItem[] = [
     attempt: 3,
     maxAttempts: 3,
     lease: "retry capped at 3/3",
+  },
+  {
+    id: "ACP-1060",
+    planeTask: "Tune traffic workspace prompts",
+    project: "token",
+    repo: "traffic",
+    state: "Development",
+    priority: "P2",
+    labels: ["repo:traffic", "prompt"],
+    eligible: false,
+    dispatchStatus: "repo_concurrency",
+    attempt: 0,
+    maxAttempts: 3,
+    lease: "waiting for repo concurrency on traffic",
   },
 ];
 

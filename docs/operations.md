@@ -163,6 +163,25 @@ Operational rule:
 - `waiting-approval` keeps the task out of the dispatch result without changing state in this first
   version; use `blocked` when the operator needs an explicit visible gate.
 
+## Runtime Concurrency Policy
+
+The live worker and Task Queue both evaluate repo/role concurrency using the same runtime policy
+defaults:
+
+```bash
+WORKER_DEFAULT_REPO_CONCURRENCY="1"
+WORKER_DEFAULT_ROLE_CONCURRENCY="2"
+```
+
+Operational rule:
+
+- `repo concurrency` means a task is otherwise dispatchable, but another active run already holds
+  the configured repo slot.
+- `role concurrency` means the role pool is saturated, so the task waits in queue without changing
+  Plane state.
+- These gates are shown separately from `gated`, `retry capped`, and `budget blocked` so operators
+  can distinguish normal backpressure from human review or failure handling.
+
 ## Plane Polling Fallback
 
 The live worker calls Plane sync before each dispatch pass. This is a reconciliation fallback for
@@ -362,6 +381,8 @@ PLANE_PROJECT_ID="project" \
 PLANE_API_KEY="..." \
 PLANE_API_KEY_HEADER="X-API-Key" \
 OPENHANDS_BASE_URL="https://openhands.example" \
+OPENHANDS_CONVERSATIONS_PATH="/api/conversations" \
+OPENHANDS_RUNS_PATH="/api/runs" \
 LANGFUSE_BASE_URL="https://langfuse.example" \
 LANGFUSE_PUBLIC_KEY="..." \
 LANGFUSE_SECRET_KEY="..." \
@@ -378,6 +399,8 @@ Checks:
   bearer-compatible deployments.
 - OpenHands health endpoint responds. Default path: `/health`; override with
   `OPENHANDS_HEALTH_PATH`.
+- OpenHands runtime paths default to `/api/conversations` and `/api/runs`; override with
+  `OPENHANDS_CONVERSATIONS_PATH` and `OPENHANDS_RUNS_PATH` if the SDK server differs.
 - Langfuse health endpoint responds. Default path: `/api/public/health`; override with
   `LANGFUSE_HEALTH_PATH`.
 

@@ -43,14 +43,18 @@ const dispatchStatusClass: Record<TaskQueueItem["dispatchStatus"], string> = {
   budget_blocked: "pill statusBad",
   eligible: "pill statusGood",
   gated: "pill statusAttention",
+  repo_concurrency: "pill statusAttention",
   retry_capped: "pill statusBad",
+  role_concurrency: "pill statusAttention",
 };
 
 const dispatchStatusLabel: Record<TaskQueueItem["dispatchStatus"], string> = {
   budget_blocked: "budget blocked",
   eligible: "eligible",
   gated: "gated",
+  repo_concurrency: "repo concurrency",
   retry_capped: "retry capped",
+  role_concurrency: "role concurrency",
 };
 
 const formatTokens = (input: number, output: number) =>

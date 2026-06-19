@@ -290,6 +290,16 @@ describe("DispatchWorker", () => {
     expect(config.planeSyncPerPage).toBe(100);
   });
 
+  it("loads OpenHands endpoint paths from env", () => {
+    const config = loadConfig({
+      OPENHANDS_CONVERSATIONS_PATH: "/v1/conversations",
+      OPENHANDS_RUNS_PATH: "/v1/runs",
+    });
+
+    expect(config.openHandsConversationsPath).toBe("/v1/conversations");
+    expect(config.openHandsRunsPath).toBe("/v1/runs");
+  });
+
   it("fails fast when live runtime integrations are not configured", () => {
     const config = loadConfig({ WORKER_MODE: "live" });
 

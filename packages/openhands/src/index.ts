@@ -111,7 +111,10 @@ export class HttpOpenHandsAdapter implements OpenHandsAdapter {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.fetchImpl = options.fetch ?? defaultFetch;
     this.headers = options.headers ?? {};
-    this.endpoints = { ...defaultOpenHandsEndpoints, ...options.endpoints };
+    this.endpoints = {
+      conversations: options.endpoints?.conversations ?? defaultOpenHandsEndpoints.conversations,
+      runs: options.endpoints?.runs ?? defaultOpenHandsEndpoints.runs,
+    };
   }
 
   async createConversation(input: StartConversationInput): Promise<ConversationRef> {

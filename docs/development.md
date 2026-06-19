@@ -90,6 +90,9 @@ configured:
 The worker uses mock OpenHands and mock tracing only when `WORKER_MODE=mock`.
 Plane API key auth defaults to `X-API-Key`, matching self-host Personal Access Tokens. Use
 `PLANE_API_KEY_HEADER=Authorization` only when a deployment expects bearer auth.
+OpenHands runtime API paths default to `OPENHANDS_CONVERSATIONS_PATH=/api/conversations` and
+`OPENHANDS_RUNS_PATH=/api/runs`; override them when the target OpenHands SDK server exposes
+different routes.
 
 Run `pnpm live:preflight` before enabling live mode. It performs non-mutating probes:
 

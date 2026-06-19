@@ -25,6 +25,9 @@ importers:
       "@agent-control-plane/plane":
         specifier: workspace:*
         version: link:../../packages/plane
+      "@agent-control-plane/runtime-policy":
+        specifier: workspace:*
+        version: link:../../packages/runtime-policy
       "@agent-control-plane/state-machine":
         specifier: workspace:*
         version: link:../../packages/state-machine

@@ -6,6 +6,13 @@ import {
   type PlaneTaskPayload,
   type NormalizedPlaneTask,
 } from "@agent-control-plane/plane";
+import {
+  evaluateRuntimePolicy,
+  type ActiveRun as RuntimePolicyActiveRun,
+  type RuntimePolicyDecision,
+  type RuntimePolicyConfig,
+  type TaskCandidate,
+} from "@agent-control-plane/runtime-policy";
 import { validateTransition } from "@agent-control-plane/state-machine";
 import { upsertSyncedTask, type DbClient } from "../../../../packages/db/src/query";
 import {
@@ -228,6 +235,15 @@ const automaticStates = new Set<DbTaskState>([
 ]);
 
 const activeRunStatuses = new Set<DbRunStatus>(["claimed", "running"]);
+
+const roleByDbState: Partial<Record<DbTaskState, string>> = {
+  Todo: "Intake",
+  Development: "Development Agent",
+  CodeReview: "Review Agent",
+  InMerge: "Merge Agent",
+  ReleaseVersion: "Release Agent",
+  Deployment: "Deploy Agent",
+};
 
 export async function getTaskQueue(): Promise<TaskQueueResponse> {
   if (shouldUseDatabase()) {
@@ -1313,7 +1329,7 @@ function diffLines(leftContent: string, rightContent: string): PromptComponentDi
 }
 
 async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
-  const [tasks, runsResponse] = await Promise.all([
+  const [tasks, runsResponse, activeRuns] = await Promise.all([
     prisma.task.findMany({
       include: {
         repository: true,
@@ -1336,6 +1352,20 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
       take: 100,
     }),
     getRunsFromDb(),
+    prisma.run.findMany({
+      where: {
+        status: {
+          in: ["claimed", "running"],
+        },
+        leaseExpiresAt: {
+          gt: new Date(),
+        },
+      },
+      include: {
+        repository: true,
+        role: true,
+      },
+    }),
   ]);
   const budgetBlockedTaskIds = new Set(
     (
@@ -1359,6 +1389,25 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
   );
   const now = new Date();
   const maxAttempts = getWorkerMaxTaskAttempts();
+  const policyDecisions = getQueuePolicyDecisions(
+    tasks.map((task) => ({
+      id: task.id,
+      repo: task.repository?.slug,
+      state: task.state,
+      priority: task.priority,
+      createdAt: task.createdAt,
+      runs: task.runs,
+      retryAfterAttempt: task.retryAfterAttempt ?? 0,
+    })),
+    activeRuns.map((run) => ({
+      taskId: run.taskId,
+      repo: run.repository.slug,
+      role: run.role.name,
+      costSpent: Number(run.costUsd ?? 0),
+    })),
+    now,
+    maxAttempts,
+  );
   const responseTasks = tasks.map((task): TaskQueueItem => {
     const activeRun = task.runs.find((run) => activeRunStatuses.has(run.status));
     const hasActiveLease =
@@ -1370,20 +1419,24 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
     const retryAfterAttempt = task.retryAfterAttempt ?? 0;
     const displayAttempt = Math.max(0, maxAttempt - retryAfterAttempt);
     const retryCapped = displayAttempt >= maxAttempts;
+    const policyDecision = policyDecisions.get(task.id);
+    const concurrencyBlocked =
+      policyDecision?.reason === "repo-concurrency-exceeded" ||
+      policyDecision?.reason === "role-concurrency-exceeded";
     const eligible =
       Boolean(task.repository?.slug) &&
       automaticStates.has(task.state) &&
       task.state !== "Blocked" &&
       !hasActiveLease &&
-      !retryCapped;
+      !retryCapped &&
+      !concurrencyBlocked;
     const budgetBlocked = task.state === "Blocked" && budgetBlockedTaskIds.has(task.id);
-    const dispatchStatus = eligible
-      ? "eligible"
-      : retryCapped
-        ? "retry_capped"
-        : budgetBlocked
-          ? "budget_blocked"
-          : "gated";
+    const dispatchStatus = queueDispatchStatus({
+      eligible,
+      retryCapped,
+      budgetBlocked,
+      policyDecision,
+    });
 
     return {
       id: task.identifier,
@@ -1397,15 +1450,16 @@ async function getTaskQueueFromDb(): Promise<TaskQueueResponse> {
       dispatchStatus,
       attempt: displayAttempt,
       maxAttempts,
-      lease: activeRun
-        ? `held by ${activeRun.id}`
-        : retryCapped
-          ? `retry capped at ${displayAttempt}/${maxAttempts}`
-          : budgetBlocked
-            ? "blocked by cost budget policy"
-            : task.repository?.slug
-              ? "available"
-              : "blocked: missing repo",
+      lease: queueLeaseDetail({
+        activeRunId: activeRun?.id,
+        displayAttempt,
+        maxAttempts,
+        repo: task.repository?.slug,
+        role: roleByDbState[task.state],
+        retryCapped,
+        budgetBlocked,
+        policyDecision,
+      }),
     };
   });
   const summary = summarizeQueue(responseTasks, runsResponse.runs);
@@ -1698,6 +1752,11 @@ function getWorkerLeaseMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 15 * 60 * 1000;
 }
 
+function numberFromEnv(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function averageNumber(values: number[]): number {
   const validValues = values.filter((value) => Number.isFinite(value));
   if (validValues.length === 0) return 0;
@@ -1775,6 +1834,98 @@ function isRunStalled(
   }
 
   return now.getTime() - heartbeatAt.getTime() > leaseMs;
+}
+
+function getQueuePolicyDecisions(
+  tasks: Array<{
+    id: string;
+    repo?: string;
+    state: DbTaskState;
+    priority: number | null;
+    createdAt: Date;
+    retryAfterAttempt: number;
+    runs: Array<{
+      attempt: number;
+      leaseExpiresAt: Date | null;
+      status: DbRunStatus;
+    }>;
+  }>,
+  activeRuns: RuntimePolicyActiveRun[],
+  now: Date,
+  maxAttempts: number,
+): Map<string, RuntimePolicyDecision> {
+  const candidates: TaskCandidate[] = tasks
+    .filter((task) => {
+      const activeRun = task.runs.find((run) => activeRunStatuses.has(run.status));
+      const hasActiveLease =
+        activeRun?.leaseExpiresAt !== null &&
+        activeRun?.leaseExpiresAt !== undefined &&
+        activeRun.leaseExpiresAt > now &&
+        activeRunStatuses.has(activeRun.status);
+      const maxAttempt = Math.max(0, ...task.runs.map((run) => run.attempt));
+      const displayAttempt = Math.max(0, maxAttempt - task.retryAfterAttempt);
+      return (
+        Boolean(task.repo) &&
+        automaticStates.has(task.state) &&
+        task.state !== "Blocked" &&
+        !hasActiveLease &&
+        displayAttempt < maxAttempts
+      );
+    })
+    .map((task) => ({
+      id: task.id,
+      repo: task.repo ?? "missing-repo",
+      role: roleByDbState[task.state] ?? "Development Agent",
+      priority: task.priority ?? undefined,
+      createdAt: task.createdAt,
+    }));
+
+  const policy = evaluateRuntimePolicy(candidates, activeRuns, queueRuntimePolicyConfig());
+  return new Map(policy.dispatch.map((decision) => [decision.task.id, decision]));
+}
+
+function queueRuntimePolicyConfig(): RuntimePolicyConfig {
+  return {
+    defaultRepoConcurrency: numberFromEnv(process.env.WORKER_DEFAULT_REPO_CONCURRENCY, 1),
+    defaultRoleConcurrency: numberFromEnv(process.env.WORKER_DEFAULT_ROLE_CONCURRENCY, 2),
+  };
+}
+
+function queueDispatchStatus(input: {
+  eligible: boolean;
+  retryCapped: boolean;
+  budgetBlocked: boolean;
+  policyDecision?: RuntimePolicyDecision;
+}): TaskQueueItem["dispatchStatus"] {
+  if (input.eligible) return "eligible";
+  if (input.retryCapped) return "retry_capped";
+  if (input.policyDecision?.reason === "repo-concurrency-exceeded") return "repo_concurrency";
+  if (input.policyDecision?.reason === "role-concurrency-exceeded") return "role_concurrency";
+  if (input.budgetBlocked) return "budget_blocked";
+  return "gated";
+}
+
+function queueLeaseDetail(input: {
+  activeRunId?: string;
+  displayAttempt: number;
+  maxAttempts: number;
+  repo?: string;
+  role?: string;
+  retryCapped: boolean;
+  budgetBlocked: boolean;
+  policyDecision?: RuntimePolicyDecision;
+}): string {
+  if (input.activeRunId) return `held by ${input.activeRunId}`;
+  if (input.retryCapped) return `retry capped at ${input.displayAttempt}/${input.maxAttempts}`;
+  if (input.policyDecision?.reason === "repo-concurrency-exceeded") {
+    return `waiting for repo concurrency on ${input.repo ?? "unknown repo"}`;
+  }
+  if (input.policyDecision?.reason === "role-concurrency-exceeded") {
+    return `waiting for role concurrency on ${input.role ?? "unknown role"}`;
+  }
+  if (input.budgetBlocked) return "blocked by cost budget policy";
+  if (input.repo) return "available";
+  return "blocked: missing repo";
 }
 
 function summarizeQueue(tasks: TaskQueueItem[], runsResponse: Run[]): QueueSummary {
