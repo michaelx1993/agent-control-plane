@@ -35,6 +35,7 @@ export const HUMAN_STATES = [
   "Merged",
   "Released",
   "Deployed",
+  "Blocked",
   "Done",
   "Canceled",
 ] as const satisfies readonly TaskState[];
@@ -47,6 +48,7 @@ export const REWORK_TO_DEVELOPMENT_STATES = [
   "Merged",
   "Released",
   "Deployed",
+  "Blocked",
 ] as const satisfies readonly TaskState[];
 
 export const STATE_TO_ROLE: Partial<Record<TaskState, AgentRoleKey>> = {

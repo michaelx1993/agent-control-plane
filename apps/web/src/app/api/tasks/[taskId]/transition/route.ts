@@ -13,6 +13,7 @@ const allowedStates = new Set<TransitionTaskInput["nextState"]>([
   "Released",
   "Deployment",
   "Deployed",
+  "Blocked",
   "Done",
   "Canceled",
 ]);

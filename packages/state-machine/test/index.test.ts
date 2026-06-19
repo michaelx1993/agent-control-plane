@@ -23,8 +23,10 @@ describe("state sets", () => {
       "Deployment",
     ]);
     expect(HUMAN_STATES).toContain("Human Review");
+    expect(HUMAN_STATES).toContain("Blocked");
     expect(TERMINAL_STATES).toEqual(["Done", "Canceled"]);
     expect(isAutomaticState("Development")).toBe(true);
+    expect(isHumanState("Blocked")).toBe(true);
     expect(isHumanState("Done")).toBe(true);
     expect(isTerminalState("Canceled")).toBe(true);
   });
@@ -49,6 +51,13 @@ describe("validateTransition", () => {
     expect(validateTransition("Human Review", "Development")).toEqual({
       ok: true,
       value: { from: "Human Review", to: "Development", kind: "rework" },
+    });
+  });
+
+  it("allows stalled blocked work back to Development", () => {
+    expect(validateTransition("Blocked", "Development")).toEqual({
+      ok: true,
+      value: { from: "Blocked", to: "Development", kind: "rework" },
     });
   });
 
@@ -186,9 +195,27 @@ describe("planWorkflowClosure", () => {
     });
   });
 
+  it("keeps blocked work on a human gate", () => {
+    expect(
+      planWorkflowClosure({
+        taskState: "Blocked",
+        role: "development",
+        openHandsResult: { status: "completed" },
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        allowedTransition: false,
+        nextState: "Blocked",
+        requiresHuman: true,
+        reason: "State 'Blocked' requires human action before advancing.",
+      },
+    });
+  });
+
   it("rejects illegal states", () => {
     const result = planWorkflowClosure({
-      taskState: "Blocked",
+      taskState: "Bogus",
       role: "development",
       openHandsResult: { status: "completed" },
     });

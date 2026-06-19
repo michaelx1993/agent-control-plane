@@ -504,6 +504,7 @@ export async function heartbeatRun(db: DbClient, input: HeartbeatRunInput) {
 export interface MarkExpiredLeasesInput {
   now?: Date;
   limit?: number;
+  expiredStatus?: Extract<RunStatus, "blocked" | "failed">;
   failureReason?: string;
 }
 
@@ -517,7 +518,12 @@ export async function markExpiredLeasesFailed(
   input: MarkExpiredLeasesInput = {},
 ): Promise<MarkExpiredLeasesResult> {
   const now = input.now ?? new Date();
-  const failureReason = input.failureReason ?? "Lease expired without heartbeat";
+  const expiredStatus = input.expiredStatus ?? "failed";
+  const failureReason =
+    input.failureReason ??
+    (expiredStatus === "blocked"
+      ? "Lease expired without heartbeat; marked stalled"
+      : "Lease expired without heartbeat");
 
   return db.$transaction(async (tx) => {
     const expiredRuns = await tx.run.findMany({
@@ -531,6 +537,7 @@ export async function markExpiredLeasesFailed(
       },
       select: {
         id: true,
+        taskId: true,
         leaseOwner: true,
         leaseExpiresAt: true,
       },
@@ -546,21 +553,34 @@ export async function markExpiredLeasesFailed(
           id: run.id,
         },
         data: {
-          status: "failed",
+          status: expiredStatus,
           leaseExpiresAt: null,
           finishedAt: now,
           failureReason,
         },
       });
 
+      if (expiredStatus === "blocked") {
+        await tx.task.update({
+          where: {
+            id: run.taskId,
+          },
+          data: {
+            state: "Blocked",
+          },
+        });
+      }
+
       await tx.runEvent.create({
         data: {
           runId: run.id,
-          eventType: "failed",
+          eventType: expiredStatus,
           message: failureReason,
           payload: {
             leaseOwner: run.leaseOwner,
             expiredAt: run.leaseExpiresAt?.toISOString() ?? null,
+            expiredStatus,
+            taskState: expiredStatus === "blocked" ? "Blocked" : null,
           } satisfies Prisma.InputJsonObject,
         },
       });

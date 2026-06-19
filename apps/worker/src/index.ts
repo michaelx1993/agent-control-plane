@@ -50,6 +50,7 @@ export type TaskState =
   | "Released"
   | "Deployment"
   | "Deployed"
+  | "Blocked"
   | "Done"
   | "Canceled";
 
@@ -250,7 +251,7 @@ const workerStateByDbState: Record<DbTaskState, TaskState> = {
   Deployment: "Deployment",
   Deployed: "Deployed",
   Done: "Done",
-  Blocked: "Human Review",
+  Blocked: "Blocked",
   Canceled: "Canceled",
 };
 
@@ -265,6 +266,7 @@ const dbStateByWorkerState: Partial<Record<TaskState, DbTaskState>> = {
   Released: "Released",
   Deployment: "Deployment",
   Deployed: "Deployed",
+  Blocked: "Blocked",
   Done: "Done",
   Canceled: "Canceled",
 };
@@ -739,7 +741,10 @@ export class DbControlPlaneStore implements ControlPlaneStore {
   }
 
   async syncFromPlane(): Promise<void> {
-    await dbMarkExpiredLeasesFailed(this.db);
+    await dbMarkExpiredLeasesFailed(this.db, {
+      expiredStatus: "blocked",
+      failureReason: "Lease expired without heartbeat; marked stalled",
+    });
     if (this.planeSync) {
       await this.planeSync.sync();
     }

@@ -30,7 +30,7 @@ P0 方案固化
 - 已有 Next.js Control Plane web console 和 worker app。
 - 已有 PostgreSQL/Prisma 数据模型、seed、demo run。
 - 已有 Plane task webhook receiver、task mirror、repo label 兜底解析。
-- 已有 run/lease/heartbeat、expired lease failure、OpenHands event summary persistence。
+- 已有 run/lease/heartbeat、expired lease stalled blocking、OpenHands event summary persistence。
 - 已有 Prompt Manager、prompt component/binding/release、scope lookup API。
 - 已有 OpenHands adapter skeleton、conversation refs、poll heartbeat hook。
 - 已有 Langfuse trace refs、token/cost summary 写入和 dashboard 展示。
@@ -211,7 +211,7 @@ P0 方案固化
 - 同一 task 的 run attempt 单调递增，达到 retry 上限后不再自动派发。
 - Task Queue 明确展示 `retry capped` 和 `attempt/maxAttempts`，避免重试耗尽任务被误判为普通 gate。
 - Operator 可以通过 `Release retry` 设置 task retry baseline，保留历史 run，同时打开新的自动派发窗口。
-- heartbeat 超时可标记 stalled。
+- heartbeat 超时可标记 stalled：run 进入 `blocked`，task 进入 `Blocked`，等待人工处理。
 - run 状态变化不依赖 Plane comment。
 - run detail 可展示 heartbeat、events、feedback、OpenHands/Langfuse 链接。
 - dashboard 可展示 Operator Timeline，避免接单和完成状态只能从本地日志判断。
@@ -392,6 +392,7 @@ Release Version  -> Release Agent
 Released          -> Human Gate
 Deployment        -> Deploy Agent
 Deployed          -> Human Gate
+Blocked           -> Human Gate / Stalled
 Done              -> Terminal
 ```
 

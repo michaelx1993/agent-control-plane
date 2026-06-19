@@ -105,6 +105,10 @@ Operational rule:
 - Keep `WORKER_HEARTBEAT_INTERVAL_MS` lower than `WORKER_LEASE_MS`.
 - Set it high enough to avoid noisy `run_events`; `30000` means at most two heartbeat events per minute per active run.
 - Use run detail and dashboard heartbeat age to distinguish active long-running work from a stale lease.
+- When the DB-backed worker finds an expired claimed/running lease, it marks the run `blocked`,
+  records a `blocked` run event, clears the lease, and moves the task to `Blocked`. This is the
+  Control Plane stalled state; an operator must inspect the run detail before returning the task to
+  Development or closing it.
 
 ## Worker Retry Limit
 

@@ -232,6 +232,23 @@ describe("new mock API routes", () => {
     expect(payload.error).toContain("DATABASE_URL");
   });
 
+  it("accepts Blocked as a manual task transition target", async () => {
+    const response = await postTaskTransitionRoute(
+      new Request("http://localhost/api/tasks/ACP-1/transition", {
+        method: "POST",
+        body: JSON.stringify({
+          nextState: "Blocked",
+          reason: "Lease stalled and needs operator inspection.",
+        }),
+      }),
+      { params: Promise.resolve({ taskId: "ACP-1" }) },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain("DATABASE_URL");
+  });
+
   it("validates prompt component creation payloads", async () => {
     const response = await postPromptComponentsRoute(
       new Request("http://localhost/api/prompt-components", {

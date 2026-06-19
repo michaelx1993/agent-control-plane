@@ -15,6 +15,7 @@ export const TASK_STATES = [
   "Released",
   "Deployment",
   "Deployed",
+  "Blocked",
   "Done",
   "Canceled",
 ] as const;

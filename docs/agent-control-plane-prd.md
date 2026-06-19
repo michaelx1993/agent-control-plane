@@ -148,6 +148,7 @@ Human Review
 Merged
 Released
 Deployed
+Blocked
 Done
 Canceled
 ```
@@ -167,6 +168,7 @@ Human Review -> Development
 Merged -> Development
 Released -> Development
 Deployed -> Development
+Blocked -> Development
 ```
 
 返工规则：
@@ -174,6 +176,7 @@ Deployed -> Development
 - 人类或 reviewer 打回时，必须写明问题来源。
 - Agent 每次接单前必须读取任务描述、所有有效评论、最新 workpad、PR review feedback。
 - Development agent 必须把返工建议写入本次 run 的 workpad 和最终 summary。
+- `Blocked` 是 Control Plane stalled/人工处理状态，不进入主链；通常由 lease 超时、预算熔断或人工阻塞触发。
 
 ## 任务分发规则
 
@@ -183,7 +186,7 @@ Deployed -> Development
 - task 有明确 repo。
 - task 处于自动执行状态。
 - task 没有被其他 active run 持有 lease。
-- task 没有 `blocked` 或 `human-required` 标记。
+- task 不处于 `Blocked` / human-required gate。
 
 repo 必填规则：
 

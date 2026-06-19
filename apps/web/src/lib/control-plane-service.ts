@@ -1317,7 +1317,7 @@ function dbTaskStateToPlaneState(state: DbTaskState): TaskQueueItem["state"] {
     Deployment: "Deployment",
     Deployed: "Deployed",
     Done: "Done",
-    Blocked: "Human Review",
+    Blocked: "Blocked",
     Canceled: "Canceled",
   };
 
@@ -1336,6 +1336,7 @@ function displayPlaneStateToDb(state: TaskQueueItem["state"]): DbTaskState {
     Released: "Released",
     Deployment: "Deployment",
     Deployed: "Deployed",
+    Blocked: "Blocked",
     Done: "Done",
     Canceled: "Canceled",
   };

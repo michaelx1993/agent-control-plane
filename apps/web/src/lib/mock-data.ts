@@ -9,6 +9,7 @@ export type PlaneState =
   | "Released"
   | "Deployment"
   | "Deployed"
+  | "Blocked"
   | "Done"
   | "Canceled";
 

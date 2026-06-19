@@ -129,6 +129,7 @@ describe("isDispatchableTaskCandidate", () => {
             findMany: async () => [
               {
                 id: "run-1",
+                taskId: "task-1",
                 leaseOwner: "worker-1",
                 leaseExpiresAt: expiredAt,
               },
@@ -136,6 +137,11 @@ describe("isDispatchableTaskCandidate", () => {
             update: async (input: unknown) => {
               runUpdateCalls.push(input);
               return {};
+            },
+          },
+          task: {
+            update: async () => {
+              throw new Error("task state should not change when expired runs are failed");
             },
           },
           runEvent: {
@@ -171,6 +177,90 @@ describe("isDispatchableTaskCandidate", () => {
           payload: {
             leaseOwner: "worker-1",
             expiredAt: expiredAt.toISOString(),
+            expiredStatus: "failed",
+            taskState: null,
+          },
+        }),
+      }),
+    ]);
+  });
+
+  it("marks expired claimed/running leases as stalled and blocks the task when requested", async () => {
+    const now = new Date("2026-06-18T17:00:00.000Z");
+    const expiredAt = new Date("2026-06-18T16:59:00.000Z");
+    const runUpdateCalls: unknown[] = [];
+    const taskUpdateCalls: unknown[] = [];
+    const eventCreateCalls: unknown[] = [];
+    const db = {
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+        return callback({
+          run: {
+            findMany: async () => [
+              {
+                id: "run-1",
+                taskId: "task-1",
+                leaseOwner: "worker-1",
+                leaseExpiresAt: expiredAt,
+              },
+            ],
+            update: async (input: unknown) => {
+              runUpdateCalls.push(input);
+              return {};
+            },
+          },
+          task: {
+            update: async (input: unknown) => {
+              taskUpdateCalls.push(input);
+              return {};
+            },
+          },
+          runEvent: {
+            create: async (input: unknown) => {
+              eventCreateCalls.push(input);
+              return {};
+            },
+          },
+        });
+      },
+    } as unknown as DbClient;
+
+    const result = await markExpiredLeasesFailed(db, {
+      now,
+      expiredStatus: "blocked",
+      failureReason: "Lease expired without heartbeat; marked stalled",
+    });
+
+    expect(result).toEqual({ count: 1, runIds: ["run-1"] });
+    expect(runUpdateCalls).toEqual([
+      expect.objectContaining({
+        where: { id: "run-1" },
+        data: expect.objectContaining({
+          status: "blocked",
+          leaseExpiresAt: null,
+          finishedAt: now,
+          failureReason: "Lease expired without heartbeat; marked stalled",
+        }),
+      }),
+    ]);
+    expect(taskUpdateCalls).toEqual([
+      expect.objectContaining({
+        where: { id: "task-1" },
+        data: {
+          state: "Blocked",
+        },
+      }),
+    ]);
+    expect(eventCreateCalls).toEqual([
+      expect.objectContaining({
+        data: expect.objectContaining({
+          runId: "run-1",
+          eventType: "blocked",
+          message: "Lease expired without heartbeat; marked stalled",
+          payload: {
+            leaseOwner: "worker-1",
+            expiredAt: expiredAt.toISOString(),
+            expiredStatus: "blocked",
+            taskState: "Blocked",
           },
         }),
       }),
