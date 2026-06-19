@@ -1,5 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import {
+  completeRun as dbCompleteRun,
+  findDispatchableTasks as dbFindDispatchableTasks,
+  markRunRunning as dbMarkRunRunning,
+  prisma,
+  startRun as dbStartRun,
+  type DbClient,
+  type Run as DbRun,
+  type TaskState as DbTaskState,
+} from "@agent-control-plane/db";
 
 export type TaskState =
   | "Backlog"
@@ -138,6 +148,37 @@ const roleByState: Record<string, string> = {
   "In Merge": "Merge Agent",
   "Release Version": "Release Agent",
   Deployment: "Deploy Agent",
+};
+
+const workerStateByDbState: Record<DbTaskState, TaskState> = {
+  Todo: "Todo",
+  Development: "Development",
+  CodeReview: "Code Review",
+  HumanReview: "Human Review",
+  InMerge: "In Merge",
+  Merged: "Merged",
+  ReleaseVersion: "Release Version",
+  Released: "Released",
+  Deployment: "Deployment",
+  Deployed: "Deployed",
+  Done: "Done",
+  Blocked: "Human Review",
+  Canceled: "Canceled",
+};
+
+const dbStateByWorkerState: Partial<Record<TaskState, DbTaskState>> = {
+  Todo: "Todo",
+  Development: "Development",
+  "Code Review": "CodeReview",
+  "Human Review": "HumanReview",
+  "In Merge": "InMerge",
+  Merged: "Merged",
+  "Release Version": "ReleaseVersion",
+  Released: "Released",
+  Deployment: "Deployment",
+  Deployed: "Deployed",
+  Done: "Done",
+  Canceled: "Canceled",
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
@@ -413,6 +454,173 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
   }
 }
 
+type DbTaskWithDispatchContext = Awaited<ReturnType<typeof dbFindDispatchableTasks>>[number];
+type DbRunWithContext = DbRun & {
+  role?: { name: string } | null;
+  promptRelease?: { renderedContent: string } | null;
+};
+
+export class DbControlPlaneStore implements ControlPlaneStore {
+  private readonly leaseOwners = new Map<string, string>();
+
+  constructor(private readonly db: DbClient = prisma) {}
+
+  async syncFromPlane(): Promise<void> {
+    // Plane ingestion will land here. The live skeleton reads already-synced DB tasks.
+    return;
+  }
+
+  async findDispatchableTasks(config: WorkerConfig): Promise<Task[]> {
+    const tasks = await dbFindDispatchableTasks(this.db, { limit: 25 });
+
+    return tasks
+      .filter((task) => this.isEnabledTeam(task, config.enabledTeams))
+      .map((task) => this.toWorkerTask(task));
+  }
+
+  async claimRun(taskId: string, workerId: string, leaseMs: number): Promise<Run> {
+    const run = await dbStartRun(this.db, {
+      taskId,
+      leaseOwner: workerId,
+      leaseSeconds: Math.ceil(leaseMs / 1000),
+    });
+
+    this.leaseOwners.set(run.id, workerId);
+    return this.toWorkerRun(run);
+  }
+
+  async markRunRunning(runId: string, _promptReleaseId: string, prompt: string): Promise<Run> {
+    const leaseOwner = this.leaseOwners.get(runId);
+    if (!leaseOwner) {
+      throw new Error(`Run ${runId} has no lease owner in this worker`);
+    }
+
+    const run = await dbMarkRunRunning(this.db, {
+      runId,
+      leaseOwner,
+      renderedPrompt: prompt,
+    });
+
+    return this.toWorkerRun(run);
+  }
+
+  async completeRun(
+    runId: string,
+    result: OpenHandsRunResult,
+    traceRef: TraceRef,
+    nextState: TaskState,
+  ): Promise<Run> {
+    const run = await dbCompleteRun(this.db, {
+      runId,
+      status: "succeeded",
+      resultSummary: result.summary,
+      nextState: toDbTaskState(nextState),
+    });
+
+    this.leaseOwners.delete(runId);
+    return {
+      ...this.toWorkerRun(run),
+      conversationId: result.conversationId,
+      langfuseTraceId: traceRef.traceId,
+      summary: result.summary,
+      nextState,
+    };
+  }
+
+  async failRun(runId: string, error: Error): Promise<Run> {
+    const run = await dbCompleteRun(this.db, {
+      runId,
+      status: "failed",
+      failureReason: error.message,
+    });
+
+    this.leaseOwners.delete(runId);
+    return {
+      ...this.toWorkerRun(run),
+      error: error.message,
+    };
+  }
+
+  async updateTaskState(taskId: string, nextState: TaskState): Promise<Task> {
+    const task = await this.db.task.update({
+      where: { id: taskId },
+      data: { state: toDbTaskState(nextState) },
+      include: {
+        repository: true,
+        project: {
+          include: {
+            team: true,
+          },
+        },
+      },
+    });
+
+    return this.toWorkerTask(task);
+  }
+
+  async getTask(taskId: string): Promise<Task | undefined> {
+    const task = await this.db.task.findUnique({
+      where: { id: taskId },
+      include: {
+        repository: true,
+        project: {
+          include: {
+            team: true,
+          },
+        },
+      },
+    });
+
+    return task ? this.toWorkerTask(task) : undefined;
+  }
+
+  private isEnabledTeam(task: DbTaskWithDispatchContext, enabledTeams: string[]): boolean {
+    return enabledTeams.some((team) => {
+      return (
+        team === task.project.team.name ||
+        team === task.project.team.key ||
+        team === task.project.team.externalTeamId
+      );
+    });
+  }
+
+  private toWorkerTask(task: DbTaskWithDispatchContext): Task {
+    return {
+      id: task.id,
+      planeId: task.externalTaskId,
+      team: task.project.team.name,
+      project: task.project.slug,
+      repo: task.repository?.slug,
+      title: task.title,
+      description: task.url ? `Plane task: ${task.url}` : "",
+      state: workerStateByDbState[task.state],
+      labels: parseStringArray(task.labels),
+      comments: [],
+      blocked: task.state === "Blocked",
+      humanRequired: task.state === "HumanReview",
+    };
+  }
+
+  private toWorkerRun(run: DbRunWithContext): Run {
+    return {
+      id: run.id,
+      taskId: run.taskId,
+      status: run.status === "canceled" ? "failed" : run.status,
+      role: run.role?.name ?? "Development Agent",
+      workerId: run.leaseOwner ?? undefined,
+      leaseExpiresAt: run.leaseExpiresAt ?? undefined,
+      promptReleaseId: run.promptReleaseId,
+      promptSnapshot: run.promptRelease?.renderedContent,
+      summary: run.resultSummary ?? undefined,
+      error: run.failureReason ?? undefined,
+      nextState: run.nextState ? workerStateByDbState[run.nextState] : undefined,
+      statusHistory: [run.status === "canceled" ? "failed" : run.status],
+      createdAt: run.createdAt,
+      updatedAt: run.updatedAt,
+    };
+  }
+}
+
 export class MockOpenHandsAdapter implements OpenHandsAdapter {
   async run(input: OpenHandsRunInput): Promise<OpenHandsRunResult> {
     return {
@@ -476,7 +684,8 @@ function isAllowedTransition(from: TaskState, to: TaskState): boolean {
 
 export async function runDryRun(): Promise<DispatchResult | undefined> {
   const config = loadConfig();
-  const store = new InMemoryControlPlaneStore();
+  const store =
+    config.mode === "live" ? new DbControlPlaneStore() : new InMemoryControlPlaneStore();
   const worker = new DispatchWorker(
     config,
     store,
@@ -484,6 +693,20 @@ export async function runDryRun(): Promise<DispatchResult | undefined> {
     new MockTraceRecorder(),
   );
   return worker.dispatchOnce();
+}
+
+function toDbTaskState(state: TaskState): DbTaskState {
+  const dbState = dbStateByWorkerState[state];
+  if (!dbState) {
+    throw new Error(`Task state ${state} is not persisted in the DB schema`);
+  }
+  return dbState;
+}
+
+function parseStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 async function main(): Promise<void> {

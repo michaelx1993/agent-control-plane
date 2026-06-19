@@ -75,10 +75,8 @@ P0 方案固化
 
 交付物：
 
-- Plane self-host runbook。
-- Plane API/webhook capability matrix。
-- Repo 字段方案结论。
-- Plane fork 仓库。
+- `docs/plane-self-host-spike.md`，包含 self-host runbook、API/webhook capability matrix、repo 字段方案、fork 策略、风险和未验证项。
+- Plane fork 仓库：`michaelx1993/plane`，以 `makeplane/plane:preview` 为同步基线。
 
 验收标准：
 
@@ -86,6 +84,8 @@ P0 方案固化
 - Control Plane 能通过 API 拉取 project/task。
 - Plane task 状态和 repo 字段能被读取。
 - Plane webhook 能触发本地 receiver，或明确需要 polling fallback。
+- Work items API 路径 `/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/` 已实测。
+- API rate limit `60 req/min` 已纳入 polling 预算。
 - 明确第一阶段是否需要改 Plane 源码。
 
 风险：

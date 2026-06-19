@@ -56,6 +56,8 @@ describe("HTTP client skeleton", () => {
     const client = new HttpPlaneClient({
       baseUrl: "https://plane.example",
       apiKey: "secret",
+      workspaceSlug: "bob-x-space",
+      projectId: "token",
       fetch: fetchMock,
     });
 
@@ -63,12 +65,46 @@ describe("HTTP client skeleton", () => {
 
     expect(task.name).toBe("Updated");
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://plane.example/api/tasks/task-1",
+      "https://plane.example/api/v1/workspaces/bob-x-space/projects/token/work-items/task-1/",
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({ stateName: "Development" }),
         headers: expect.objectContaining({ Authorization: "Bearer secret" }),
       }),
     );
+  });
+
+  it("builds official work-items list paths with pagination params", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ results: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const client = new HttpPlaneClient({
+      baseUrl: "https://plane.example",
+      apiKey: "secret",
+      workspaceSlug: "bob-x-space",
+      projectId: "token",
+      fetch: fetchMock,
+    });
+
+    await client.listTasks({ perPage: 20, cursor: "20:1:0", state: "Development" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://plane.example/api/v1/workspaces/bob-x-space/projects/token/work-items?state=Development&cursor=20%3A1%3A0&per_page=20",
+      expect.any(Object),
+    );
+  });
+
+  it("requires workspace and project unless basePath is supplied", async () => {
+    const client = new HttpPlaneClient({
+      baseUrl: "https://plane.example",
+      apiKey: "secret",
+      fetch: vi.fn<typeof fetch>(),
+    });
+
+    await expect(client.listTasks()).rejects.toThrow("workspaceSlug and projectId are required");
   });
 });

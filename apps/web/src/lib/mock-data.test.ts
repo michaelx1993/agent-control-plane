@@ -1,24 +1,48 @@
 import { describe, expect, it } from "vitest";
 
-import { healthSignals, queueSummary, runs, taskQueue } from "./mock-data";
+import { getPromptReleases, getRuns, getSystemHealth, getTaskQueue } from "./control-plane-service";
 
-describe("admin console mock data", () => {
+describe("control plane mock service", () => {
   it("keeps every dispatchable Plane task tied to an explicit repo", () => {
-    expect(taskQueue.every((task) => task.repo.length > 0)).toBe(true);
-    expect(taskQueue.some((task) => task.labels.includes(`repo:${task.repo}`))).toBe(true);
+    const taskQueue = getTaskQueue();
+
+    expect(taskQueue.count).toBe(taskQueue.tasks.length);
+    expect(taskQueue.tasks.every((task) => task.repo.length > 0)).toBe(true);
+    expect(taskQueue.tasks.some((task) => task.labels.includes(`repo:${task.repo}`))).toBe(true);
   });
 
   it("exposes OpenHands and Langfuse links for every run", () => {
-    expect(runs).not.toHaveLength(0);
-    for (const run of runs) {
+    const runs = getRuns();
+
+    expect(runs.count).toBe(runs.runs.length);
+    expect(runs.runs).not.toHaveLength(0);
+    for (const run of runs.runs) {
       expect(run.openHandsUrl).toContain("/conversations/");
       expect(run.langfuseUrl).toContain("/traces/");
     }
   });
 
   it("summarizes queue state from the static fixtures", () => {
-    expect(queueSummary.eligible).toBe(taskQueue.filter((task) => task.eligible).length);
-    expect(queueSummary.failed).toBe(runs.filter((run) => run.status === "failed").length);
-    expect(healthSignals.some((signal) => signal.state === "degraded")).toBe(true);
+    const taskQueue = getTaskQueue();
+    const runs = getRuns();
+    const health = getSystemHealth();
+
+    expect(taskQueue.summary.eligible).toBe(taskQueue.tasks.filter((task) => task.eligible).length);
+    expect(taskQueue.summary.failed).toBe(
+      runs.runs.filter((run) => run.status === "failed").length,
+    );
+    expect(health.status).toBe("degraded");
+    expect(health.signals.some((signal) => signal.state === "degraded")).toBe(true);
+  });
+
+  it("exposes prompt release payloads with immutable run binding fields", () => {
+    const releases = getPromptReleases();
+
+    expect(releases.count).toBe(releases.promptReleases.length);
+    expect(releases.promptReleases).not.toHaveLength(0);
+    expect(releases.promptReleases.every((release) => release.id.startsWith("prm-"))).toBe(true);
+    expect(releases.promptReleases.every((release) => release.hash.startsWith("sha256:"))).toBe(
+      true,
+    );
   });
 });

@@ -1,12 +1,10 @@
 import {
-  healthSignals,
-  promptReleases,
-  queueSummary,
-  runs,
-  taskQueue,
-  type HealthSignal,
-  type RunStatus,
-} from "@/lib/mock-data";
+  getPromptReleases,
+  getRuns,
+  getSystemHealth,
+  getTaskQueue,
+} from "@/lib/control-plane-service";
+import { type HealthSignal, type RunStatus } from "@/lib/mock-data";
 
 const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
   attention: "statusAttention",
@@ -21,6 +19,11 @@ const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
 };
 
 export default function DashboardPage() {
+  const taskQueue = getTaskQueue();
+  const runs = getRuns();
+  const promptReleases = getPromptReleases();
+  const systemHealth = getSystemHealth();
+
   return (
     <main className="shell">
       <header className="topbar" aria-label="Control plane overview">
@@ -29,15 +32,15 @@ export default function DashboardPage() {
           <h1>Runtime Operations Console</h1>
         </div>
         <div className="topStats" aria-label="Queue summary">
-          <Metric label="Eligible" value={queueSummary.eligible} />
-          <Metric label="Blocked" value={queueSummary.blocked} />
-          <Metric label="Running" value={queueSummary.running} />
-          <Metric label="Failed" value={queueSummary.failed} tone="bad" />
+          <Metric label="Eligible" value={taskQueue.summary.eligible} />
+          <Metric label="Blocked" value={taskQueue.summary.blocked} />
+          <Metric label="Running" value={taskQueue.summary.running} />
+          <Metric label="Failed" value={taskQueue.summary.failed} tone="bad" />
         </div>
       </header>
 
       <section className="dashboardGrid" aria-label="Admin console sections">
-        <Panel title="Task Queue" meta={`${taskQueue.length} mirrored Plane tasks`} wide>
+        <Panel title="Task Queue" meta={`${taskQueue.count} mirrored Plane tasks`} wide>
           <div className="tableWrap">
             <table>
               <thead>
@@ -51,7 +54,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {taskQueue.map((task) => (
+                {taskQueue.tasks.map((task) => (
                   <tr key={task.id}>
                     <td>
                       <strong>{task.id}</strong>
@@ -75,9 +78,9 @@ export default function DashboardPage() {
           </div>
         </Panel>
 
-        <Panel title="Runs" meta={`${runs.length} recent agent runs`} wide>
+        <Panel title="Runs" meta={`${runs.count} recent agent runs`} wide>
           <div className="runList">
-            {runs.map((run) => (
+            {runs.runs.map((run) => (
               <article className="runRow" key={run.id}>
                 <div className="runMain">
                   <div>
@@ -113,7 +116,7 @@ export default function DashboardPage() {
 
         <Panel title="Prompt Releases" meta="immutable run bindings">
           <div className="releaseStack">
-            {promptReleases.map((release) => (
+            {promptReleases.promptReleases.map((release) => (
               <article className="release" key={release.id}>
                 <div className="releaseHead">
                   <strong>{release.id}</strong>
@@ -146,7 +149,7 @@ export default function DashboardPage() {
 
         <Panel title="System Health" meta="runtime dependencies">
           <div className="healthGrid">
-            {healthSignals.map((signal) => (
+            {systemHealth.signals.map((signal) => (
               <article className="health" key={signal.name}>
                 <div>
                   <strong>{signal.name}</strong>

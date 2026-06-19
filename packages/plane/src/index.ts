@@ -59,10 +59,13 @@ export type ParsedPlaneWebhook = {
 };
 
 export type ListPlaneTasksParams = {
+  workspaceSlug?: string;
   teamId?: string;
   projectId?: string;
   state?: string;
   updatedSince?: string;
+  cursor?: string;
+  perPage?: number;
 };
 
 export type PlaneTaskUpdate = {
@@ -83,6 +86,9 @@ export type PlaneClient = {
 export type HttpPlaneClientOptions = {
   baseUrl: string;
   apiKey?: string;
+  workspaceSlug?: string;
+  projectId?: string;
+  basePath?: string;
   fetch?: typeof fetch;
   defaultHeaders?: Record<string, string>;
 };
@@ -90,44 +96,63 @@ export type HttpPlaneClientOptions = {
 export class HttpPlaneClient implements PlaneClient {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
+  private readonly workspaceSlug?: string;
+  private readonly projectId?: string;
+  private readonly basePath?: string;
   private readonly fetchImpl: typeof fetch;
   private readonly defaultHeaders: Record<string, string>;
 
   constructor(options: HttpPlaneClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
+    this.workspaceSlug = options.workspaceSlug;
+    this.projectId = options.projectId;
+    this.basePath = options.basePath?.replace(/\/+$/, "");
     this.fetchImpl = options.fetch ?? fetch;
     this.defaultHeaders = options.defaultHeaders ?? {};
   }
 
   async getTask(taskId: string): Promise<PlaneTaskPayload> {
-    return this.request<PlaneTaskPayload>(`/api/tasks/${encodeURIComponent(taskId)}`);
+    return this.request<PlaneTaskPayload>(`${this.workItemsPath()}/${encodeURIComponent(taskId)}/`);
   }
 
   async listTasks(params: ListPlaneTasksParams = {}): Promise<PlaneTaskPayload[]> {
     const search = new URLSearchParams();
+    if (params.state) search.set("state", params.state);
+    if (params.updatedSince) search.set("updated_since", params.updatedSince);
+    if (params.cursor) search.set("cursor", params.cursor);
+    if (params.perPage) search.set("per_page", String(params.perPage));
+
     for (const [key, value] of Object.entries(params)) {
-      if (value) search.set(key, value);
+      if (
+        value &&
+        !["workspaceSlug", "projectId", "state", "updatedSince", "cursor", "perPage"].includes(key)
+      ) {
+        search.set(key, String(value));
+      }
     }
 
     const suffix = search.size > 0 ? `?${search.toString()}` : "";
     const response = await this.request<PlaneTaskPayload[] | { results?: PlaneTaskPayload[] }>(
-      `/api/tasks${suffix}`,
+      `${this.workItemsPath(params)}${suffix}`,
     );
 
     return Array.isArray(response) ? response : (response.results ?? []);
   }
 
   async updateTask(taskId: string, update: PlaneTaskUpdate): Promise<PlaneTaskPayload> {
-    return this.request<PlaneTaskPayload>(`/api/tasks/${encodeURIComponent(taskId)}`, {
-      method: "PATCH",
-      body: JSON.stringify(update),
-    });
+    return this.request<PlaneTaskPayload>(
+      `${this.workItemsPath()}/${encodeURIComponent(taskId)}/`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(update),
+      },
+    );
   }
 
   async addComment(taskId: string, body: string): Promise<{ id: string; body: string }> {
     return this.request<{ id: string; body: string }>(
-      `/api/tasks/${encodeURIComponent(taskId)}/comments`,
+      `${this.workItemsPath()}/${encodeURIComponent(taskId)}/comments/`,
       {
         method: "POST",
         body: JSON.stringify({ body }),
@@ -160,6 +185,20 @@ export class HttpPlaneClient implements PlaneClient {
     }
 
     return (await response.json()) as T;
+  }
+
+  private workItemsPath(params: Pick<ListPlaneTasksParams, "workspaceSlug" | "projectId"> = {}) {
+    if (this.basePath) return this.basePath;
+
+    const workspaceSlug = params.workspaceSlug ?? this.workspaceSlug;
+    const projectId = params.projectId ?? this.projectId;
+    if (!workspaceSlug || !projectId) {
+      throw new Error("Plane workspaceSlug and projectId are required for work-items API paths");
+    }
+
+    return `/api/v1/workspaces/${encodeURIComponent(workspaceSlug)}/projects/${encodeURIComponent(
+      projectId,
+    )}/work-items`;
   }
 }
 

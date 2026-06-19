@@ -1,4 +1,5 @@
 import type {
+  AgentRuntime,
   Prisma,
   PrismaClient,
   RepositoryStatus,
@@ -7,8 +8,12 @@ import type {
   Task,
   TaskState,
 } from "@prisma/client";
+import { createHash } from "node:crypto";
 
-export type DbClient = Pick<PrismaClient, "$transaction" | "task" | "run" | "runEvent">;
+export type DbClient = Pick<
+  PrismaClient,
+  "$transaction" | "agentDefinition" | "promptRelease" | "role" | "run" | "runEvent" | "task"
+>;
 
 export const dispatchableTaskStates = [
   "Todo",
@@ -72,10 +77,176 @@ export async function findDispatchableTasks(
     },
     include: {
       repository: true,
-      project: true,
+      project: {
+        include: {
+          team: true,
+        },
+      },
     },
     orderBy: [{ priority: { sort: "asc", nulls: "last" } }, { updatedAt: "asc" }],
     take: options.limit,
+  });
+}
+
+export interface StartRunInput {
+  taskId: string;
+  leaseOwner: string;
+  leaseSeconds?: number;
+  renderedPrompt?: string;
+  runtime?: AgentRuntime;
+}
+
+export async function startRun(db: DbClient, input: StartRunInput) {
+  const now = new Date();
+  const leaseExpiresAt = new Date(now.getTime() + (input.leaseSeconds ?? 15 * 60) * 1000);
+  const renderedContent = input.renderedPrompt ?? "";
+
+  return db.$transaction(async (tx) => {
+    const task = await tx.task.findUnique({
+      where: { id: input.taskId },
+      include: {
+        repository: true,
+      },
+    });
+
+    if (!task?.repositoryId || !task.repository) {
+      throw new Error(`Task ${input.taskId} is missing an active repository`);
+    }
+
+    const role = await tx.role.findFirst({
+      where: {
+        activeStates: { has: task.state },
+      },
+      orderBy: { key: "asc" },
+    });
+
+    if (!role) {
+      throw new Error(`No active role found for task state ${task.state}`);
+    }
+
+    const agentDefinition = await tx.agentDefinition.findFirst({
+      where: {
+        roleId: role.id,
+        runtime: input.runtime ?? "openhands",
+        status: "active",
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    if (!agentDefinition) {
+      throw new Error(`No active agent definition found for role ${role.key}`);
+    }
+
+    const promptRelease = await tx.promptRelease.create({
+      data: {
+        taskId: task.id,
+        repositoryId: task.repositoryId,
+        roleId: role.id,
+        agentDefinitionId: agentDefinition.id,
+        contentHash: hashPrompt(renderedContent),
+        renderedContent,
+      },
+    });
+
+    const run = await tx.run.create({
+      data: {
+        taskId: task.id,
+        repositoryId: task.repositoryId,
+        roleId: role.id,
+        agentDefinitionId: agentDefinition.id,
+        promptReleaseId: promptRelease.id,
+        status: "claimed",
+        leaseOwner: input.leaseOwner,
+        leaseExpiresAt,
+        heartbeatAt: now,
+        startedAt: now,
+      },
+      include: {
+        role: true,
+        promptRelease: true,
+      },
+    });
+
+    await tx.runEvent.create({
+      data: {
+        runId: run.id,
+        eventType: "claimed",
+        message: `Run claimed by ${input.leaseOwner}`,
+        payload: {
+          leaseOwner: input.leaseOwner,
+          leaseExpiresAt: leaseExpiresAt.toISOString(),
+          promptReleaseId: promptRelease.id,
+        } satisfies Prisma.InputJsonObject,
+      },
+    });
+
+    return run;
+  });
+}
+
+export interface MarkRunRunningInput {
+  runId: string;
+  leaseOwner: string;
+  renderedPrompt: string;
+  leaseSeconds?: number;
+}
+
+export async function markRunRunning(db: DbClient, input: MarkRunRunningInput) {
+  const now = new Date();
+  const leaseExpiresAt = new Date(now.getTime() + (input.leaseSeconds ?? 15 * 60) * 1000);
+
+  return db.$transaction(async (tx) => {
+    const existingRun = await tx.run.findUnique({
+      where: { id: input.runId },
+      select: {
+        id: true,
+        promptReleaseId: true,
+      },
+    });
+
+    if (!existingRun) {
+      throw new Error(`Run ${input.runId} not found`);
+    }
+
+    await tx.promptRelease.update({
+      where: { id: existingRun.promptReleaseId },
+      data: {
+        renderedContent: input.renderedPrompt,
+        contentHash: hashPrompt(input.renderedPrompt),
+      },
+    });
+
+    const run = await tx.run.update({
+      where: {
+        id: input.runId,
+        leaseOwner: input.leaseOwner,
+        status: { in: ["claimed", "running"] },
+      },
+      data: {
+        status: "running",
+        heartbeatAt: now,
+        leaseExpiresAt,
+      },
+      include: {
+        role: true,
+        promptRelease: true,
+      },
+    });
+
+    await tx.runEvent.create({
+      data: {
+        runId: run.id,
+        eventType: "heartbeat",
+        message: "Run marked running",
+        payload: {
+          leaseOwner: input.leaseOwner,
+          leaseExpiresAt: leaseExpiresAt.toISOString(),
+          promptReleaseId: run.promptReleaseId,
+        } satisfies Prisma.InputJsonObject,
+      },
+    });
+
+    return run;
   });
 }
 
@@ -239,4 +410,8 @@ function terminalStatusToEventType(status: CompleteRunInput["status"]): RunEvent
     case "canceled":
       return "canceled";
   }
+}
+
+function hashPrompt(prompt: string): string {
+  return createHash("sha256").update(prompt).digest("hex");
 }
