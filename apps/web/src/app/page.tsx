@@ -13,6 +13,7 @@ import {
   type RunStatus,
   type TaskQueueItem,
 } from "@/lib/mock-data";
+import { OperatorTokenPanel } from "./OperatorTokenPanel";
 import { RetryTaskButton } from "./RetryTaskButton";
 
 const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
@@ -110,6 +111,7 @@ export default async function DashboardPage() {
           <Metric label="Failed" value={taskQueue.summary.failed} tone="bad" />
         </div>
       </header>
+      <OperatorTokenPanel />
 
       <section className="dashboardGrid" aria-label="Admin console sections">
         <Panel title="Task Queue" meta={`${taskQueue.count} mirrored Plane tasks`} wide>

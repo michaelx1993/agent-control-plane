@@ -60,6 +60,7 @@ P0 方案固化
 - `pnpm compose:check` 会校验 Docker Compose app profile，并已纳入 release gate。
 - 已有 `CONTROL_PLANE_API_TOKEN` operator write API 门禁，保护人工 transition、retry、
   feedback 和 prompt 写操作。
+- 控制台已有 `Operator Token` 面板，浏览器侧会把 token 附加到受保护写操作。
 - Task Queue 可区分 repo concurrency、role concurrency、retry capped、budget blocked 和普通 gate。
 - 已有 Linear 离线迁移草案工具，可将 JSON/CSV export 转换为 Plane import draft，并标出缺失 repo 的任务。
 

@@ -96,6 +96,40 @@ code {
   border-bottom: 1px solid var(--line);
 }
 
+.operatorTokenPanel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+  padding: 12px 0 0;
+}
+
+.operatorTokenPanel label {
+  display: grid;
+  min-width: min(320px, 100%);
+  gap: 5px;
+}
+
+.operatorTokenPanel label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.operatorTokenPanel input {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  padding: 7px 10px;
+}
+
+.operatorTokenPanel small {
+  padding-bottom: 9px;
+}
+
 .backLink {
   display: inline-block;
   margin-bottom: 10px;

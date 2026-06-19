@@ -2,6 +2,9 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
+import { OperatorTokenPanel } from "../OperatorTokenPanel";
+import { operatorFetch } from "../operator-api";
+
 type PromptScopeType = "global" | "team" | "project" | "repo" | "role" | "agent";
 type PromptComponentStatus = "draft" | "active" | "archived";
 type PromptBindingEnvironment = "dev" | "staging" | "prod";
@@ -178,7 +181,7 @@ export function PromptComponentsClient() {
     setSaving(true);
     setError(undefined);
     try {
-      const response = await fetch("/api/prompt-components", {
+      const response = await operatorFetch("/api/prompt-components", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -209,7 +212,7 @@ export function PromptComponentsClient() {
     setBindingSaving(true);
     setError(undefined);
     try {
-      const response = await fetch("/api/prompt-bindings", {
+      const response = await operatorFetch("/api/prompt-bindings", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -259,7 +262,7 @@ export function PromptComponentsClient() {
     setRollbackComponentId(component.id);
     setError(undefined);
     try {
-      const response = await fetch(`/api/prompt-components/${component.id}/rollback`, {
+      const response = await operatorFetch(`/api/prompt-components/${component.id}/rollback`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -290,6 +293,7 @@ export function PromptComponentsClient() {
           Dashboard
         </a>
       </header>
+      <OperatorTokenPanel />
 
       <section className="dashboardGrid promptGrid" aria-label="Prompt component manager">
         <section className="panel">

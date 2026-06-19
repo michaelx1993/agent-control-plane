@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { operatorFetch } from "../../operator-api";
+
 type FeedbackSource = "human" | "code_review" | "pr_review" | "agent" | "plane_comment";
 type FeedbackSeverity = "info" | "minor" | "major" | "blocker";
 
@@ -36,7 +38,7 @@ export function RunFeedbackForm({ runId }: { runId: string }) {
     setSaved(false);
 
     try {
-      const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/feedback`, {
+      const response = await operatorFetch(`/api/runs/${encodeURIComponent(runId)}/feedback`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

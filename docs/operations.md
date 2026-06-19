@@ -398,6 +398,10 @@ binding creation, and prompt rollback routes. Read-only dashboard APIs remain re
 webhook auth is separate and continues to use `PLANE_WEBHOOK_SECRET` plus `X-Plane-Signature` or the
 configured Plane webhook secret header.
 
+The web console includes an `Operator Token` panel on pages that perform write operations. Paste the
+same token there once per browser; the console stores it in browser `localStorage` and sends it as a
+bearer token on protected writes. Clear it after using a shared machine.
+
 ## Release Gate
 
 Before using the worker against live systems:
@@ -484,6 +488,9 @@ OpenHands / Langfuse endpoints in `.env`, then run `pnpm release:check`.
 Set `CONTROL_PLANE_API_TOKEN` before exposing the web app outside localhost. When configured,
 operator write APIs require either `Authorization: Bearer <token>` or `X-Control-Plane-Token:
 <token>`.
+
+For browser use, paste the token into the console `Operator Token` panel before using write actions.
+The panel stores the token in browser `localStorage` and the client attaches it to protected writes.
 
 Protected write paths include:
 

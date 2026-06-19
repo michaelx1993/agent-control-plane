@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { operatorFetch } from "./operator-api";
+
 export function RetryTaskButton({ taskId }: { taskId: string }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -10,7 +12,7 @@ export function RetryTaskButton({ taskId }: { taskId: string }) {
     setPending(true);
     setError("");
     try {
-      const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/retry`, {
+      const response = await operatorFetch(`/api/tasks/${encodeURIComponent(taskId)}/retry`, {
         method: "POST",
         headers: {
           "content-type": "application/json",

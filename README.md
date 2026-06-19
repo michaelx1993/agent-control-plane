@@ -106,6 +106,8 @@ The `app` profile builds the web console on port `3100` and a long-running worke
 Use `pnpm compose:check` to validate the Compose app profile without starting containers.
 Set `CONTROL_PLANE_API_TOKEN` before exposing the web app outside localhost; operator write APIs
 accept `Authorization: Bearer <token>` or `X-Control-Plane-Token`.
+The console `Operator Token` panel stores the token in browser `localStorage` and attaches it to
+protected write actions.
 
 Before turning on `WORKER_MODE=live`, run the non-mutating live preflight:
 

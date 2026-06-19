@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getRunDetail } from "@/lib/control-plane-service";
 import { type HealthSignal, type RunStatus } from "@/lib/mock-data";
+import { OperatorTokenPanel } from "../../OperatorTokenPanel";
 import { RunFeedbackForm } from "./RunFeedbackForm";
 
 const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
@@ -43,6 +44,7 @@ export default async function RunDetailPage({ params }: PageProps) {
         </div>
         <span className={`pill ${statusClass[run.status]}`}>{run.status}</span>
       </header>
+      <OperatorTokenPanel />
 
       <section className="detailGrid" aria-label="Run detail">
         <section className="panel panelWide">
