@@ -18,11 +18,13 @@ const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
   running: "statusRun",
 };
 
-export default function DashboardPage() {
-  const taskQueue = getTaskQueue();
-  const runs = getRuns();
-  const promptReleases = getPromptReleases();
-  const systemHealth = getSystemHealth();
+export default async function DashboardPage() {
+  const [taskQueue, runs, promptReleases, systemHealth] = await Promise.all([
+    getTaskQueue(),
+    getRuns(),
+    getPromptReleases(),
+    getSystemHealth(),
+  ]);
 
   return (
     <main className="shell">

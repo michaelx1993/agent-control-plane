@@ -2,6 +2,6 @@ import { NextResponse } from "next/server";
 
 import { getSystemHealth } from "../../../lib/control-plane-service";
 
-export function GET() {
-  return NextResponse.json(getSystemHealth());
+export async function GET() {
+  return NextResponse.json(await getSystemHealth());
 }

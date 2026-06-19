@@ -22,6 +22,9 @@ importers:
 
   apps/web:
     dependencies:
+      "@prisma/client":
+        specifier: ^5.22.0
+        version: 5.22.0(prisma@5.22.0)
       next:
         specifier: ^16.2.9
         version: 16.2.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

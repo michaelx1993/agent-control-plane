@@ -4,7 +4,13 @@ export type PlaneState =
   | "Code Review"
   | "Human Review"
   | "In Merge"
-  | "Deployment";
+  | "Merged"
+  | "Release Version"
+  | "Released"
+  | "Deployment"
+  | "Deployed"
+  | "Done"
+  | "Canceled";
 
 export type RunStatus = "queued" | "claimed" | "running" | "blocked" | "completed" | "failed";
 
@@ -12,7 +18,7 @@ export type TaskQueueItem = {
   id: string;
   planeTask: string;
   project: string;
-  repo: "crs-src" | "sub3" | "traffic";
+  repo: string;
   state: PlaneState;
   priority: "P0" | "P1" | "P2";
   labels: string[];
