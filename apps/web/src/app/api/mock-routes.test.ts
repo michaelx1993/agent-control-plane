@@ -12,6 +12,7 @@ import {
 } from "./prompt-components/route";
 import { GET as getPromptComponentDiffRoute } from "./prompt-components/diff/route";
 import { POST as postPromptComponentRollbackRoute } from "./prompt-components/[componentId]/rollback/route";
+import { GET as getPromptMetricsRoute } from "./prompt-metrics/route";
 import { GET as getPromptReleasesRoute } from "./prompt-releases/route";
 import { GET as getPromptScopesRoute } from "./prompt-scopes/route";
 import { GET as getRunDetailRoute } from "./runs/[runId]/route";
@@ -64,6 +65,22 @@ describe("new mock API routes", () => {
       status: expect.stringMatching(/^(active|draft|archived)$/),
       updatedBy: expect.any(String),
       version: expect.any(String),
+    });
+  });
+
+  it("returns prompt version metrics for historical run performance", async () => {
+    const response = await getPromptMetricsRoute();
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.count).toBe(payload.promptMetrics.length);
+    expect(payload.promptMetrics[0]).toMatchObject({
+      promptReleaseId: expect.any(String),
+      runCount: expect.any(Number),
+      successRate: expect.any(Number),
+      avgInputTokens: expect.any(Number),
+      avgOutputTokens: expect.any(Number),
+      avgCostUsd: expect.any(String),
     });
   });
 

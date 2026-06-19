@@ -97,6 +97,27 @@ export type PromptRelease = {
   changelog: string;
 };
 
+export type PromptMetric = {
+  promptReleaseId: string;
+  scope: string;
+  version: string;
+  hash: string;
+  runCount: number;
+  successRate: number;
+  succeeded: number;
+  failed: number;
+  blocked: number;
+  avgInputTokens: number;
+  avgOutputTokens: number;
+  avgCostUsd: string;
+  lastRunAt: string;
+};
+
+export type PromptMetricsResponse = {
+  count: number;
+  promptMetrics: PromptMetric[];
+};
+
 export type HealthSignal = {
   name: string;
   state: "nominal" | "degraded" | "attention";
@@ -346,6 +367,33 @@ export const promptReleases: PromptRelease[] = [
     changelog: "Archived after retry loop regression.",
   },
 ];
+
+export const promptMetrics: PromptMetric[] = promptReleases.map((release) => {
+  const releaseRuns = runs.filter((run) => run.promptReleaseId === release.id);
+  const runCount = releaseRuns.length;
+  const succeeded = releaseRuns.filter((run) => run.status === "completed").length;
+  const failed = releaseRuns.filter((run) => run.status === "failed").length;
+  const blocked = releaseRuns.filter((run) => run.status === "blocked").length;
+  const totalInput = releaseRuns.reduce((sum, run) => sum + run.tokenInput, 0);
+  const totalOutput = releaseRuns.reduce((sum, run) => sum + run.tokenOutput, 0);
+  const totalCost = releaseRuns.reduce((sum, run) => sum + Number(run.costUsd || 0), 0);
+
+  return {
+    promptReleaseId: release.id,
+    scope: release.scope,
+    version: release.version,
+    hash: release.hash,
+    runCount,
+    successRate: runCount > 0 ? succeeded / runCount : 0,
+    succeeded,
+    failed,
+    blocked,
+    avgInputTokens: runCount > 0 ? Math.round(totalInput / runCount) : 0,
+    avgOutputTokens: runCount > 0 ? Math.round(totalOutput / runCount) : 0,
+    avgCostUsd: runCount > 0 ? (totalCost / runCount).toFixed(6) : "0",
+    lastRunAt: releaseRuns[0]?.startedAt ?? "",
+  };
+});
 
 export const healthSignals: HealthSignal[] = [
   {

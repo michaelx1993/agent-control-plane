@@ -10,6 +10,7 @@ import { validateTransition } from "@agent-control-plane/state-machine";
 import {
   healthSignals,
   operatorTimeline as mockOperatorTimeline,
+  promptMetrics as mockPromptMetrics,
   promptReleases,
   queueSummary as mockQueueSummary,
   type ReadinessCategory,
@@ -19,6 +20,7 @@ import {
   type HealthSignal,
   type OperatorTimelineItem,
   type PromptRelease,
+  type PromptMetricsResponse,
   type Run,
   type RunDetail,
   type TaskQueueItem,
@@ -67,6 +69,8 @@ export type PromptReleasesResponse = {
   count: number;
   promptReleases: PromptRelease[];
 };
+
+export type { PromptMetricsResponse };
 
 export type PromptComponentItem = {
   id: string;
@@ -372,6 +376,85 @@ export async function getPromptReleases(): Promise<PromptReleasesResponse> {
   return {
     count: promptReleases.length,
     promptReleases,
+  };
+}
+
+export async function getPromptMetrics(): Promise<PromptMetricsResponse> {
+  if (!shouldUseDatabase()) {
+    return {
+      count: mockPromptMetrics.length,
+      promptMetrics: mockPromptMetrics,
+    };
+  }
+
+  const releases = await prisma.promptRelease.findMany({
+    include: {
+      repository: true,
+      role: true,
+      runs: {
+        include: {
+          traceRefs: true,
+        },
+      },
+      components: {
+        include: {
+          promptComponent: true,
+        },
+        orderBy: {
+          orderIndex: "asc",
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 100,
+  });
+  const promptMetrics = releases.map((release) => {
+    const runCount = release.runs.length;
+    const succeeded = release.runs.filter((run) => run.status === "succeeded").length;
+    const failed = release.runs.filter((run) => run.status === "failed").length;
+    const blocked = release.runs.filter((run) => run.status === "blocked").length;
+    const tokenInputs = release.runs.map((run) =>
+      Number(run.traceRefs[0]?.inputTokens ?? run.tokenInput ?? 0),
+    );
+    const tokenOutputs = release.runs.map((run) =>
+      Number(run.traceRefs[0]?.outputTokens ?? run.tokenOutput ?? 0),
+    );
+    const costs = release.runs.map((run) => Number(run.traceRefs[0]?.costUsd ?? run.costUsd ?? 0));
+    const lastRunAt =
+      release.runs
+        .map((run) => run.startedAt ?? run.createdAt)
+        .sort((left, right) => right.getTime() - left.getTime())[0]
+        ?.toISOString() ?? release.createdAt.toISOString();
+
+    return {
+      promptReleaseId: release.id,
+      scope: [
+        release.repository.slug,
+        release.role.name,
+        ...release.components.map(
+          (component) =>
+            `${component.promptComponent.scopeType}:${component.promptComponent.name}@v${component.promptComponent.version}`,
+        ),
+      ].join(" + "),
+      version: release.langfusePromptVersion ?? release.createdAt.toISOString(),
+      hash: `sha256:${release.contentHash.slice(0, 12)}`,
+      runCount,
+      successRate: runCount > 0 ? succeeded / runCount : 0,
+      succeeded,
+      failed,
+      blocked,
+      avgInputTokens: averageRounded(tokenInputs),
+      avgOutputTokens: averageRounded(tokenOutputs),
+      avgCostUsd: averageNumber(costs).toFixed(6),
+      lastRunAt,
+    };
+  });
+
+  return {
+    count: promptMetrics.length,
+    promptMetrics,
   };
 }
 
@@ -1486,6 +1569,16 @@ function isUuid(value: string): boolean {
 function getWorkerMaxTaskAttempts(): number {
   const parsed = Number(process.env.WORKER_MAX_TASK_ATTEMPTS ?? "3");
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 3;
+}
+
+function averageNumber(values: number[]): number {
+  const validValues = values.filter((value) => Number.isFinite(value));
+  if (validValues.length === 0) return 0;
+  return validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
+}
+
+function averageRounded(values: number[]): number {
+  return Math.round(averageNumber(values));
 }
 
 function summarizeQueue(tasks: TaskQueueItem[], runsResponse: Run[]): QueueSummary {

@@ -33,7 +33,7 @@ P0 方案固化
 - 已有 run/lease/heartbeat、expired lease stalled blocking、OpenHands event summary persistence。
 - 已有 Prompt Manager、prompt component/binding/release、scope lookup API、prompt diff 和 rollback。
 - 已有 OpenHands adapter skeleton、conversation refs、poll heartbeat hook。
-- 已有 Langfuse trace refs、token/cost summary 写入和 dashboard 展示。
+- 已有 Langfuse trace refs、token/cost summary 写入、prompt version metrics 和 dashboard 展示。
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
 - 已有 Run Detail feedback 表单和 feedback API，支持打回 Development。
 - 已有 Operator Timeline API/UI，聚合 run event、audit event、feedback。
@@ -348,6 +348,7 @@ global
 - 收集 token、cost、latency。
 - 从 run detail 跳转 Langfuse trace。
 - 按 prompt version 统计成功率、平均成本、平均 token。
+- Prompt metrics 页面/API 可按 prompt release 展示 run count、success rate、平均 token 和平均成本。
 - Dashboard 展示 recent run tokens/cost。
 
 交付物：

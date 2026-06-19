@@ -298,6 +298,7 @@ Trace 策略：
 - 跳转 Langfuse trace。
 - 展示本次使用的 prompt release。
 - 展示并新增 feedback；需要返工时可将任务退回 Development。
+- Prompt Metrics 页面按 prompt release 展示历史 run 数、成功率、平均 token 和平均成本。
 
 ### Prompt Manager
 

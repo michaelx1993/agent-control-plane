@@ -88,6 +88,9 @@ export default async function DashboardPage() {
         <a className="buttonLink" href="/prompt-components">
           Prompt Manager
         </a>
+        <a className="buttonLink" href="/prompt-metrics">
+          Prompt Metrics
+        </a>
         <div className="topStats" aria-label="Queue summary">
           <Metric label="Eligible" value={taskQueue.summary.eligible} />
           <Metric label="Blocked" value={taskQueue.summary.blocked} />
