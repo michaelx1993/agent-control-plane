@@ -102,6 +102,12 @@ export interface ControlPlaneStore {
     traceRef: TraceRef,
     nextState: TaskState,
   ): Promise<Run>;
+  syncRunResult(
+    task: Task,
+    result: OpenHandsRunResult,
+    traceRef: TraceRef,
+    nextState: TaskState,
+  ): Promise<void>;
   failRun(runId: string, error: Error): Promise<Run>;
   updateTaskState(taskId: string, nextState: TaskState): Promise<Task>;
   getTask(taskId: string): Promise<Task | undefined>;
@@ -272,6 +278,7 @@ export class DispatchWorker {
         nextState,
       );
       await this.store.updateTaskState(task.id, nextState);
+      await this.syncRunResultBestEffort(task, openHandsResult, traceRef, nextState);
 
       return {
         task: (await this.store.getTask(task.id)) ?? task,
@@ -337,6 +344,23 @@ export class DispatchWorker {
 
   private createPromptReleaseId(task: Task): string {
     return `prompt-release-${task.team}-${task.project}-${task.repo ?? "unknown"}-${Date.now()}`;
+  }
+
+  private async syncRunResultBestEffort(
+    task: Task,
+    result: OpenHandsRunResult,
+    traceRef: TraceRef,
+    nextState: TaskState,
+  ): Promise<void> {
+    try {
+      await this.store.syncRunResult(task, result, traceRef, nextState);
+    } catch (error) {
+      console.warn(
+        `Failed to sync run result for task ${task.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 }
 
@@ -431,6 +455,10 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
     run.leaseExpiresAt = undefined;
     run.updatedAt = new Date();
     return { ...run };
+  }
+
+  async syncRunResult(): Promise<void> {
+    return;
   }
 
   async failRun(runId: string, error: Error): Promise<Run> {
@@ -551,6 +579,15 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       summary: result.summary,
       nextState,
     };
+  }
+
+  async syncRunResult(
+    task: Task,
+    result: OpenHandsRunResult,
+    traceRef: TraceRef,
+    nextState: TaskState,
+  ): Promise<void> {
+    await this.planeSync?.syncRunResult(task, result, traceRef, nextState);
   }
 
   async failRun(runId: string, error: Error): Promise<Run> {
@@ -693,6 +730,31 @@ export class PlaneTaskSyncService {
       blockedMissingRepo,
     };
   }
+
+  async syncRunResult(
+    task: Task,
+    result: OpenHandsRunResult,
+    traceRef: TraceRef,
+    nextState: TaskState,
+  ): Promise<void> {
+    await this.plane.updateTask(task.planeId, {
+      stateName: workerTaskStateToPlaneStateName(nextState),
+      summary: result.summary,
+    });
+
+    await this.plane.addComment(
+      task.planeId,
+      [
+        "Agent Status: Completed",
+        "",
+        `Next State: ${workerTaskStateToPlaneStateName(nextState)}`,
+        `Conversation: ${result.conversationId}`,
+        `Trace: ${traceRef.url ?? traceRef.traceId}`,
+        "",
+        result.summary,
+      ].join("\n"),
+    );
+  }
 }
 
 export function createPlaneTaskSyncService(
@@ -764,6 +826,10 @@ export function planeStateNameToDbTaskState(stateName?: string): DbTaskState {
   };
 
   return stateMap[normalized] ?? "Todo";
+}
+
+export function workerTaskStateToPlaneStateName(state: TaskState): string {
+  return state;
 }
 
 export class MockOpenHandsAdapter implements OpenHandsAdapter {

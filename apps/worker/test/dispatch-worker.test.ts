@@ -208,4 +208,40 @@ describe("DispatchWorker", () => {
       }),
     );
   });
+
+  it("writes completed run state and summary back to Plane", async () => {
+    const updateTask = vi.fn().mockResolvedValue({ id: "plane-1" });
+    const addComment = vi.fn().mockResolvedValue({ id: "comment-1", body: "ok" });
+    const plane = {
+      updateTask,
+      addComment,
+    } as unknown as PlaneClient;
+    const sync = new PlaneTaskSyncService({} as DbClient, plane, {
+      projectSlug: "token",
+    });
+
+    await sync.syncRunResult(
+      createMockTask({ planeId: "plane-1", state: "Development" }),
+      {
+        status: "succeeded",
+        conversationId: "conv-1",
+        summary: "Implemented feature and tests passed.",
+      },
+      { traceId: "trace-1", url: "https://langfuse.test/trace-1" },
+      "Code Review",
+    );
+
+    expect(updateTask).toHaveBeenCalledWith("plane-1", {
+      stateName: "Code Review",
+      summary: "Implemented feature and tests passed.",
+    });
+    expect(addComment).toHaveBeenCalledWith(
+      "plane-1",
+      expect.stringContaining("Agent Status: Completed"),
+    );
+    expect(addComment).toHaveBeenCalledWith(
+      "plane-1",
+      expect.stringContaining("Trace: https://langfuse.test/trace-1"),
+    );
+  });
 });
