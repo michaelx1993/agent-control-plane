@@ -13,8 +13,11 @@ import { GET as getPromptReleasesRoute } from "./prompt-releases/route";
 import { GET as getPromptScopesRoute } from "./prompt-scopes/route";
 import { GET as getRunDetailRoute } from "./runs/[runId]/route";
 import { POST as postRunFeedbackRoute } from "./runs/[runId]/feedback/route";
+import { GET as getReadinessRoute } from "./readiness/route";
 import { POST as postTaskRetryRoute } from "./tasks/[taskId]/retry/route";
+import { POST as postTaskTransitionRoute } from "./tasks/[taskId]/transition/route";
 import { GET as getTasksRoute } from "./tasks/route";
+import { GET as getTimelineRoute } from "./timeline/route";
 
 describe("new mock API routes", () => {
   it("returns task queue JSON shaped for a future API client", async () => {
@@ -76,6 +79,9 @@ describe("new mock API routes", () => {
       openHandsUrl: expect.stringContaining("/conversations/"),
       traceId: expect.any(String),
     });
+    expect(payload.run.events[0]).toMatchObject({
+      payload: expect.any(Object),
+    });
 
     const missingResponse = await getRunDetailRoute(
       new Request("http://localhost/api/runs/missing"),
@@ -84,6 +90,26 @@ describe("new mock API routes", () => {
       },
     );
     expect(missingResponse.status).toBe(404);
+  });
+
+  it("returns 404 instead of leaking DB errors for invalid DB run ids", async () => {
+    const previousDatabaseUrl = process.env.DATABASE_URL;
+    process.env.DATABASE_URL = "postgresql://agent:agent@localhost:54329/test";
+    try {
+      const response = await getRunDetailRoute(new Request("http://localhost/api/runs/run-7741"), {
+        params: Promise.resolve({ runId: "run-7741" }),
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(payload.error).toContain("not found");
+    } finally {
+      if (previousDatabaseUrl === undefined) {
+        delete process.env.DATABASE_URL;
+      } else {
+        process.env.DATABASE_URL = previousDatabaseUrl;
+      }
+    }
   });
 
   it("returns an empty prompt component list without a database", async () => {
@@ -135,6 +161,66 @@ describe("new mock API routes", () => {
         method: "POST",
         body: JSON.stringify({
           reason: "Try again after review.",
+        }),
+      }),
+      { params: Promise.resolve({ taskId: "ACP-1" }) },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain("DATABASE_URL");
+  });
+
+  it("returns operator timeline JSON for dashboard event inspection", async () => {
+    const response = await getTimelineRoute();
+    const payload = await response.json();
+
+    expect(payload.count).toBe(payload.timeline.length);
+    expect(payload.timeline[0]).toMatchObject({
+      id: expect.any(String),
+      source: expect.stringMatching(/^(run|audit|feedback)$/),
+      tone: expect.stringMatching(/^(nominal|attention|degraded)$/),
+      title: expect.any(String),
+      detail: expect.any(String),
+      href: expect.any(String),
+    });
+  });
+
+  it("returns readiness checks grouped by integration", async () => {
+    const response = await getReadinessRoute();
+    const payload = await response.json();
+
+    expect(payload).toMatchObject({
+      status: expect.stringMatching(/^(ready|warning|missing)$/),
+      checkedAt: expect.any(String),
+      categories: expect.any(Array),
+    });
+    expect(payload.categories.map((category: { id: string }) => category.id)).toContain("plane");
+  });
+
+  it("validates manual task transition payloads", async () => {
+    const response = await postTaskTransitionRoute(
+      new Request("http://localhost/api/tasks/ACP-1/transition", {
+        method: "POST",
+        body: JSON.stringify({
+          nextState: "Invalid",
+        }),
+      }),
+      { params: Promise.resolve({ taskId: "ACP-1" }) },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toContain("nextState");
+  });
+
+  it("requires DATABASE_URL before manually transitioning tasks", async () => {
+    const response = await postTaskTransitionRoute(
+      new Request("http://localhost/api/tasks/ACP-1/transition", {
+        method: "POST",
+        body: JSON.stringify({
+          nextState: "Done",
+          reason: "Manual close after review.",
         }),
       }),
       { params: Promise.resolve({ taskId: "ACP-1" }) },

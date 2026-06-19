@@ -113,6 +113,9 @@ export default async function RunDetailPage({ params }: PageProps) {
                 <div>
                   <strong>{event.message || event.type}</strong>
                   <small>{event.createdAt}</small>
+                  {event.payload ? (
+                    <pre className="eventPayload">{JSON.stringify(event.payload, null, 2)}</pre>
+                  ) : null}
                 </div>
               </article>
             ))}

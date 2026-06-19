@@ -429,6 +429,7 @@ export class DispatchWorker {
       openHandsResult: {
         status: result.status === "succeeded" ? "completed" : "failed",
       },
+      unresolvedFeedback: unresolvedFeedbackFromTask(task),
     });
     if (closure.ok && closure.value.allowedTransition) {
       return closure.value.nextState as TaskState;
@@ -1514,6 +1515,21 @@ function roleKeyFromRunRole(role: string): AgentRoleKey {
   if (role.includes("Release")) return "release";
   if (role.includes("Deploy")) return "deployment";
   return "development";
+}
+
+function unresolvedFeedbackFromTask(task: Task) {
+  return task.comments
+    .map((comment) => /\[feedback:[^/\]]+\/(?<severity>info|minor|major|blocker)\]/.exec(comment))
+    .map((match) => match?.groups?.severity)
+    .filter((severity): severity is "info" | "minor" | "major" | "blocker" => {
+      return (
+        severity === "info" ||
+        severity === "minor" ||
+        severity === "major" ||
+        severity === "blocker"
+      );
+    })
+    .map((severity) => ({ severity }));
 }
 
 function isAllowedWorkerTransition(from: TaskState, to: TaskState): boolean {

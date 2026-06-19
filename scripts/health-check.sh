@@ -17,6 +17,8 @@ check_endpoint() {
 check_endpoint "/api/health"
 check_endpoint "/api/tasks"
 check_endpoint "/api/runs"
+check_endpoint "/api/timeline"
+check_endpoint "/api/readiness"
 check_endpoint "/api/prompt-releases"
 check_endpoint "/api/prompt-components"
 check_endpoint "/api/prompt-scopes"

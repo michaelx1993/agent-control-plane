@@ -73,6 +73,91 @@ describe("DispatchWorker", () => {
     expect(tasks).toEqual([]);
   });
 
+  it("returns Code Review work with unresolved major feedback back to Development", () => {
+    const task = createMockTask({
+      state: "Code Review",
+      comments: ["[feedback:code_review/major] 修复并发下重复提交的问题。"],
+    });
+    const worker = new DispatchWorker(
+      loadConfig({ WORKER_MODE: "mock", WORKER_ENABLED_TEAMS: "token-team" }),
+      new InMemoryControlPlaneStore([task]),
+      new MockOpenHandsAdapter(),
+      new MockTraceRecorder(),
+    );
+
+    const nextState = worker.decideNextState(
+      task,
+      {
+        id: "run-review-1",
+        taskId: task.id,
+        role: "Review Agent",
+        status: "running",
+        attempt: 1,
+        statusHistory: ["running"],
+        createdAt: new Date("2026-06-18T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+      },
+      {
+        status: "succeeded",
+        conversationId: "conversation-review-1",
+        summary: "Found defects.",
+      },
+    );
+
+    expect(nextState).toBe("Development");
+  });
+
+  it("keeps successful release and deployment states on their human gates", () => {
+    const worker = new DispatchWorker(
+      loadConfig({ WORKER_MODE: "mock", WORKER_ENABLED_TEAMS: "token-team" }),
+      new InMemoryControlPlaneStore([]),
+      new MockOpenHandsAdapter(),
+      new MockTraceRecorder(),
+    );
+
+    expect(
+      worker.decideNextState(
+        createMockTask({ state: "Release Version" }),
+        {
+          id: "run-release-1",
+          taskId: "task-release-1",
+          role: "Release Agent",
+          status: "running",
+          attempt: 1,
+          statusHistory: ["running"],
+          createdAt: new Date("2026-06-18T00:00:00.000Z"),
+          updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+        },
+        {
+          status: "succeeded",
+          conversationId: "conversation-release-1",
+          summary: "Release prepared.",
+        },
+      ),
+    ).toBe("Released");
+
+    expect(
+      worker.decideNextState(
+        createMockTask({ state: "Deployment" }),
+        {
+          id: "run-deploy-1",
+          taskId: "task-deploy-1",
+          role: "Deploy Agent",
+          status: "running",
+          attempt: 1,
+          statusHistory: ["running"],
+          createdAt: new Date("2026-06-18T00:00:00.000Z"),
+          updatedAt: new Date("2026-06-18T00:00:00.000Z"),
+        },
+        {
+          status: "succeeded",
+          conversationId: "conversation-deploy-1",
+          summary: "Deployment finished.",
+        },
+      ),
+    ).toBe("Deployed");
+  });
+
   it("records throttled OpenHands poll heartbeats while a run is active", async () => {
     const task = createMockTask({ state: "Development" });
     const store = new InMemoryControlPlaneStore([task]);

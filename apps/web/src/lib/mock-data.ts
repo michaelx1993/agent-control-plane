@@ -52,6 +52,7 @@ export type RunEvent = {
   type: string;
   message: string;
   createdAt: string;
+  payload?: unknown;
 };
 
 export type FeedbackItem = {
@@ -100,6 +101,29 @@ export type HealthSignal = {
   state: "nominal" | "degraded" | "attention";
   value: string;
   detail: string;
+};
+
+export type OperatorTimelineItem = {
+  id: string;
+  source: "run" | "audit" | "feedback";
+  tone: "nominal" | "attention" | "degraded";
+  title: string;
+  detail: string;
+  createdAt: string;
+  href: string;
+};
+
+export type ReadinessCheck = {
+  id: string;
+  label: string;
+  status: "ready" | "missing" | "warning";
+  detail: string;
+};
+
+export type ReadinessCategory = {
+  id: string;
+  label: string;
+  checks: ReadinessCheck[];
 };
 
 export const taskQueue: TaskQueueItem[] = [
@@ -248,12 +272,20 @@ export const runDetails: RunDetail[] = runs.map((run) => ({
       type: "claimed",
       message: `${run.role} Agent claimed the task lease.`,
       createdAt: run.startedAt,
+      payload: {
+        role: run.role,
+        attempt: run.attempt,
+      },
     },
     {
       id: `${run.id}-running`,
       type: "heartbeat",
       message: "OpenHands conversation started and prompt release injected.",
       createdAt: run.startedAt,
+      payload: {
+        conversationId: run.openHandsUrl.split("/").at(-1) ?? "",
+        promptReleaseId: run.promptReleaseId,
+      },
     },
     {
       id: `${run.id}-refs`,
@@ -263,6 +295,10 @@ export const runDetails: RunDetail[] = runs.map((run) => ({
           ? "Run failed after lease expiry; trace link retained for debugging."
           : "Recorded OpenHands conversation and Langfuse trace refs.",
       createdAt: run.heartbeat,
+      payload: {
+        traceUrl: run.langfuseUrl,
+        openHandsUrl: run.openHandsUrl,
+      },
     },
   ],
   feedback:
@@ -334,6 +370,36 @@ export const healthSignals: HealthSignal[] = [
     state: "degraded",
     value: "1 failed",
     detail: "trace-7728 ended without final cost event.",
+  },
+];
+
+export const operatorTimeline: OperatorTimelineItem[] = [
+  {
+    id: "timeline-run-7741",
+    source: "run",
+    tone: "nominal",
+    title: "Merge Agent running",
+    detail: "run-7741 is polling OpenHands and holding the crs-src lease.",
+    createdAt: "2026-06-18 09:42",
+    href: "/runs/run-7741",
+  },
+  {
+    id: "timeline-run-7736",
+    source: "run",
+    tone: "nominal",
+    title: "Development completed",
+    detail: "ACP-1042 advanced to Code Review with OpenHands and Langfuse refs.",
+    createdAt: "2026-06-18 08:17",
+    href: "/runs/run-7736",
+  },
+  {
+    id: "timeline-feedback-7728",
+    source: "feedback",
+    tone: "attention",
+    title: "Review feedback attached",
+    detail: "Retry should resume from the saved event cursor.",
+    createdAt: "2026-06-17 18:14",
+    href: "/runs/run-7728",
   },
 ];
 

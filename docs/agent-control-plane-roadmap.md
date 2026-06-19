@@ -36,6 +36,9 @@ P0 方案固化
 - 已有 Langfuse trace refs、token/cost summary 写入和 dashboard 展示。
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
 - 已有 Run Detail feedback 表单和 feedback API，支持打回 Development。
+- 已有 Operator Timeline API/UI，聚合 run event、audit event、feedback。
+- 已有 Readiness API/UI，展示 Plane/OpenHands/Langfuse/DB/Worker 配置缺口。
+- 已有人工 task transition API，状态跳转受 state-machine 校验。
 
 ## P0 方案固化
 
@@ -191,6 +194,8 @@ P0 方案固化
 - heartbeat 超时可标记 stalled。
 - run 状态变化不依赖 Plane comment。
 - run detail 可展示 heartbeat、events、feedback、OpenHands/Langfuse 链接。
+- dashboard 可展示 Operator Timeline，避免接单和完成状态只能从本地日志判断。
+- readiness 面板能展示 live worker 所需环境变量是否齐全。
 
 风险：
 

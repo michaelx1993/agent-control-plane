@@ -6,14 +6,18 @@ import {
   type PlaneTaskPayload,
   type NormalizedPlaneTask,
 } from "@agent-control-plane/plane";
+import { validateTransition } from "@agent-control-plane/state-machine";
 import {
   healthSignals,
+  operatorTimeline as mockOperatorTimeline,
   promptReleases,
   queueSummary as mockQueueSummary,
+  type ReadinessCategory,
   runs,
   runDetails,
   taskQueue,
   type HealthSignal,
+  type OperatorTimelineItem,
   type PromptRelease,
   type Run,
   type RunDetail,
@@ -157,6 +161,22 @@ export type SystemHealthResponse = {
   signals: HealthSignal[];
 };
 
+export type OperatorTimelineResponse = {
+  count: number;
+  timeline: OperatorTimelineItem[];
+};
+
+export type SystemReadinessResponse = {
+  status: "ready" | "warning" | "missing";
+  checkedAt: string;
+  categories: ReadinessCategory[];
+};
+
+export type TransitionTaskInput = {
+  nextState: TaskQueueItem["state"];
+  reason?: string;
+};
+
 export type QueueSummary = {
   eligible: number;
   blocked: number;
@@ -201,6 +221,9 @@ export async function getRuns(): Promise<RunsResponse> {
 
 export async function getRunDetail(runId: string): Promise<RunDetail | null> {
   if (shouldUseDatabase()) {
+    if (!isUuid(runId)) {
+      return null;
+    }
     return getRunDetailFromDb(runId);
   }
 
@@ -584,6 +607,202 @@ export async function getSystemHealth(): Promise<SystemHealthResponse> {
   };
 }
 
+export async function getOperatorTimeline(): Promise<OperatorTimelineResponse> {
+  if (!shouldUseDatabase()) {
+    return {
+      count: mockOperatorTimeline.length,
+      timeline: mockOperatorTimeline,
+    };
+  }
+
+  const [runEvents, auditEvents, feedbackItems] = await Promise.all([
+    prisma.runEvent.findMany({
+      include: {
+        run: {
+          include: {
+            task: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+    }),
+    prisma.auditEvent.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
+    prisma.feedbackItem.findMany({
+      include: {
+        run: true,
+        task: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
+  ]);
+
+  const timeline = [
+    ...runEvents.map((event): OperatorTimelineItem => {
+      return {
+        id: `run-event-${event.id}`,
+        source: "run",
+        tone: runEventTone(event.eventType),
+        title: `${event.run.task.identifier} · ${event.eventType}`,
+        detail: event.message ?? event.run.task.title,
+        createdAt: event.createdAt.toISOString(),
+        href: `/runs/${event.runId}`,
+      };
+    }),
+    ...auditEvents.map((event): OperatorTimelineItem => {
+      return {
+        id: `audit-${event.id}`,
+        source: "audit",
+        tone: event.action.includes("retry") ? "attention" : "nominal",
+        title: event.action,
+        detail: event.message ?? `${event.entityType}:${event.entityId}`,
+        createdAt: event.createdAt.toISOString(),
+        href: event.entityType === "run" ? `/runs/${event.entityId}` : "/",
+      };
+    }),
+    ...feedbackItems.map((item): OperatorTimelineItem => {
+      return {
+        id: `feedback-${item.id}`,
+        source: "feedback",
+        tone: item.severity === "blocker" || item.severity === "major" ? "attention" : "nominal",
+        title: `${item.task.identifier} · ${item.source}/${item.severity}`,
+        detail: item.body,
+        createdAt: item.createdAt.toISOString(),
+        href: item.runId ? `/runs/${item.runId}` : "/",
+      };
+    }),
+  ]
+    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+    .slice(0, 50);
+
+  return {
+    count: timeline.length,
+    timeline,
+  };
+}
+
+export async function getSystemReadiness(): Promise<SystemReadinessResponse> {
+  const categories: ReadinessCategory[] = [
+    {
+      id: "plane",
+      label: "Plane self-host",
+      checks: [
+        envCheck("PLANE_BASE_URL", process.env.PLANE_BASE_URL, "Plane API base URL"),
+        envCheck("PLANE_WORKSPACE_SLUG", process.env.PLANE_WORKSPACE_SLUG, "Plane workspace"),
+        envCheck("PLANE_PROJECT_ID", process.env.PLANE_PROJECT_ID, "Plane project"),
+        envCheck("PLANE_API_KEY", process.env.PLANE_API_KEY, "Plane API auth token"),
+        envCheck("PLANE_WEBHOOK_SECRET", process.env.PLANE_WEBHOOK_SECRET, "Plane webhook guard", {
+          optional: true,
+        }),
+      ],
+    },
+    {
+      id: "openhands",
+      label: "OpenHands runtime",
+      checks: [
+        envCheck("OPENHANDS_BASE_URL", process.env.OPENHANDS_BASE_URL, "OpenHands SDK/API URL"),
+        envCheck("OPENHANDS_API_KEY", process.env.OPENHANDS_API_KEY, "OpenHands auth token", {
+          optional: true,
+        }),
+      ],
+    },
+    {
+      id: "langfuse",
+      label: "Langfuse observability",
+      checks: [
+        envCheck("LANGFUSE_BASE_URL", process.env.LANGFUSE_BASE_URL, "Langfuse API URL"),
+        envCheck("LANGFUSE_PUBLIC_KEY", process.env.LANGFUSE_PUBLIC_KEY, "Langfuse public key"),
+        envCheck("LANGFUSE_SECRET_KEY", process.env.LANGFUSE_SECRET_KEY, "Langfuse secret key"),
+      ],
+    },
+    {
+      id: "control-plane",
+      label: "Control Plane",
+      checks: [
+        envCheck("DATABASE_URL", process.env.DATABASE_URL, "PostgreSQL persistence"),
+        envCheck(
+          "WORKER_MODE",
+          process.env.WORKER_MODE,
+          "Worker mode; use live after Plane/OpenHands/Langfuse are configured",
+          { warningWhenMissing: "defaults to mock" },
+        ),
+        envCheck(
+          "WORKER_MAX_TASK_ATTEMPTS",
+          process.env.WORKER_MAX_TASK_ATTEMPTS,
+          "Retry cap per task",
+          { warningWhenMissing: "defaults to 3" },
+        ),
+      ],
+    },
+  ];
+  const checks = categories.flatMap((category) => category.checks);
+  const status = checks.some((check) => check.status === "missing")
+    ? "missing"
+    : checks.some((check) => check.status === "warning")
+      ? "warning"
+      : "ready";
+
+  return {
+    status,
+    checkedAt: new Date().toISOString(),
+    categories,
+  };
+}
+
+export async function transitionTask(identifier: string, input: TransitionTaskInput) {
+  if (!shouldUseDatabase()) {
+    throw new Error("DATABASE_URL is required to transition tasks");
+  }
+
+  const task = await prisma.task.findFirst({
+    where: { identifier },
+    include: {
+      project: true,
+    },
+  });
+  if (!task) {
+    throw new Error(`Task ${identifier} not found`);
+  }
+
+  const fromState = dbTaskStateToPlaneState(task.state);
+  const transition = validateTransition(fromState, input.nextState);
+  if (!transition.ok) {
+    throw new Error(transition.error.message);
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const transitioned = await tx.task.update({
+      where: { id: task.id },
+      data: { state: displayPlaneStateToDb(input.nextState) },
+    });
+    await tx.auditEvent.create({
+      data: {
+        action: "task.transition",
+        entityType: "task",
+        entityId: task.id,
+        message: input.reason ?? `${fromState} -> ${input.nextState}`,
+        payload: {
+          identifier,
+          fromState,
+          nextState: input.nextState,
+          project: task.project.slug,
+        },
+      },
+    });
+    return transitioned;
+  });
+
+  return {
+    id: updated.identifier,
+    previousState: fromState,
+    nextState: dbTaskStateToPlaneState(updated.state),
+  };
+}
+
 export async function syncPlaneWebhookPayload(payload: unknown): Promise<PlaneWebhookSyncResponse> {
   const parsed = parsePlaneWebhookPayload(payload);
   if (!parsed.task || parsed.eventType === "unknown") {
@@ -939,6 +1158,7 @@ async function getRunDetailFromDb(runId: string): Promise<RunDetail | null> {
       type: event.eventType,
       message: event.message ?? "",
       createdAt: event.createdAt.toISOString(),
+      payload: event.payload,
     })),
     feedback: run.feedbackItems.map((item) => ({
       id: item.id,
@@ -1023,8 +1243,50 @@ function runToApiRun(input: {
   };
 }
 
+function runEventTone(eventType: string): OperatorTimelineItem["tone"] {
+  if (eventType === "failed" || eventType === "canceled") return "degraded";
+  if (eventType === "blocked") return "attention";
+  return "nominal";
+}
+
+function envCheck(
+  id: string,
+  value: string | undefined,
+  detail: string,
+  options: { optional?: boolean; warningWhenMissing?: string } = {},
+): ReadinessCategory["checks"][number] {
+  if (value && value.trim().length > 0) {
+    return {
+      id,
+      label: id,
+      status: "ready",
+      detail,
+    };
+  }
+
+  if (options.optional || options.warningWhenMissing) {
+    return {
+      id,
+      label: id,
+      status: "warning",
+      detail: options.warningWhenMissing ?? `${detail} is optional.`,
+    };
+  }
+
+  return {
+    id,
+    label: id,
+    status: "missing",
+    detail,
+  };
+}
+
 function shouldUseDatabase(): boolean {
   return Boolean(process.env.DATABASE_URL);
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function getWorkerMaxTaskAttempts(): number {
@@ -1056,6 +1318,25 @@ function dbTaskStateToPlaneState(state: DbTaskState): TaskQueueItem["state"] {
     Deployed: "Deployed",
     Done: "Done",
     Blocked: "Human Review",
+    Canceled: "Canceled",
+  };
+
+  return map[state];
+}
+
+function displayPlaneStateToDb(state: TaskQueueItem["state"]): DbTaskState {
+  const map: Record<TaskQueueItem["state"], DbTaskState> = {
+    Todo: "Todo",
+    Development: "Development",
+    "Code Review": "CodeReview",
+    "Human Review": "HumanReview",
+    "In Merge": "InMerge",
+    Merged: "Merged",
+    "Release Version": "ReleaseVersion",
+    Released: "Released",
+    Deployment: "Deployment",
+    Deployed: "Deployed",
+    Done: "Done",
     Canceled: "Canceled",
   };
 

@@ -1,10 +1,18 @@
 import {
+  getOperatorTimeline,
   getPromptReleases,
   getRuns,
+  getSystemReadiness,
   getSystemHealth,
   getTaskQueue,
 } from "@/lib/control-plane-service";
-import { type HealthSignal, type RunStatus, type TaskQueueItem } from "@/lib/mock-data";
+import {
+  type HealthSignal,
+  type OperatorTimelineItem,
+  type ReadinessCheck,
+  type RunStatus,
+  type TaskQueueItem,
+} from "@/lib/mock-data";
 import { RetryTaskButton } from "./RetryTaskButton";
 
 const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
@@ -17,6 +25,18 @@ const statusClass: Record<RunStatus | HealthSignal["state"], string> = {
   nominal: "statusGood",
   queued: "statusInfo",
   running: "statusRun",
+};
+
+const timelineClass: Record<OperatorTimelineItem["tone"], string> = {
+  attention: "statusAttention",
+  degraded: "statusBad",
+  nominal: "statusGood",
+};
+
+const readinessClass: Record<ReadinessCheck["status"], string> = {
+  missing: "statusBad",
+  ready: "statusGood",
+  warning: "statusAttention",
 };
 
 const dispatchStatusClass: Record<TaskQueueItem["dispatchStatus"], string> = {
@@ -48,12 +68,15 @@ const formatCost = (costUsd: string) => {
 };
 
 export default async function DashboardPage() {
-  const [taskQueue, runs, promptReleases, systemHealth] = await Promise.all([
-    getTaskQueue(),
-    getRuns(),
-    getPromptReleases(),
-    getSystemHealth(),
-  ]);
+  const [taskQueue, runs, promptReleases, systemHealth, operatorTimeline, readiness] =
+    await Promise.all([
+      getTaskQueue(),
+      getRuns(),
+      getPromptReleases(),
+      getSystemHealth(),
+      getOperatorTimeline(),
+      getSystemReadiness(),
+    ]);
 
   return (
     <main className="shell">
@@ -217,6 +240,42 @@ export default async function DashboardPage() {
                 </div>
                 <b>{signal.value}</b>
                 <p>{signal.detail}</p>
+              </article>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Operator Timeline" meta={`${operatorTimeline.count} recent events`}>
+          <div className="compactTimeline">
+            {operatorTimeline.timeline.map((item) => (
+              <a className="compactTimelineItem" href={item.href} key={item.id}>
+                <span className={`dot ${timelineClass[item.tone]}`} aria-hidden="true" />
+                <div>
+                  <strong>{item.title}</strong>
+                  <small>{item.createdAt}</small>
+                  <p>{item.detail}</p>
+                </div>
+              </a>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Readiness" meta={readiness.status}>
+          <div className="readinessStack">
+            {readiness.categories.map((category) => (
+              <article className="readinessGroup" key={category.id}>
+                <h3>{category.label}</h3>
+                <div>
+                  {category.checks.map((check) => (
+                    <div className="readinessCheck" key={check.id}>
+                      <span className={`pill ${readinessClass[check.status]}`}>{check.status}</span>
+                      <div>
+                        <strong>{check.label}</strong>
+                        <small>{check.detail}</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </article>
             ))}
           </div>

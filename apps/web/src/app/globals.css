@@ -404,6 +404,71 @@ dd {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.compactTimeline,
+.readinessStack {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.compactTimelineItem,
+.readinessGroup {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.compactTimelineItem {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  color: var(--text);
+}
+
+.compactTimelineItem:hover {
+  border-color: var(--info);
+  text-decoration: none;
+}
+
+.compactTimelineItem p {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.readinessGroup {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.readinessGroup h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.readinessGroup > div {
+  display: grid;
+  gap: 8px;
+}
+
+.readinessCheck {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.readinessCheck strong,
+.readinessCheck small {
+  display: block;
+}
+
+.readinessCheck small {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
 .promptGrid {
   grid-template-columns: minmax(340px, 0.7fr) minmax(0, 1.3fr);
 }
@@ -526,6 +591,21 @@ dd {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.eventPayload {
+  max-height: 220px;
+  margin: 8px 0 0;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.45;
   white-space: pre-wrap;
 }
 

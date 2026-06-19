@@ -65,9 +65,25 @@ The check validates:
 - `/api/health`
 - `/api/tasks`
 - `/api/runs`
+- `/api/timeline`
+- `/api/readiness`
 - `/api/prompt-releases`
 - `/api/prompt-components`
 - `/api/prompt-scopes`
+
+## Operator Timeline And Readiness
+
+The web console exposes two operator-facing surfaces that should be checked before running live
+agents:
+
+- `GET /api/timeline` aggregates recent `run_events`, `audit_events`, and `feedback_items`.
+  It is the low-noise view for "did an agent claim, run, fail, or complete?"
+- `GET /api/readiness` reports Plane, OpenHands, Langfuse, database, and worker configuration
+  readiness. Missing required live integration variables are `missing`; optional or defaulted
+  variables are `warning`.
+
+The dashboard renders both panels. Use them before tailing process logs; logs remain a debug
+fallback, not the normal operating surface.
 
 ## Worker Heartbeats
 
@@ -129,6 +145,29 @@ This writes `feedback_items`, records a run event when `returnToDevelopment=true
 next Development agent see unresolved feedback through the task/run context.
 
 The Development worker reads unresolved feedback as task comments before assembling the next prompt.
+Code Review closure also reads unresolved feedback severities. `major` and `blocker` feedback sends
+the task back to Development instead of advancing to Human Review.
+
+## Manual Workflow Transitions
+
+Human gates are intentionally explicit. Use the task transition API when review decides the next
+state:
+
+```bash
+curl -X POST "${CONTROL_PLANE_BASE_URL}/api/tasks/<task-identifier>/transition" \
+  -H "content-type: application/json" \
+  -d '{
+    "nextState": "Release Version",
+    "reason": "Merged build is ready to bind to a release."
+  }'
+```
+
+Allowed transitions are validated by the state machine:
+
+- Main chain one-step transitions are allowed.
+- Any non-terminal state can go to `Done` or `Canceled`.
+- Code Review, Human Review, Merged, Released, and Deployed can be sent back to Development.
+- Terminal states cannot transition further.
 
 ## Backup And Restore
 
