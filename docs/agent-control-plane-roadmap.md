@@ -53,8 +53,6 @@ P0 方案固化
   OpenHands/Langfuse/next-state evidence bundle 用于 Development run smoke test。
 - `pnpm live:verify-once` 会在 one-shot live dispatch 后校验 evidence bundle，缺少 Plane、
   workspace、OpenHands、Langfuse 或 Run Detail 证据时失败。
-- `pnpm plane:probe` 可在 Plane self-host spike 中验证 work item list/get、repo 解析，并在显式
-  mutating 模式下验证 PATCH/comment API。
 - `pnpm release:check` 在 live 模式会强制校验非空数据库备份，再执行 live preflight。
 - Task Queue 可区分 repo concurrency、role concurrency、retry capped、budget blocked 和普通 gate。
 - 已有 Linear 离线迁移草案工具，可将 JSON/CSV export 转换为 Plane import draft，并标出缺失 repo 的任务。
