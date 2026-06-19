@@ -22,6 +22,7 @@
     "live:dispatch-once": "scripts/live-dispatch-once.sh",
     "live:verify-once": "scripts/live-verify-once.sh",
     "plane:probe": "pnpm --filter @agent-control-plane/worker plane-probe",
+    "runtime:probe": "pnpm --filter @agent-control-plane/worker runtime-probe",
     "release:check": "scripts/release-check.sh",
     "rollback:compose": "scripts/rollback-compose.sh",
     "secrets:check": "pnpm --filter @agent-control-plane/worker exec tsx ../../scripts/secrets-check.ts",

@@ -147,6 +147,18 @@ health, and Langfuse health without creating tasks, conversations, or traces. Th
 panel shows the same DB baseline risk when `DATABASE_URL` is configured.
 Plane self-host Personal Access Tokens use `X-API-Key` by default; set
 `PLANE_API_KEY_HEADER=Authorization` only for OAuth/bearer-compatible deployments.
+
+After health preflight passes, run the explicit mutating runtime protocol probe against disposable
+OpenHands/Langfuse targets:
+
+```bash
+RUNTIME_PROBE_MUTATE="true" \
+RUNTIME_PROBE_REPO="crs-src" \
+pnpm runtime:probe
+```
+
+This creates one OpenHands conversation/run and one Langfuse trace/generation, then fails if either
+protocol cannot produce evidence. It does not touch Plane.
 Use `pnpm plane:probe` during the Plane self-host spike to verify list/get/repo parsing; set
 `PLANE_PROBE_MUTATE=true` with `PLANE_PROBE_TASK_ID`, `PLANE_PROBE_PATCH_JSON`, and
 `PLANE_PROBE_COMMENT_BODY` only against a disposable spike task when validating PATCH/comment APIs.

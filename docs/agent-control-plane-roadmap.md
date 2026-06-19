@@ -97,15 +97,17 @@ P0 方案固化
 当前完成度判定：
 
 - 本地/operator MVP：约 72%，已具备 mock worker、DB demo run、控制台、prompt 管理、timeline、audit log、readiness、feedback/rework、人工 transition。
-- 真实任务执行闭环：未完成。关键缺口是 Plane self-host 实测、OpenHands live execution、Langfuse live trace。
+- 真实任务执行闭环：未完成。Plane self-host/API/webhook 已实测；关键缺口是 OpenHands
+  live execution、Langfuse live trace 和一次完整 live dispatch 证据。
 - 生产化替代 Symphony：未完成。还需要部署、权限、配置管理、备份恢复、错误恢复、长任务稳定性和操作审计完善。
 
 下一阶段优先级：
 
-1. 启动并验证 Plane self-host，确认 work item API、webhook、repo 字段方案。
-2. 运行 `pnpm live:preflight`，确认 DB seed baseline、Plane、OpenHands、Langfuse 基础连通。
+1. 运行 `pnpm live:preflight`，确认 DB seed baseline、Plane、OpenHands、Langfuse 基础连通。
+2. 运行 `RUNTIME_PROBE_MUTATE=true pnpm runtime:probe`，确认 OpenHands conversation/run/result
+   和 Langfuse trace/generation 协议能产生真实证据。
 3. 配置 `WORKER_MODE=live`，用真实 OpenHands endpoint 跑一次 Development 任务。
-4. 接入真实 Langfuse trace，确认 run detail 能跳转并展示 token/cost。
+4. 确认 run detail 可跳转 OpenHands conversation 和 Langfuse trace，并展示 token/cost。
 5. 将 live run 的 Plane 状态回写和低频 comment 验证通过。
 6. 固化部署/回滚/备份 runbook。
 

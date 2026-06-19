@@ -548,6 +548,22 @@ Checks:
 Exit code is `0` only when all checks pass. Use this before starting a live worker and after any
 credential, endpoint, or self-host upgrade change.
 
+## Runtime Protocol Probe
+
+`pnpm live:preflight` only proves health endpoints and basic Plane/DB access. Before dispatching a
+real task, run the explicit mutating runtime probe against disposable OpenHands/Langfuse targets:
+
+```bash
+RUNTIME_PROBE_MUTATE="true" \
+RUNTIME_PROBE_REPO="crs-src" \
+pnpm runtime:probe
+```
+
+The probe creates one OpenHands conversation/run, polls for a terminal result, then creates one
+Langfuse trace/generation and finishes it. It fails if OpenHands cannot produce a terminal result or
+Langfuse cannot persist trace evidence. Configure `RUNTIME_PROBE_OPENHANDS_POLL_INTERVAL_MS` and
+`RUNTIME_PROBE_OPENHANDS_POLL_ATTEMPTS` for slower runtimes.
+
 ## Container Deployment
 
 The local deployment manifest lives at `infra/docker/docker-compose.yml`.

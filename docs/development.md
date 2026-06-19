@@ -117,6 +117,17 @@ Run `pnpm live:preflight` before enabling live mode. It performs non-mutating pr
 If a self-hosted service exposes a different health endpoint, set `OPENHANDS_HEALTH_PATH` or
 `LANGFUSE_HEALTH_PATH` instead of changing code.
 
+Health is not execution proof. After `pnpm live:preflight` passes, run the mutating runtime protocol
+probe against disposable OpenHands/Langfuse targets:
+
+```bash
+RUNTIME_PROBE_MUTATE="true" pnpm runtime:probe
+```
+
+`runtime:probe` creates one OpenHands conversation/run and one Langfuse trace/generation/finish
+cycle. It does not touch Plane, but it proves the configured runtime paths can create the evidence
+that `live:verify-once` later requires.
+
 Use one-shot live dispatch for the first real Development task:
 
 ```bash

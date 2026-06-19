@@ -10,6 +10,7 @@
     "live-once": "tsx src/index.ts",
     "live-preflight": "tsx src/live-preflight.ts",
     "plane-probe": "tsx src/plane-probe.ts",
+    "runtime-probe": "tsx src/runtime-probe.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "verify-live-dispatch-output": "tsx src/live-verification.ts"
