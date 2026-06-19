@@ -154,8 +154,8 @@ describe("DispatchWorker", () => {
       recordGeneration: vi.fn().mockResolvedValue(undefined),
       finishTrace: vi.fn().mockResolvedValue({
         trace: { traceId: "trace-1" },
-        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-        cost: { inputCostUsd: 0, outputCostUsd: 0, totalCostUsd: 0, currency: "USD" },
+        usage: { inputTokens: 100, outputTokens: 25, totalTokens: 125 },
+        cost: { inputCostUsd: 0.01, outputCostUsd: 0.02, totalCostUsd: 0.03, currency: "USD" },
         generationCount: 1,
       }),
       getTraceSummary: vi.fn().mockResolvedValue(undefined),
@@ -204,6 +204,9 @@ describe("DispatchWorker", () => {
     expect(trace).toEqual({
       traceId: "trace-1",
       url: "https://langfuse.test/trace-1",
+      inputTokens: 100,
+      outputTokens: 25,
+      costUsd: 0.03,
     });
   });
 

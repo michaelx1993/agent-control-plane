@@ -197,6 +197,9 @@ export interface TraceInput {
 export interface TraceRef {
   traceId: string;
   url?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
 }
 
 const automaticStates = new Set<TaskState>([
@@ -731,6 +734,9 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       status: "succeeded",
       resultSummary: result.summary,
       nextState: toDbTaskState(nextState),
+      tokenInput: traceRef.inputTokens,
+      tokenOutput: traceRef.outputTokens,
+      costUsd: traceRef.costUsd,
     });
     await dbRecordRunObservabilityRefs(this.db, {
       runId,
@@ -741,6 +747,9 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       traceUrl: traceRef.url,
       model: "gpt-5.5 medium",
       promptReleaseId: run.promptReleaseId,
+      inputTokens: traceRef.inputTokens,
+      outputTokens: traceRef.outputTokens,
+      costUsd: traceRef.costUsd,
     });
     await dbRecordRunExternalEvents(this.db, {
       runId,
@@ -1112,6 +1121,9 @@ export class MockTraceRecorder implements TraceRecorder {
     return {
       traceId: `lf-${input.run.id}`,
       url: `mock://langfuse/traces/${input.run.id}`,
+      inputTokens: 0,
+      outputTokens: 0,
+      costUsd: 0,
     };
   }
 }
@@ -1198,11 +1210,16 @@ export class LangfuseTraceRecorder implements TraceRecorder {
       output: { conversationId: input.conversationId },
       usage: tokenUsage(0, 0),
     });
-    await this.client.finishTrace(trace.traceId, { conversationId: input.conversationId });
+    const summary = await this.client.finishTrace(trace.traceId, {
+      conversationId: input.conversationId,
+    });
 
     return {
       traceId: trace.traceId,
       url: trace.url,
+      inputTokens: summary.usage.inputTokens,
+      outputTokens: summary.usage.outputTokens,
+      costUsd: summary.cost.totalCostUsd,
     };
   }
 }
