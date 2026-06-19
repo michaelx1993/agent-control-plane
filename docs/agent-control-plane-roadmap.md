@@ -44,7 +44,7 @@ P0 方案固化
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
 - 已有 Run Detail feedback 表单和 feedback API，支持打回 Development。
 - 已有 Operator Timeline API/UI，聚合 run event、audit event、feedback。
-- 已有 Readiness API/UI，展示 Plane/OpenHands/Langfuse/DB/Worker 配置缺口。
+- 已有 Readiness API/UI，展示 Plane/OpenHands/Langfuse/DB/Worker 配置缺口，并在 DB 配置后展示 seed baseline 状态。
 - 已有人工 task transition API，状态跳转受 state-machine 校验。
 - `pnpm live:preflight` 会校验 DB 连通性和 Control Plane seed baseline，避免空库启动 live worker。
 - 已有 Linear 离线迁移草案工具，可将 JSON/CSV export 转换为 Plane import draft，并标出缺失 repo 的任务。

@@ -82,8 +82,9 @@ agents:
 - `GET /api/monitoring` and `/monitoring` expose the production-readiness monitoring surface:
   queue length, run success rate, token/cost volume, and stalled runs.
 - `GET /api/readiness` reports Plane, OpenHands, Langfuse, database, and worker configuration
-  readiness. Missing required live integration variables are `missing`; optional or defaulted
-  variables are `warning`.
+  readiness. When `DATABASE_URL` is configured, it also verifies seeded baseline rows for teams,
+  active repositories, roles, and active agent definitions. Missing required live integration
+  variables are `missing`; optional or defaulted variables are `warning`.
 
 The dashboard renders both panels. Use them before tailing process logs; logs remain a debug
 fallback, not the normal operating surface.

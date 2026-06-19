@@ -969,6 +969,25 @@ export async function getMonitoring(windowHours = 24): Promise<MonitoringRespons
 }
 
 export async function getSystemReadiness(): Promise<SystemReadinessResponse> {
+  const controlPlaneChecks: ReadinessCategory["checks"] = [
+    envCheck("DATABASE_URL", process.env.DATABASE_URL, "PostgreSQL persistence"),
+    envCheck(
+      "WORKER_MODE",
+      process.env.WORKER_MODE,
+      "Worker mode; use live after Plane/OpenHands/Langfuse are configured",
+      { warningWhenMissing: "defaults to mock" },
+    ),
+    envCheck(
+      "WORKER_MAX_TASK_ATTEMPTS",
+      process.env.WORKER_MAX_TASK_ATTEMPTS,
+      "Retry cap per task",
+      { warningWhenMissing: "defaults to 3" },
+    ),
+  ];
+  if (shouldUseDatabase()) {
+    controlPlaneChecks.push(await databaseBaselineReadinessCheck());
+  }
+
   const categories: ReadinessCategory[] = [
     {
       id: "plane",
@@ -1005,21 +1024,7 @@ export async function getSystemReadiness(): Promise<SystemReadinessResponse> {
     {
       id: "control-plane",
       label: "Control Plane",
-      checks: [
-        envCheck("DATABASE_URL", process.env.DATABASE_URL, "PostgreSQL persistence"),
-        envCheck(
-          "WORKER_MODE",
-          process.env.WORKER_MODE,
-          "Worker mode; use live after Plane/OpenHands/Langfuse are configured",
-          { warningWhenMissing: "defaults to mock" },
-        ),
-        envCheck(
-          "WORKER_MAX_TASK_ATTEMPTS",
-          process.env.WORKER_MAX_TASK_ATTEMPTS,
-          "Retry cap per task",
-          { warningWhenMissing: "defaults to 3" },
-        ),
-      ],
+      checks: controlPlaneChecks,
     },
   ];
   const checks = categories.flatMap((category) => category.checks);
@@ -1033,6 +1038,48 @@ export async function getSystemReadiness(): Promise<SystemReadinessResponse> {
     status,
     checkedAt: new Date().toISOString(),
     categories,
+  };
+}
+
+async function databaseBaselineReadinessCheck(): Promise<ReadinessCategory["checks"][number]> {
+  try {
+    const [teams, repositories, roles, agents] = await Promise.all([
+      prisma.team.count(),
+      prisma.repository.count({ where: { status: "active" } }),
+      prisma.role.count(),
+      prisma.agentDefinition.count({ where: { status: "active" } }),
+    ]);
+    return databaseBaselineReadinessFromCounts({ teams, repositories, roles, agents });
+  } catch (error) {
+    return {
+      id: "DATABASE_BASELINE",
+      label: "Database baseline",
+      status: "missing",
+      detail: `Unable to verify database baseline: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export function databaseBaselineReadinessFromCounts(input: {
+  teams: number;
+  repositories: number;
+  roles: number;
+  agents: number;
+}): ReadinessCategory["checks"][number] {
+  const detail = `Seed baseline: teams=${input.teams}, active repositories=${input.repositories}, roles=${input.roles}, active agents=${input.agents}`;
+  if (Object.values(input).some((count) => count <= 0)) {
+    return {
+      id: "DATABASE_BASELINE",
+      label: "Database baseline",
+      status: "missing",
+      detail: `${detail}. Run database seed before live worker rollout.`,
+    };
+  }
+  return {
+    id: "DATABASE_BASELINE",
+    label: "Database baseline",
+    status: "ready",
+    detail,
   };
 }
 

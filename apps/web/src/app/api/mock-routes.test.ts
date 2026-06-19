@@ -23,6 +23,7 @@ import { POST as postTaskRetryRoute } from "./tasks/[taskId]/retry/route";
 import { POST as postTaskTransitionRoute } from "./tasks/[taskId]/transition/route";
 import { GET as getTasksRoute } from "./tasks/route";
 import { GET as getTimelineRoute } from "./timeline/route";
+import { databaseBaselineReadinessFromCounts } from "../../lib/control-plane-service";
 
 describe("new mock API routes", () => {
   it("returns task queue JSON shaped for a future API client", async () => {
@@ -242,6 +243,24 @@ describe("new mock API routes", () => {
       categories: expect.any(Array),
     });
     expect(payload.categories.map((category: { id: string }) => category.id)).toContain("plane");
+  });
+
+  it("marks database baseline readiness missing when seed data is incomplete", () => {
+    expect(
+      databaseBaselineReadinessFromCounts({ teams: 1, repositories: 3, roles: 6, agents: 6 }),
+    ).toMatchObject({
+      id: "DATABASE_BASELINE",
+      status: "ready",
+      detail: expect.stringContaining("active agents=6"),
+    });
+
+    expect(
+      databaseBaselineReadinessFromCounts({ teams: 1, repositories: 0, roles: 6, agents: 0 }),
+    ).toMatchObject({
+      id: "DATABASE_BASELINE",
+      status: "missing",
+      detail: expect.stringContaining("Run database seed"),
+    });
   });
 
   it("validates manual task transition payloads", async () => {

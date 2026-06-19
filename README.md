@@ -107,8 +107,9 @@ LANGFUSE_SECRET_KEY="sk" \
 pnpm live:preflight
 ```
 
-The preflight checks DB connectivity, Plane work item listing, OpenHands health, and Langfuse
-health without creating tasks, conversations, or traces.
+The preflight checks DB connectivity and seed baseline rows, Plane work item listing, OpenHands
+health, and Langfuse health without creating tasks, conversations, or traces. The web Readiness
+panel shows the same DB baseline risk when `DATABASE_URL` is configured.
 Plane self-host Personal Access Tokens use `X-API-Key` by default; set
 `PLANE_API_KEY_HEADER=Authorization` only for OAuth/bearer-compatible deployments.
 

@@ -53,6 +53,8 @@ Current status:
 - The mock/control-plane milestone is complete.
 - The web console exposes task queue, runs, run detail, prompt manager, Operator Timeline, and
   Readiness.
+- Readiness shows DB seed baseline status when `DATABASE_URL` is configured, so operators can catch
+  an empty Control Plane database before live dispatch.
 - The worker can execute a mock dispatch and persist/return run state.
 - Code Review `major`/`blocker` feedback sends work back to Development.
 - Live Plane/OpenHands/Langfuse execution is the next milestone, not yet complete.
@@ -91,7 +93,7 @@ Plane API key auth defaults to `X-API-Key`, matching self-host Personal Access T
 
 Run `pnpm live:preflight` before enabling live mode. It performs non-mutating probes:
 
-- `SELECT 1` against PostgreSQL.
+- `SELECT 1` and Control Plane seed baseline checks against PostgreSQL.
 - `Plane listTasks({ perPage: 1 })` against the configured workspace/project.
 - HTTP health probe against `OPENHANDS_BASE_URL + OPENHANDS_HEALTH_PATH` where the default path is
   `/health`.
