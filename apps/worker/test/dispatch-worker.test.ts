@@ -167,14 +167,18 @@ describe("DispatchWorker", () => {
           attempt: 1,
           promptReleaseId: "prompt-release-1",
           workspacePath: "/tmp/crs-src/runs/run-1",
+          conversationId: "conversation-1",
+          conversationUrl: "https://openhands.test/conversations/conversation-1",
+          langfuseTraceId: "trace-1",
+          langfuseTraceUrl: "https://langfuse.test/trace-1",
           nextState: "Code Review",
           summary: "Implemented.",
         },
         verification: {
           runDetailPath: "/runs/run-1",
           planeEvidence: "plane-1",
-          openHandsEvidence: "conversation-1",
-          langfuseEvidence: "trace-1",
+          openHandsEvidence: "https://openhands.test/conversations/conversation-1",
+          langfuseEvidence: "https://langfuse.test/trace-1",
           expectedNextState: "Code Review",
         },
       }),
@@ -210,6 +214,45 @@ describe("DispatchWorker", () => {
       errors: expect.arrayContaining([
         "verification.openHandsEvidence is required.",
         "verification.langfuseEvidence is required.",
+        "run.conversationId is required.",
+        "run.conversationUrl is required.",
+        "run.langfuseTraceId is required.",
+        "run.langfuseTraceUrl is required.",
+      ]),
+    });
+  });
+
+  it("rejects successful live evidence whose verification links do not match run refs", () => {
+    expect(
+      validateLiveDispatchEvidence({
+        task: { id: "task-1", planeId: "plane-1", repo: "crs-src" },
+        run: {
+          id: "run-1",
+          status: "succeeded",
+          role: "Development Agent",
+          attempt: 1,
+          promptReleaseId: "prompt-release-1",
+          workspacePath: "/tmp/crs-src/runs/run-1",
+          conversationId: "conversation-1",
+          conversationUrl: "https://openhands.test/conversations/conversation-1",
+          langfuseTraceId: "trace-1",
+          langfuseTraceUrl: "https://langfuse.test/trace-1",
+          nextState: "Code Review",
+          summary: "Implemented.",
+        },
+        verification: {
+          runDetailPath: "/runs/run-1",
+          planeEvidence: "plane-1",
+          openHandsEvidence: "https://openhands.test/conversations/other",
+          langfuseEvidence: "https://langfuse.test/other",
+          expectedNextState: "Code Review",
+        },
+      }),
+    ).toMatchObject({
+      ok: false,
+      errors: expect.arrayContaining([
+        "verification.openHandsEvidence must match run.conversationUrl.",
+        "verification.langfuseEvidence must match run.langfuseTraceUrl.",
       ]),
     });
   });

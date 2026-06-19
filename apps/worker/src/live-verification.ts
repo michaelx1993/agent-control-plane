@@ -53,8 +53,6 @@ export function validateLiveDispatchEvidence(input: unknown): LiveDispatchVerifi
   requireString(errors, evidence.run?.workspacePath, "run.workspacePath");
   requireString(errors, evidence.verification?.runDetailPath, "verification.runDetailPath");
   requireString(errors, evidence.verification?.planeEvidence, "verification.planeEvidence");
-  requireString(errors, evidence.verification?.openHandsEvidence, "verification.openHandsEvidence");
-  requireString(errors, evidence.verification?.langfuseEvidence, "verification.langfuseEvidence");
 
   const runDetailPath = evidence.verification?.runDetailPath;
   const runId = evidence.run?.id;
@@ -68,6 +66,12 @@ export function validateLiveDispatchEvidence(input: unknown): LiveDispatchVerifi
 
   const status = evidence.run?.status;
   if (status === "succeeded") {
+    requireString(errors, evidence.run?.conversationId, "run.conversationId");
+    requireUrl(errors, evidence.run?.conversationUrl, "run.conversationUrl");
+    requireString(errors, evidence.run?.langfuseTraceId, "run.langfuseTraceId");
+    requireUrl(errors, evidence.run?.langfuseTraceUrl, "run.langfuseTraceUrl");
+    requireUrl(errors, evidence.verification?.openHandsEvidence, "verification.openHandsEvidence");
+    requireUrl(errors, evidence.verification?.langfuseEvidence, "verification.langfuseEvidence");
     requireString(errors, evidence.run?.nextState, "run.nextState");
     requireString(
       errors,
@@ -75,8 +79,27 @@ export function validateLiveDispatchEvidence(input: unknown): LiveDispatchVerifi
       "verification.expectedNextState",
     );
     requireString(errors, evidence.run?.summary, "run.summary");
+    requireMatchingString(
+      errors,
+      evidence.verification?.openHandsEvidence,
+      evidence.run?.conversationUrl,
+      "verification.openHandsEvidence",
+      "run.conversationUrl",
+    );
+    requireMatchingString(
+      errors,
+      evidence.verification?.langfuseEvidence,
+      evidence.run?.langfuseTraceUrl,
+      "verification.langfuseEvidence",
+      "run.langfuseTraceUrl",
+    );
   } else if (status === "failed" || status === "blocked") {
     requireString(errors, evidence.run?.error ?? evidence.run?.summary, "run.error or run.summary");
+    requireString(
+      errors,
+      evidence.run?.conversationId ?? evidence.verification?.openHandsEvidence,
+      "run.conversationId or verification.openHandsEvidence",
+    );
   } else {
     errors.push("run.status must be succeeded, failed, or blocked for one-shot live verification.");
   }
@@ -112,6 +135,34 @@ function requireString(errors: string[], value: unknown, path: string): void {
 function requirePositiveNumber(errors: string[], value: unknown, path: string): void {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     errors.push(`${path} must be a positive number.`);
+  }
+}
+
+function requireUrl(errors: string[], value: unknown, path: string): void {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    errors.push(`${path} is required.`);
+    return;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      errors.push(`${path} must be an http(s) URL.`);
+    }
+  } catch {
+    errors.push(`${path} must be an http(s) URL.`);
+  }
+}
+
+function requireMatchingString(
+  errors: string[],
+  left: unknown,
+  right: unknown,
+  leftPath: string,
+  rightPath: string,
+): void {
+  if (typeof left === "string" && typeof right === "string" && left !== right) {
+    errors.push(`${leftPath} must match ${rightPath}.`);
   }
 }
 

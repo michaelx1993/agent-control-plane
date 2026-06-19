@@ -128,3 +128,7 @@ that the evidence contains the required Plane/workspace/OpenHands/Langfuse/Run D
   workspace path, Langfuse trace id/url, next state, summary, and error if present.
 - `verification`: direct evidence handles for the operator: `/runs/<run_id>`, Plane task id,
   OpenHands evidence, Langfuse evidence, and expected next state.
+
+Successful live evidence must include URL-level OpenHands and Langfuse refs that match the run
+record. Failed or blocked live evidence may lack a Langfuse trace, but still needs Run Detail, Plane,
+workspace, and OpenHands/debug context.
