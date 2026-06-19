@@ -27,6 +27,7 @@ export type DbClient = Pick<
   | "runEvent"
   | "task"
   | "traceRef"
+  | "workspace"
 >;
 
 export const dispatchableTaskStates = [
@@ -304,6 +305,17 @@ export async function startRun(db: DbClient, input: StartRunInput) {
       },
     });
 
+    await tx.workspace.create({
+      data: {
+        runId: run.id,
+        repositoryId: task.repositoryId,
+        strategy: "clone",
+        path: workspacePathForRun(task.repository, run.id),
+        baseRef: task.repository.defaultBranch,
+        status: "ready",
+      },
+    });
+
     await tx.runEvent.create({
       data: {
         runId: run.id,
@@ -429,6 +441,15 @@ export async function createRun(db: DbClient, input: CreateRunInput) {
   const status = input.leaseOwner ? "claimed" : "queued";
 
   return db.$transaction(async (tx) => {
+    const repository = await tx.repository.findUnique({
+      where: {
+        id: input.repositoryId,
+      },
+    });
+    if (!repository) {
+      throw new Error(`Repository ${input.repositoryId} not found`);
+    }
+
     const run = await tx.run.create({
       data: {
         taskId: input.taskId,
@@ -442,6 +463,17 @@ export async function createRun(db: DbClient, input: CreateRunInput) {
         heartbeatAt: input.leaseOwner ? now : null,
         attempt: input.attempt ?? 1,
         startedAt: input.leaseOwner ? now : null,
+      },
+    });
+
+    await tx.workspace.create({
+      data: {
+        runId: run.id,
+        repositoryId: input.repositoryId,
+        strategy: "clone",
+        path: workspacePathForRun(repository, run.id),
+        baseRef: repository.defaultBranch,
+        status: "ready",
       },
     });
 
@@ -855,6 +887,14 @@ function terminalStatusToEventType(status: CompleteRunInput["status"]): RunEvent
     case "canceled":
       return "canceled";
   }
+}
+
+function workspacePathForRun(
+  repository: { slug: string; localPath?: string | null },
+  runId: string,
+): string {
+  const basePath = repository.localPath?.replace(/\/+$/, "") || `workspaces/${repository.slug}`;
+  return `${basePath}/runs/${runId}`;
 }
 
 function hashPrompt(prompt: string): string {

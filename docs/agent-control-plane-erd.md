@@ -305,7 +305,10 @@ Prompt 片段。
 
 - `run_id`
 
-第一版建议每个 run 独立 workspace，避免多 agent 并发污染同一个 checkout。稳定后再引入 `git worktree` 优化磁盘和 clone 成本。
+第一版每个 run 都会登记一个独立 workspace 记录，默认 strategy 为 `clone`。路径优先使用
+repository `local_path`，否则使用 `workspaces/<repo>/runs/<run_id>`。Control Plane 只保存
+workspace 事实和路径；实际 checkout / sandbox 准备由 OpenHands runtime 负责。稳定后再引入
+`git worktree` 优化磁盘和 clone 成本。
 
 ### conversation_refs
 

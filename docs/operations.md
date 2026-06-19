@@ -121,6 +121,18 @@ Operational rule:
   records the OpenHands conversation id, UI URL, event cursor, and external events. Failed live runs
   should remain inspectable from Run Detail even when no Langfuse trace was created.
 
+## Worker Workspaces
+
+Each DB-backed run creates one Control Plane `workspace` record before OpenHands execution starts.
+The first implementation records the workspace path and marks it `ready`; OpenHands remains
+responsible for the actual checkout/sandbox lifecycle.
+
+Path rule:
+
+- Use repository `local_path` when configured.
+- Otherwise use `workspaces/<repo>/runs/<run_id>`.
+- Keep `WORKER_DEFAULT_REPO_CONCURRENCY=1` for repos that share a local checkout path.
+
 ## Worker Retry Limit
 
 `WORKER_MAX_TASK_ATTEMPTS` caps how many runs a task can receive before the worker stops
@@ -410,3 +422,27 @@ Checks:
 
 Exit code is `0` only when all checks pass. Use this before starting a live worker and after any
 credential, endpoint, or self-host upgrade change.
+
+## Live Dispatch Smoke Test
+
+After `release:check` and `live:preflight` pass, run exactly one live dispatch to validate the
+Plane -> Control Plane -> OpenHands -> Langfuse -> Plane loop:
+
+```bash
+WORKER_MODE="live" \
+DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane?schema=public" \
+PLANE_BASE_URL="https://plane.example" \
+PLANE_WORKSPACE_SLUG="workspace" \
+PLANE_PROJECT_ID="project" \
+PLANE_API_KEY="..." \
+OPENHANDS_BASE_URL="https://openhands.example" \
+LANGFUSE_BASE_URL="https://langfuse.example" \
+LANGFUSE_PUBLIC_KEY="..." \
+LANGFUSE_SECRET_KEY="..." \
+pnpm live:dispatch-once
+```
+
+The script refuses to run unless `WORKER_MODE=live`, runs `pnpm live:preflight`, then dispatches one
+eligible task. The JSON output includes `taskId`, `runId`, `runStatus`, `conversationId`,
+`langfuseTraceId`, `nextState`, and `summary`; use those ids to verify Run Detail, OpenHands, and
+Langfuse links before enabling a long-running worker.

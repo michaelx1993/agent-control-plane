@@ -108,3 +108,12 @@ Run `pnpm live:preflight` before enabling live mode. It performs non-mutating pr
 
 If a self-hosted service exposes a different health endpoint, set `OPENHANDS_HEALTH_PATH` or
 `LANGFUSE_HEALTH_PATH` instead of changing code.
+
+Use one-shot live dispatch for the first real Development task:
+
+```bash
+WORKER_MODE="live" pnpm live:dispatch-once
+```
+
+It runs live preflight before dispatching and prints the task/run/conversation/trace ids needed for
+Run Detail, OpenHands, and Langfuse verification.

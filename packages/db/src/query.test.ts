@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createRun,
   isDispatchableTaskCandidate,
   markExpiredLeasesFailed,
   markRunRunning,
@@ -38,6 +39,7 @@ describe("isDispatchableTaskCandidate", () => {
     const promptReleaseCreate = viLike();
     const runCreate = viLike();
     const eventCreate = viLike();
+    const workspaceCreate = viLike();
     const db = {
       $transaction: async (callback: (tx: unknown) => Promise<unknown>) => {
         return callback({
@@ -46,7 +48,12 @@ describe("isDispatchableTaskCandidate", () => {
               id: "task-1",
               state: "Development",
               repositoryId: "repo-1",
-              repository: { id: "repo-1" },
+              repository: {
+                id: "repo-1",
+                slug: "crs-src",
+                defaultBranch: "main",
+                localPath: "/tmp/crs-src",
+              },
             }),
           },
           role: {
@@ -84,6 +91,12 @@ describe("isDispatchableTaskCandidate", () => {
               return {};
             },
           },
+          workspace: {
+            create: async (input: unknown) => {
+              workspaceCreate(input);
+              return {};
+            },
+          },
         });
       },
     } as unknown as DbClient;
@@ -113,6 +126,97 @@ describe("isDispatchableTaskCandidate", () => {
           payload: expect.objectContaining({
             attempt: 3,
           }),
+        }),
+      }),
+    );
+    expect(workspaceCreate.calls[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          runId: "run-1",
+          repositoryId: "repo-1",
+          strategy: "clone",
+          path: "/tmp/crs-src/runs/run-1",
+          baseRef: "main",
+          status: "ready",
+        }),
+      }),
+    );
+  });
+
+  it("creates a workspace record for manually queued runs", async () => {
+    const runCreate = viLike();
+    const workspaceCreate = viLike();
+    const eventCreate = viLike();
+    const db = {
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+        return callback({
+          repository: {
+            findUnique: async () => ({
+              id: "repo-1",
+              slug: "traffic",
+              defaultBranch: "main",
+              localPath: null,
+            }),
+          },
+          run: {
+            create: async (input: unknown) => {
+              runCreate(input);
+              return {
+                id: "run-manual-1",
+                taskId: "task-1",
+                repositoryId: "repo-1",
+              };
+            },
+          },
+          workspace: {
+            create: async (input: unknown) => {
+              workspaceCreate(input);
+              return {};
+            },
+          },
+          runEvent: {
+            create: async (input: unknown) => {
+              eventCreate(input);
+              return {};
+            },
+          },
+        });
+      },
+    } as unknown as DbClient;
+
+    const result = await createRun(db, {
+      taskId: "task-1",
+      repositoryId: "repo-1",
+      roleId: "role-1",
+      agentDefinitionId: "agent-1",
+      promptReleaseId: "prompt-release-1",
+    });
+
+    expect(result).toEqual(expect.objectContaining({ id: "run-manual-1" }));
+    expect(runCreate.calls[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "queued",
+          startedAt: null,
+        }),
+      }),
+    );
+    expect(workspaceCreate.calls[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          runId: "run-manual-1",
+          repositoryId: "repo-1",
+          strategy: "clone",
+          path: "workspaces/traffic/runs/run-manual-1",
+          baseRef: "main",
+          status: "ready",
+        }),
+      }),
+    );
+    expect(eventCreate.calls[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: "queued",
         }),
       }),
     );
