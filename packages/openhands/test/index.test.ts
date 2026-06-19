@@ -32,51 +32,46 @@ describe("MockOpenHandsAdapter", () => {
 });
 
 describe("HttpOpenHandsAdapter", () => {
-  it("sends configurable HTTP payloads and parses event cursors/results", async () => {
+  it("uses the current OpenHands V1 app-conversations API by default", async () => {
     const requests: Array<{ input: string; init?: { method?: string; body?: string } }> = [];
     const fetch = async (input: string, init?: { method?: string; body?: string }) => {
       requests.push({ input, init });
 
-      if (input === "https://openhands.example/api/conversations") {
+      if (input === "https://openhands.example/api/v1/app-conversations") {
         return jsonResponse({
-          conversation: {
-            id: "conversation-1",
-            url: "https://openhands.example/conversations/conversation-1",
-          },
+          id: "start-task-1",
+          status: "READY",
+          app_conversation_id: "conversation-1",
         });
-      }
-
-      if (input === "https://openhands.example/api/runs") {
-        return jsonResponse({ ok: true });
       }
 
       if (
-        input === "https://openhands.example/api/conversations/conversation-1/events?cursor=abc"
+        input ===
+        "https://openhands.example/api/v1/conversation/conversation-1/events/search?limit=100&page_id=abc&cursor=abc"
       ) {
         return jsonResponse({
-          events: [
+          items: [
             {
               id: "event-1",
-              conversationId: "conversation-1",
+              conversation_id: "conversation-1",
               type: "run.status",
               status: "completed",
-              createdAt: "2026-01-01T00:00:00.000Z",
+              timestamp: "2026-01-01T00:00:00.000Z",
             },
           ],
-          nextCursor: "def",
+          next_page_id: "def",
         });
       }
 
-      if (input === "https://openhands.example/api/runs/conversation-1/result") {
-        return jsonResponse({
-          result: {
-            conversationId: "conversation-1",
-            status: "completed",
-            summary: "fixed",
-            eventCursor: "def",
-            artifacts: [{ kind: "patch", path: "fix.diff" }],
+      if (input === "https://openhands.example/api/v1/app-conversations?ids=conversation-1") {
+        return jsonResponse([
+          {
+            id: "conversation-1",
+            sandbox_status: "RUNNING",
+            execution_status: "finished",
+            title: "Fix README",
           },
-        });
+        ]);
       }
 
       throw new Error(`Unexpected request: ${input}`);
@@ -106,31 +101,71 @@ describe("HttpOpenHandsAdapter", () => {
       taskId: "task-1",
       runId: "run-1",
     });
-    expect(JSON.parse(requests[0].init?.body ?? "{}")).toMatchObject({
-      taskId: "task-1",
-      runId: "run-1",
-      repo: "repo-1",
-      prompt: "Fix the task",
-    });
-    expect(JSON.parse(requests[1].init?.body ?? "{}")).toEqual({
-      conversationId: "conversation-1",
+    expect(JSON.parse(requests[0].init?.body ?? "{}")).toEqual({
+      initial_message: {
+        content: [{ type: "text", text: "Fix the task" }],
+      },
+      selected_repository: "repo-1",
+      metadata: { role: "Development" },
     });
     expect(page.nextCursor).toBe("def");
     expect(page.events[0]).toMatchObject({ type: "run.status", status: "completed" });
     expect(result).toMatchObject({
       conversationId: "conversation-1",
       status: "completed",
-      summary: "fixed",
-      eventCursor: "def",
+      summary: "Fix README",
     });
   });
 
-  it("supports custom endpoint paths without losing defaults", async () => {
+  it("polls V1 start tasks until a conversation is ready", async () => {
     const requests: string[] = [];
     const fetch = async (input: string) => {
       requests.push(input);
 
-      if (input === "https://openhands.example/v1/conversations") {
+      if (input === "https://openhands.example/api/v1/app-conversations") {
+        return jsonResponse({ id: "start-task-2", status: "WORKING" });
+      }
+
+      if (
+        input === "https://openhands.example/api/v1/app-conversations/start-tasks?ids=start-task-2"
+      ) {
+        return jsonResponse([
+          {
+            id: "start-task-2",
+            status: "READY",
+            app_conversation_id: "conversation-2",
+          },
+        ]);
+      }
+
+      throw new Error(`Unexpected request: ${input}`);
+    };
+    const adapter = new HttpOpenHandsAdapter({
+      baseUrl: "https://openhands.example",
+      fetch,
+      startTaskPollIntervalMs: 0,
+    });
+
+    await expect(
+      adapter.createConversation({
+        taskId: "task-2",
+        runId: "run-2",
+        repo: "repo-2",
+        prompt: "Fix another task",
+      }),
+    ).resolves.toMatchObject({ id: "conversation-2" });
+    expect(requests).toEqual([
+      "https://openhands.example/api/v1/app-conversations",
+      "https://openhands.example/api/v1/app-conversations/start-tasks?ids=start-task-2",
+    ]);
+  });
+
+  it("supports legacy endpoint paths for old V0-compatible servers", async () => {
+    const requests: string[] = [];
+    const fetch = async (input: string) => {
+      requests.push(input);
+
+      if (input === "https://openhands.example/api/conversations") {
         return jsonResponse({
           conversation: {
             id: "conversation-2",
@@ -147,9 +182,7 @@ describe("HttpOpenHandsAdapter", () => {
     const adapter = new HttpOpenHandsAdapter({
       baseUrl: "https://openhands.example",
       fetch,
-      endpoints: {
-        conversations: "/v1/conversations",
-      },
+      apiMode: "legacy",
     });
 
     const conversation = await adapter.createConversation({
@@ -161,7 +194,7 @@ describe("HttpOpenHandsAdapter", () => {
     await adapter.startRun(conversation.id);
 
     expect(requests).toEqual([
-      "https://openhands.example/v1/conversations",
+      "https://openhands.example/api/conversations",
       "https://openhands.example/api/runs",
     ]);
   });

@@ -641,12 +641,18 @@ describe("DispatchWorker", () => {
 
   it("loads OpenHands endpoint paths from env", () => {
     const config = loadConfig({
+      OPENHANDS_API_MODE: "legacy",
       OPENHANDS_CONVERSATIONS_PATH: "/v1/conversations",
       OPENHANDS_RUNS_PATH: "/v1/runs",
     });
 
+    expect(config.openHandsApiMode).toBe("legacy");
     expect(config.openHandsConversationsPath).toBe("/v1/conversations");
     expect(config.openHandsRunsPath).toBe("/v1/runs");
+  });
+
+  it("defaults OpenHands runtime integration to the current V1 API", () => {
+    expect(loadConfig({}).openHandsApiMode).toBe("v1");
   });
 
   it("loads Langfuse endpoint paths from env", () => {

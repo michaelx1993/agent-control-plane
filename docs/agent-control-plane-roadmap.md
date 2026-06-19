@@ -40,7 +40,8 @@ P0 方案固化
 - Worker 在交给 OpenHands 和保存 prompt release snapshot 前，会对运行时 prompt 执行最低限度
   secret redaction，覆盖常见 API key、bearer token 和 private key block。
 - 已有 `pnpm secrets:check` 高置信度 secret 泄露扫描，并纳入 `pnpm release:check`。
-- 已有 OpenHands adapter、workspace 记录和注入、Run Detail workspace 可视化、可配置 runtime endpoint paths、conversation refs、poll heartbeat hook。
+- 已有 OpenHands adapter、workspace 记录和注入、Run Detail workspace 可视化、可配置 runtime endpoint paths、conversation refs、poll heartbeat hook。OpenHands HTTP adapter 默认走当前 V1
+  `/api/v1/app-conversations` 协议；`OPENHANDS_API_MODE=legacy` 仅用于旧 V0-compatible server。
 - 已有 Langfuse trace refs、可配置 trace/generation endpoint paths、token/cost summary 写入、prompt version metrics 和 dashboard 展示。
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
 - Live 模式下 final Plane 状态/comment 回写是强制门禁；失败时 run 标 failed，本地 task

@@ -72,13 +72,21 @@ export type OpenHandsAdapter = {
 export type OpenHandsHttpEndpoints = {
   conversations: string;
   runs: string;
+  startTasks: string;
+  eventsSearch: string;
 };
+
+export type OpenHandsHttpApiMode = "v1" | "legacy";
 
 export type OpenHandsHttpAdapterOptions = {
   baseUrl: string;
   fetch?: FetchLike;
   headers?: Record<string, string>;
   endpoints?: Partial<OpenHandsHttpEndpoints>;
+  apiMode?: OpenHandsHttpApiMode;
+  startTaskPollAttempts?: number;
+  startTaskPollIntervalMs?: number;
+  sleep?: (ms: number) => Promise<void>;
 };
 
 type FetchLike = (
@@ -96,9 +104,17 @@ type FetchLike = (
 }>;
 
 const defaultOpenHandsEndpoints: OpenHandsHttpEndpoints = {
-  // Skeleton defaults only. Align these with the target self-host/OpenHands SDK Server routes.
+  conversations: "/api/v1/app-conversations",
+  runs: "/api/v1/app-conversations",
+  startTasks: "/api/v1/app-conversations/start-tasks",
+  eventsSearch: "/api/v1/conversation/{conversationId}/events/search",
+};
+
+const legacyOpenHandsEndpoints: OpenHandsHttpEndpoints = {
   conversations: "/api/conversations",
   runs: "/api/runs",
+  startTasks: "/api/conversations/start-tasks",
+  eventsSearch: "/api/conversations/{conversationId}/events",
 };
 
 export class HttpOpenHandsAdapter implements OpenHandsAdapter {
@@ -106,18 +122,52 @@ export class HttpOpenHandsAdapter implements OpenHandsAdapter {
   private readonly fetchImpl: FetchLike;
   private readonly headers: Record<string, string>;
   private readonly endpoints: OpenHandsHttpEndpoints;
+  private readonly apiMode: OpenHandsHttpApiMode;
+  private readonly startTaskPollAttempts: number;
+  private readonly startTaskPollIntervalMs: number;
+  private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: OpenHandsHttpAdapterOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.fetchImpl = options.fetch ?? defaultFetch;
     this.headers = options.headers ?? {};
+    this.apiMode = options.apiMode ?? "v1";
+    const defaults =
+      this.apiMode === "legacy" ? legacyOpenHandsEndpoints : defaultOpenHandsEndpoints;
     this.endpoints = {
-      conversations: options.endpoints?.conversations ?? defaultOpenHandsEndpoints.conversations,
-      runs: options.endpoints?.runs ?? defaultOpenHandsEndpoints.runs,
+      conversations: options.endpoints?.conversations ?? defaults.conversations,
+      runs: options.endpoints?.runs ?? defaults.runs,
+      startTasks: options.endpoints?.startTasks ?? defaults.startTasks,
+      eventsSearch: options.endpoints?.eventsSearch ?? defaults.eventsSearch,
     };
+    this.startTaskPollAttempts = positiveInteger(options.startTaskPollAttempts, 60);
+    this.startTaskPollIntervalMs = positiveInteger(options.startTaskPollIntervalMs, 5000);
+    this.sleep = options.sleep ?? sleep;
   }
 
   async createConversation(input: StartConversationInput): Promise<ConversationRef> {
+    if (this.apiMode === "legacy") {
+      return this.createLegacyConversation(input);
+    }
+
+    const response = await this.request("POST", this.endpoints.conversations, {
+      initial_message: {
+        content: [{ type: "text", text: input.prompt }],
+      },
+      selected_repository: input.repo,
+      metadata: input.metadata,
+    });
+    const startTask = unwrapObject(response, "start_task");
+    const conversationId =
+      readOptionalString(startTask, "app_conversation_id") ??
+      readOptionalString(startTask, "conversation_id");
+    if (conversationId) return this.v1ConversationRef(conversationId, input);
+
+    const startTaskId = readString(startTask, "id");
+    return this.pollV1ConversationStart(startTaskId, input);
+  }
+
+  private async createLegacyConversation(input: StartConversationInput): Promise<ConversationRef> {
     const response = await this.request("POST", this.endpoints.conversations, input);
     const body = unwrapObject(response, "conversation");
 
@@ -132,6 +182,11 @@ export class HttpOpenHandsAdapter implements OpenHandsAdapter {
   }
 
   async startRun(conversationId: string): Promise<void> {
+    if (this.apiMode === "v1") {
+      void conversationId;
+      return;
+    }
+
     await this.request("POST", this.endpoints.runs, { conversationId });
   }
 
@@ -139,21 +194,50 @@ export class HttpOpenHandsAdapter implements OpenHandsAdapter {
     conversationId: string,
     cursor?: string,
   ): Promise<{ events: OpenHandsEvent[]; nextCursor?: string }> {
-    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+    if (this.apiMode === "legacy") {
+      const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+      const response = await this.request(
+        "GET",
+        `${this.endpoints.conversations}/${encodeURIComponent(conversationId)}/events${query}`,
+      );
+      return this.parseEventsPage(response);
+    }
+
+    const query = new URLSearchParams({ limit: "100" });
+    if (cursor) {
+      query.set("page_id", cursor);
+      query.set("cursor", cursor);
+    }
     const response = await this.request(
       "GET",
-      `${this.endpoints.conversations}/${encodeURIComponent(conversationId)}/events${query}`,
+      `${this.conversationPath(this.endpoints.eventsSearch, conversationId)}?${query.toString()}`,
     );
+    return this.parseEventsPage(response);
+  }
+
+  private parseEventsPage(response: unknown): { events: OpenHandsEvent[]; nextCursor?: string } {
     const body = asRecord(response);
-    const rawEvents = readArray(body, "events") ?? readArray(body, "data") ?? [];
+    const rawEvents =
+      readArray(body, "events") ?? readArray(body, "items") ?? readArray(body, "data") ?? [];
 
     return {
       events: rawEvents.map(parseOpenHandsEvent),
-      nextCursor: readOptionalString(body, "nextCursor") ?? readOptionalString(body, "cursor"),
+      nextCursor:
+        readOptionalString(body, "nextCursor") ??
+        readOptionalString(body, "next_page_id") ??
+        readOptionalString(body, "cursor"),
     };
   }
 
   async getResult(conversationId: string): Promise<OpenHandsRunResult | undefined> {
+    if (this.apiMode === "v1") {
+      const response = await this.request(
+        "GET",
+        `${this.endpoints.conversations}?ids=${encodeURIComponent(conversationId)}`,
+      );
+      return parseOpenHandsV1ConversationResult(response, conversationId);
+    }
+
     const response = await this.request(
       "GET",
       `${this.endpoints.runs}/${encodeURIComponent(conversationId)}/result`,
@@ -162,6 +246,57 @@ export class HttpOpenHandsAdapter implements OpenHandsAdapter {
     const rawResult = body.result === undefined ? response : body.result;
     if (rawResult === null || rawResult === undefined) return undefined;
     return parseOpenHandsRunResult(rawResult, conversationId);
+  }
+
+  private async pollV1ConversationStart(
+    startTaskId: string,
+    input: StartConversationInput,
+  ): Promise<ConversationRef> {
+    for (let attempt = 0; attempt < this.startTaskPollAttempts; attempt += 1) {
+      const response = await this.request(
+        "GET",
+        `${this.endpoints.startTasks}?ids=${encodeURIComponent(startTaskId)}`,
+      );
+      const task = firstRecord(response);
+      const status = readOptionalString(task, "status");
+      const conversationId =
+        readOptionalString(task, "app_conversation_id") ??
+        readOptionalString(task, "conversation_id");
+
+      if (status === "READY" && conversationId) {
+        return this.v1ConversationRef(conversationId, input);
+      }
+      if (status === "ERROR") {
+        throw new Error(
+          `OpenHands conversation start failed: ${readOptionalString(task, "error") ?? "unknown error"}`,
+        );
+      }
+      if (this.startTaskPollIntervalMs > 0) {
+        await this.sleep(this.startTaskPollIntervalMs);
+      }
+    }
+
+    throw new Error(
+      `OpenHands conversation start task ${startTaskId} did not become READY after ${this.startTaskPollAttempts} poll attempt(s).`,
+    );
+  }
+
+  private v1ConversationRef(
+    conversationId: string,
+    input: StartConversationInput,
+  ): ConversationRef {
+    return {
+      id: conversationId,
+      url: `${this.baseUrl}/conversations/${conversationId}`,
+      workspacePath: input.workspacePath,
+      repo: input.repo,
+      taskId: input.taskId,
+      runId: input.runId,
+    };
+  }
+
+  private conversationPath(path: string, conversationId: string): string {
+    return path.replace("{conversationId}", encodeURIComponent(conversationId));
   }
 
   private async request(method: string, path: string, body?: unknown): Promise<unknown> {
@@ -317,6 +452,14 @@ function defaultFetch(...args: Parameters<FetchLike>): ReturnType<FetchLike> {
   return fetchImpl(...args);
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function positiveInteger(value: number | undefined, fallback: number): number {
+  return Number.isFinite(value) && value !== undefined && value >= 0 ? Math.floor(value) : fallback;
+}
+
 function normalizePath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
@@ -329,6 +472,14 @@ function unwrapObject(value: unknown, key: string): Record<string, unknown> {
   const body = asRecord(value);
   const nested = body[key];
   return nested && typeof nested === "object" ? (nested as Record<string, unknown>) : body;
+}
+
+function firstRecord(value: unknown): Record<string, unknown> {
+  if (Array.isArray(value)) return asRecord(value[0]);
+  const body = asRecord(value);
+  const items = readArray(body, "items") ?? readArray(body, "data");
+  if (items?.length) return asRecord(items[0]);
+  return body;
 }
 
 function readString(record: Record<string, unknown>, key: string): string {
@@ -351,14 +502,28 @@ function readArray(record: Record<string, unknown>, key: string): unknown[] | un
 
 function parseOpenHandsEvent(value: unknown): OpenHandsEvent {
   const event = asRecord(value);
-  const type = readString(event, "type") as OpenHandsEvent["type"];
+  const type = normalizeEventType(
+    readOptionalString(event, "type") ?? readOptionalString(event, "kind"),
+  );
   const base = {
     id: readString(event, "id"),
-    conversationId: readString(event, "conversationId"),
-    createdAt: readString(event, "createdAt"),
+    conversationId:
+      readOptionalString(event, "conversationId") ??
+      readOptionalString(event, "conversation_id") ??
+      "unknown",
+    createdAt:
+      readOptionalString(event, "createdAt") ??
+      readOptionalString(event, "created_at") ??
+      readOptionalString(event, "timestamp") ??
+      new Date(0).toISOString(),
   };
 
-  if (type === "agent.message") return { ...base, type, message: readString(event, "message") };
+  if (type === "agent.message")
+    return {
+      ...base,
+      type,
+      message: readOptionalString(event, "message") ?? readOptionalString(event, "content") ?? "",
+    };
   if (type === "tool.call") {
     return {
       ...base,
@@ -382,6 +547,15 @@ function parseOpenHandsEvent(value: unknown): OpenHandsEvent {
   throw new Error(`Unsupported OpenHands event type: ${type}`);
 }
 
+function normalizeEventType(type: string | undefined): OpenHandsEvent["type"] {
+  if (type === "agent.message" || type === "message" || type === "MessageEvent")
+    return "agent.message";
+  if (type === "tool.call" || type === "ActionEvent") return "tool.call";
+  if (type === "tool.result" || type === "ObservationEvent") return "tool.result";
+  if (type === "run.status") return "run.status";
+  throw new Error(`Unsupported OpenHands event type: ${type ?? "<missing>"}`);
+}
+
 function parseOpenHandsRunResult(
   value: unknown,
   fallbackConversationId: string,
@@ -401,6 +575,59 @@ function parseOpenHandsRunResult(
     error: readOptionalString(result, "error"),
     artifacts: readArtifacts(result.artifacts),
   };
+}
+
+function parseOpenHandsV1ConversationResult(
+  value: unknown,
+  fallbackConversationId: string,
+): OpenHandsRunResult | undefined {
+  const conversation = firstRecord(value);
+  if (Object.keys(conversation).length === 0) return undefined;
+
+  const conversationId = readOptionalString(conversation, "id") ?? fallbackConversationId;
+  const executionStatus = readOptionalString(conversation, "execution_status");
+  const sandboxStatus = readOptionalString(conversation, "sandbox_status");
+  if (!executionStatus && !sandboxStatus) return undefined;
+
+  if (sandboxStatus === "ERROR" || sandboxStatus === "MISSING") {
+    return {
+      conversationId,
+      status: "failed",
+      summary: `OpenHands sandbox status: ${sandboxStatus}`,
+      error: `sandbox_status=${sandboxStatus}`,
+    };
+  }
+
+  if (executionStatus === "finished") {
+    return {
+      conversationId,
+      status: "completed",
+      summary: readOptionalString(conversation, "title") ?? "OpenHands conversation finished.",
+    };
+  }
+
+  if (executionStatus === "error") {
+    return {
+      conversationId,
+      status: "failed",
+      summary: readOptionalString(conversation, "title") ?? "OpenHands conversation failed.",
+      error: "execution_status=error",
+    };
+  }
+
+  if (executionStatus === "stuck" || executionStatus === "waiting_for_confirmation") {
+    return {
+      conversationId,
+      status: "stuck",
+      summary:
+        executionStatus === "waiting_for_confirmation"
+          ? "OpenHands is waiting for confirmation."
+          : "OpenHands conversation is stuck.",
+      error: `execution_status=${executionStatus}`,
+    };
+  }
+
+  return undefined;
 }
 
 function readRunStatus(record: Record<string, unknown>, key: string): OpenHandsRunStatus {

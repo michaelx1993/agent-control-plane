@@ -1172,6 +1172,12 @@ export async function getSystemReadiness(): Promise<SystemReadinessResponse> {
       label: "OpenHands runtime",
       checks: [
         envCheck("OPENHANDS_BASE_URL", process.env.OPENHANDS_BASE_URL, "OpenHands SDK/API URL"),
+        envCheck(
+          "OPENHANDS_API_MODE",
+          process.env.OPENHANDS_API_MODE,
+          "OpenHands API mode; defaults to current v1 app-conversations",
+          { warningWhenMissing: "defaults to v1" },
+        ),
         envCheck("OPENHANDS_API_KEY", process.env.OPENHANDS_API_KEY, "OpenHands auth token", {
           optional: true,
         }),

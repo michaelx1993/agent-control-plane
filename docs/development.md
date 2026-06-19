@@ -98,9 +98,12 @@ configured:
 The worker uses mock OpenHands and mock tracing only when `WORKER_MODE=mock`.
 Plane API key auth defaults to `X-API-Key`, matching self-host Personal Access Tokens. Use
 `PLANE_API_KEY_HEADER=Authorization` only when a deployment expects bearer auth.
-OpenHands runtime API paths default to `OPENHANDS_CONVERSATIONS_PATH=/api/conversations` and
-`OPENHANDS_RUNS_PATH=/api/runs`; override them when the target OpenHands SDK server exposes
-different routes.
+OpenHands runtime API mode defaults to `OPENHANDS_API_MODE=v1`, matching the current OpenHands
+`/api/v1/app-conversations` API. Set `OPENHANDS_API_MODE=legacy` only for old V0-compatible
+servers. OpenHands runtime API paths default to
+`OPENHANDS_CONVERSATIONS_PATH=/api/v1/app-conversations` and
+`OPENHANDS_RUNS_PATH=/api/v1/app-conversations`; override them when the target OpenHands SDK server
+exposes different routes.
 Langfuse runtime API paths default to `LANGFUSE_TRACES_PATH=/api/public/traces` and
 `LANGFUSE_GENERATIONS_PATH=/api/public/generations`; override them when a self-hosted Langfuse
 deployment exposes different API routes.

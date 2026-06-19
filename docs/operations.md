@@ -521,8 +521,9 @@ PLANE_PROJECT_ID="project" \
 PLANE_API_KEY="..." \
 PLANE_API_KEY_HEADER="X-API-Key" \
 OPENHANDS_BASE_URL="https://openhands.example" \
-OPENHANDS_CONVERSATIONS_PATH="/api/conversations" \
-OPENHANDS_RUNS_PATH="/api/runs" \
+OPENHANDS_API_MODE="v1" \
+OPENHANDS_CONVERSATIONS_PATH="/api/v1/app-conversations" \
+OPENHANDS_RUNS_PATH="/api/v1/app-conversations" \
 LANGFUSE_BASE_URL="https://langfuse.example" \
 LANGFUSE_TRACES_PATH="/api/public/traces" \
 LANGFUSE_GENERATIONS_PATH="/api/public/generations" \
@@ -541,8 +542,11 @@ Checks:
   bearer-compatible deployments.
 - OpenHands health endpoint responds. Default path: `/health`; override with
   `OPENHANDS_HEALTH_PATH`.
-- OpenHands runtime paths default to `/api/conversations` and `/api/runs`; override with
+- OpenHands runtime mode defaults to current V1 `/api/v1/app-conversations`; set
+  `OPENHANDS_API_MODE=legacy` only for old V0-compatible servers. Override paths with
   `OPENHANDS_CONVERSATIONS_PATH` and `OPENHANDS_RUNS_PATH` if the SDK server differs.
+  V1 start-task polling and event history use `/api/v1/app-conversations/start-tasks` and
+  `/api/v1/conversation/{conversationId}/events/search` internally.
 - Langfuse health endpoint responds. Default path: `/api/public/health`; override with
   `LANGFUSE_HEALTH_PATH`.
 - Langfuse trace/generation paths default to `/api/public/traces` and `/api/public/generations`;

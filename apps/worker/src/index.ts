@@ -34,6 +34,7 @@ import {
 import {
   HttpOpenHandsAdapter,
   type OpenHandsEvent as OpenHandsRuntimeEvent,
+  type OpenHandsHttpApiMode,
   type OpenHandsAdapter as OpenHandsClient,
 } from "@agent-control-plane/openhands";
 import {
@@ -69,6 +70,7 @@ export interface WorkerConfig {
   leaseMs: number;
   openHandsBaseUrl?: string;
   openHandsApiKey?: string;
+  openHandsApiMode: OpenHandsHttpApiMode;
   openHandsConversationsPath?: string;
   openHandsRunsPath?: string;
   openHandsPollIntervalMs: number;
@@ -309,6 +311,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     leaseMs: Number(env.WORKER_LEASE_MS ?? 15 * 60 * 1000),
     openHandsBaseUrl: env.OPENHANDS_BASE_URL,
     openHandsApiKey: env.OPENHANDS_API_KEY,
+    openHandsApiMode: openHandsApiModeFromEnv(env.OPENHANDS_API_MODE),
     openHandsConversationsPath: env.OPENHANDS_CONVERSATIONS_PATH,
     openHandsRunsPath: env.OPENHANDS_RUNS_PATH,
     openHandsPollIntervalMs: numberFromEnv(env.OPENHANDS_POLL_INTERVAL_MS, 1000),
@@ -632,6 +635,7 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       projectSlug: task.project,
       defaultRepoConcurrency: 1,
       defaultRoleConcurrency: 2,
+      openHandsApiMode: "v1",
       openHandsPollIntervalMs: 1000,
       openHandsPollAttempts: 300,
       workerHeartbeatIntervalMs: 30_000,
@@ -1726,6 +1730,7 @@ export function createOpenHandsAdapter(config: WorkerConfig): OpenHandsAdapter {
     new HttpOpenHandsAdapter({
       baseUrl: config.openHandsBaseUrl,
       headers: config.openHandsApiKey ? { authorization: `Bearer ${config.openHandsApiKey}` } : {},
+      apiMode: config.openHandsApiMode,
       endpoints: {
         conversations: config.openHandsConversationsPath,
         runs: config.openHandsRunsPath,
@@ -1885,6 +1890,10 @@ function runtimePolicyConfigFromWorkerConfig(config: WorkerConfig): RuntimePolic
 function numberFromEnv(value: string | undefined, fallback: number): number {
   const parsed = optionalNumberFromEnv(value);
   return parsed ?? fallback;
+}
+
+function openHandsApiModeFromEnv(value: string | undefined): OpenHandsHttpApiMode {
+  return value === "legacy" ? "legacy" : "v1";
 }
 
 function planePerPageFromEnv(value: string | undefined, fallback: number): number {

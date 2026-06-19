@@ -68,6 +68,7 @@ export async function runRuntimeProbe(
     new HttpOpenHandsAdapter({
       baseUrl: env.OPENHANDS_BASE_URL ?? "",
       headers: env.OPENHANDS_API_KEY ? { authorization: `Bearer ${env.OPENHANDS_API_KEY}` } : {},
+      apiMode: env.OPENHANDS_API_MODE === "legacy" ? "legacy" : "v1",
       endpoints: {
         conversations: env.OPENHANDS_CONVERSATIONS_PATH,
         runs: env.OPENHANDS_RUNS_PATH,

@@ -21,42 +21,41 @@ describe("Runtime probe", () => {
     const fetch = async (input: string, init?: { method?: string; body?: string }) => {
       requests.push({ input, init });
 
-      if (input === "https://openhands.test/api/conversations") {
+      if (input === "https://openhands.test/api/v1/app-conversations") {
         return jsonResponse({
-          conversation: {
-            id: "conversation-1",
-            url: "https://openhands.test/conversations/conversation-1",
-          },
+          id: "start-task-1",
+          status: "READY",
+          app_conversation_id: "conversation-1",
         });
       }
 
-      if (input === "https://openhands.test/api/runs") {
-        return jsonResponse({ ok: true });
-      }
-
-      if (input === "https://openhands.test/api/conversations/conversation-1/events") {
+      if (
+        input ===
+        "https://openhands.test/api/v1/conversation/conversation-1/events/search?limit=100"
+      ) {
         return jsonResponse({
-          events: [
+          items: [
             {
               id: "event-1",
-              conversationId: "conversation-1",
+              conversation_id: "conversation-1",
               type: "run.status",
               status: "completed",
-              createdAt: "2026-06-19T00:00:00.000Z",
+              timestamp: "2026-06-19T00:00:00.000Z",
             },
           ],
           nextCursor: "1",
         });
       }
 
-      if (input === "https://openhands.test/api/runs/conversation-1/result") {
-        return jsonResponse({
-          result: {
-            conversationId: "conversation-1",
-            status: "completed",
-            summary: "Runtime probe completed.",
+      if (input === "https://openhands.test/api/v1/app-conversations?ids=conversation-1") {
+        return jsonResponse([
+          {
+            id: "conversation-1",
+            sandbox_status: "RUNNING",
+            execution_status: "finished",
+            title: "Runtime probe completed.",
           },
-        });
+        ]);
       }
 
       if (input === "https://langfuse.test/api/public/traces") {
@@ -100,10 +99,9 @@ describe("Runtime probe", () => {
       ],
     });
     expect(requests.map((request) => request.input)).toEqual([
-      "https://openhands.test/api/conversations",
-      "https://openhands.test/api/runs",
-      "https://openhands.test/api/conversations/conversation-1/events",
-      "https://openhands.test/api/runs/conversation-1/result",
+      "https://openhands.test/api/v1/app-conversations",
+      "https://openhands.test/api/v1/conversation/conversation-1/events/search?limit=100",
+      "https://openhands.test/api/v1/app-conversations?ids=conversation-1",
       "https://langfuse.test/api/public/traces",
       "https://langfuse.test/api/public/generations",
       "https://langfuse.test/api/public/traces/trace-1",
