@@ -103,7 +103,9 @@ the target Plane deployment explicitly requires OAuth-compatible `Authorization`
 - [x] comment API 可写入 run 摘要。2026-06-19 用 `PLANE_PROBE_COMMENT_BODY` 对 disposable
       `P0.5 smoke test` 实测通过。
 - [ ] API rate limit 60 req/min 已在 self-host 实例实测或确认行为一致。
-- [ ] custom property `repo` 可创建、写入、读取。
+- [x] custom property `repo` 已实测。2026-06-19 对 disposable `P0.5 smoke test` PATCH
+      `custom_fields.repo=crs-src`：API 不报错，但 PATCH/GET 均不回显，DB `issues` 表也无
+      custom field 存储列；P1 不依赖该能力，repo routing 继续使用 `repo:<name>` label fallback。
 - [x] `repo:<name>` label fallback 可创建、读取、解析。Plane 返回 work-item label ID 时，
       Control Plane 会先读 project labels API，再把 label ID 解析为 `repo:<name>`；2026-06-19
       probe 已解析出 `repo=crs-src`。
@@ -114,15 +116,18 @@ the target Plane deployment explicitly requires OAuth-compatible `Authorization`
       webhook delivery 实测。
 - [x] webhook 不完整时的 polling fallback 决策已记录。worker 已实现 60s 最小间隔、
       `updated_since` cursor 和 `per_page<=100`；仍需 self-host API 行为实测。
-- [ ] fork `michaelx1993/plane` 的同步、分支、license 策略已确认。
-- [ ] 明确 P1 是否需要 Plane 源码二开。
+- [x] fork `michaelx1993/plane` 的同步、分支、license 策略已确认。GitHub 显示它是
+      `makeplane/plane` fork，默认分支为 `preview`。
+- [x] 明确 P1 是否需要 Plane 源码二开：P1 暂不二开，依赖 API + polling fallback +
+      `repo:<name>` label；正式 repo 字段、页面展示或 webhook 粒度不足时再进入 Plane fork。
 
 ## 风险和未验证项
 
 - 官方 docs 仍沿用 `issue` 命名，而产品术语为 work item；API path 使用 `/work-items/`，webhook event 仍可能是 `issue`。P0.5 receiver 需兼容该命名差异。
 - webhook 事件粒度需实测：state change 可能只表现为 issue update，payload 是否包含足够 diff 未验证。
 - webhook 要求公网可访问，纯 localhost receiver 不能直接接收 Plane 推送。
-- custom property 是否在列表 API、webhook payload、filter/order 中足够好用未验证；不足时进入 fork 二开字段。
+- custom property `repo` PATCH/GET 已实测不足以作为 P1 repo routing 字段；P1 使用 label fallback，
+  后续若需要页面展示、filter/order 或强类型字段，再进入 Plane fork 二开字段。
 - self-host Community Edition 与 Plane Cloud API 行为可能存在差异，尤其是 custom property、webhook、rate limit。
 - 60 req/min 对多 project polling 偏紧，P1 必须做分页、退避、reconciliation 窗口和 token 预算。
 - AGPLv3 对服务端二开有合规约束，生产化前要补 license checklist。

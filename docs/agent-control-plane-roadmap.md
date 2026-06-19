@@ -58,6 +58,10 @@ P0 方案固化
   可选 PATCH/comment mutation 做 spike 验证；2026-06-19 本机 self-host Plane 已通过
   non-mutating 和 mutating probe，并从 Plane label ID 解析出 `repo=crs-src`，PATCH/comment
   写链路已在 disposable `P0.5 smoke test` 上验证。
+- Plane custom property `repo` 已实测不足：PATCH 不报错但 GET 不回显，DB `issues` 表无
+  custom field 存储列。P1 repo routing 决策为继续使用 `repo:<name>` label fallback；
+  Plane fork `michaelx1993/plane` 已存在，默认分支 `preview`，正式字段二开延后到需要页面展示、
+  filter/order 或强类型字段时。
 - `pnpm live:dispatch-once` 会先执行 live preflight，再派发一个真实任务，并输出 task/run/
   OpenHands/Langfuse/next-state evidence bundle 用于 Development run smoke test。
 - `pnpm live:verify-once` 会在 one-shot live dispatch 后校验 evidence bundle，缺少 Plane、
