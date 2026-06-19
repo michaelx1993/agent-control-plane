@@ -494,7 +494,8 @@ Done              -> Terminal
 - 迁移现有 team/project/repo/prompt。
 - 从 Linear 导出未完成任务，导入 Plane。
 - Linear export 可先通过 `pnpm linear:migration-plan` 生成可审查的 Plane import draft，再用
-  `--apply --dry-run` 预览导入，最后用 `--apply` 创建 ready work items。
+  `--apply --dry-run` 预览导入，最后用 `--apply` 创建 ready work items；重复导入会先查
+  Plane 既有 `sourceId/sourceIdentifier` 标记并返回 `existing`。
 - 保留旧 run/log 链接。
 - 配置权限和审计。
 - 部署 Control Plane。

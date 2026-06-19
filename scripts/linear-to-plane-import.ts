@@ -8,6 +8,7 @@ import {
   planeImportDraftToCreatePayload,
   type LinearIssuePayload,
   type PlaneImportDraft,
+  type PlaneTaskPayload,
 } from "../packages/plane/src/index.ts";
 
 type MigrationOutput = {
@@ -29,10 +30,11 @@ type ImportResult = {
     created: number;
     skipped: number;
     failed: number;
+    existing: number;
   };
   results: Array<{
     identifier: string;
-    status: "created" | "skipped" | "failed";
+    status: "created" | "existing" | "skipped" | "failed";
     planeTaskId?: string;
     reason?: string;
   }>;
@@ -127,6 +129,7 @@ function extractDrafts(input: unknown): PlaneImportDraft[] {
 
 async function applyImport(output: MigrationOutput, dryRun: boolean): Promise<ImportResult> {
   const client = dryRun ? undefined : createPlaneClientFromEnv();
+  const existingTasks = dryRun ? [] : await client!.listTasks({ perPage: 100 });
   const results: ImportResult["results"] = [];
 
   for (const task of output.tasks) {
@@ -149,6 +152,17 @@ async function applyImport(output: MigrationOutput, dryRun: boolean): Promise<Im
     }
 
     try {
+      const existing = findExistingPlaneTask(existingTasks, task);
+      if (existing) {
+        results.push({
+          identifier: task.identifier,
+          status: "existing",
+          planeTaskId: existing.id ?? existing.work_item_id ?? existing.issue_id,
+          reason: "already imported",
+        });
+        continue;
+      }
+
       const created = await client!.createTask(planeImportDraftToCreatePayload(task));
       results.push({
         identifier: task.identifier,
@@ -173,9 +187,37 @@ async function applyImport(output: MigrationOutput, dryRun: boolean): Promise<Im
       created: results.filter((result) => result.status === "created").length,
       skipped: results.filter((result) => result.status === "skipped").length,
       failed: results.filter((result) => result.status === "failed").length,
+      existing: results.filter((result) => result.status === "existing").length,
     },
     results,
   };
+}
+
+function findExistingPlaneTask(
+  existingTasks: PlaneTaskPayload[],
+  draft: PlaneImportDraft,
+): PlaneTaskPayload | undefined {
+  return existingTasks.find((task) => {
+    const customFields = {
+      ...(task.custom_fields ?? {}),
+      ...(task.customFields ?? {}),
+    };
+    const source = stringField(customFields.source);
+    const sourceId = stringField(customFields.sourceId) ?? stringField(customFields.source_id);
+    const sourceIdentifier =
+      stringField(customFields.sourceIdentifier) ?? stringField(customFields.source_identifier);
+    const description = task.description ?? "";
+
+    return (
+      (source === draft.source && sourceId === draft.sourceId) ||
+      sourceIdentifier === draft.identifier ||
+      description.includes(`Migrated from Linear: ${draft.identifier}`)
+    );
+  });
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 function createPlaneClientFromEnv(): HttpPlaneClient {
