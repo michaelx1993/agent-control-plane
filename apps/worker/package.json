@@ -12,6 +12,7 @@
   "dependencies": {
     "@agent-control-plane/db": "workspace:*",
     "@agent-control-plane/plane": "workspace:*",
+    "@agent-control-plane/runtime-policy": "workspace:*",
     "tsx": "^4.20.3"
   },
   "devDependencies": {

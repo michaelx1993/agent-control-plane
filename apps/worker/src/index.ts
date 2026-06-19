@@ -6,6 +6,7 @@ import {
   markExpiredLeasesFailed as dbMarkExpiredLeasesFailed,
   markRunRunning as dbMarkRunRunning,
   prisma,
+  recordRunObservabilityRefs as dbRecordRunObservabilityRefs,
   startRun as dbStartRun,
   upsertSyncedTask,
   type DbClient,
@@ -18,6 +19,10 @@ import {
   type NormalizedPlaneTask,
   type PlaneClient,
 } from "@agent-control-plane/plane";
+import {
+  evaluateRuntimePolicy,
+  type RuntimePolicyConfig,
+} from "@agent-control-plane/runtime-policy";
 
 export type TaskState =
   | "Backlog"
@@ -48,6 +53,11 @@ export interface WorkerConfig {
   planeWorkspaceSlug?: string;
   planeProjectId?: string;
   projectSlug: string;
+  defaultRepoConcurrency: number;
+  defaultRoleConcurrency: number;
+  costBudgetLimit?: number;
+  costBudgetSpent?: number;
+  costBudgetExceededAction: "waiting-approval" | "blocked";
 }
 
 export interface Task {
@@ -218,6 +228,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     planeWorkspaceSlug: env.PLANE_WORKSPACE_SLUG,
     planeProjectId: env.PLANE_PROJECT_ID,
     projectSlug: env.CONTROL_PLANE_PROJECT_SLUG ?? "token",
+    defaultRepoConcurrency: numberFromEnv(env.WORKER_DEFAULT_REPO_CONCURRENCY, 1),
+    defaultRoleConcurrency: numberFromEnv(env.WORKER_DEFAULT_ROLE_CONCURRENCY, 2),
+    costBudgetLimit: optionalNumberFromEnv(env.WORKER_COST_BUDGET_LIMIT),
+    costBudgetSpent: optionalNumberFromEnv(env.WORKER_COST_BUDGET_SPENT),
+    costBudgetExceededAction:
+      env.WORKER_COST_BUDGET_EXCEEDED_ACTION === "blocked" ? "blocked" : "waiting-approval",
   };
 }
 
@@ -407,6 +423,9 @@ export class InMemoryControlPlaneStore implements ControlPlaneStore {
       enabledTeams: [task.team],
       leaseMs,
       projectSlug: task.project,
+      defaultRepoConcurrency: 1,
+      defaultRoleConcurrency: 2,
+      costBudgetExceededAction: "waiting-approval",
     });
 
     if (!dispatchable.some((candidate) => candidate.id === taskId)) {
@@ -528,10 +547,37 @@ export class DbControlPlaneStore implements ControlPlaneStore {
 
   async findDispatchableTasks(config: WorkerConfig): Promise<Task[]> {
     const tasks = await dbFindDispatchableTasks(this.db, { limit: 25 });
-
-    return tasks
+    const enabledTaskPairs = tasks
       .filter((task) => this.isEnabledTeam(task, config.enabledTeams))
-      .map((task) => this.toWorkerTask(task));
+      .map((task) => ({
+        dbTask: task,
+        workerTask: this.toWorkerTask(task),
+      }));
+    if (enabledTaskPairs.length === 0) {
+      return [];
+    }
+
+    const activeRuns = await this.findActiveRunsForPolicy();
+    const policy = evaluateRuntimePolicy(
+      enabledTaskPairs.map(({ dbTask, workerTask }) => ({
+        id: workerTask.id,
+        repo: workerTask.repo ?? "missing-repo",
+        role: roleByState[workerTask.state] ?? "Development Agent",
+        priority: dbTask.priority ?? undefined,
+        createdAt: dbTask.createdAt,
+      })),
+      activeRuns,
+      runtimePolicyConfigFromWorkerConfig(config),
+    );
+    const allowedTaskIds = new Set(
+      policy.dispatch
+        .filter((decision) => decision.status === "allowed")
+        .map((decision) => decision.task.id),
+    );
+
+    return enabledTaskPairs
+      .map(({ workerTask }) => workerTask)
+      .filter((task) => allowedTaskIds.has(task.id));
   }
 
   async claimRun(taskId: string, workerId: string, leaseMs: number): Promise<Run> {
@@ -571,6 +617,14 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       status: "succeeded",
       resultSummary: result.summary,
       nextState: toDbTaskState(nextState),
+    });
+    await dbRecordRunObservabilityRefs(this.db, {
+      runId,
+      conversationId: result.conversationId,
+      traceId: traceRef.traceId,
+      traceUrl: traceRef.url,
+      model: "gpt-5.5 medium",
+      promptReleaseId: run.promptReleaseId,
     });
 
     this.leaseOwners.delete(runId);
@@ -683,6 +737,31 @@ export class DbControlPlaneStore implements ControlPlaneStore {
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
     };
+  }
+
+  private async findActiveRunsForPolicy() {
+    const now = new Date();
+    const runs = await this.db.run.findMany({
+      where: {
+        status: {
+          in: ["claimed", "running"],
+        },
+        leaseExpiresAt: {
+          gt: now,
+        },
+      },
+      include: {
+        repository: true,
+        role: true,
+      },
+    });
+
+    return runs.map((run) => ({
+      taskId: run.taskId,
+      repo: run.repository.slug,
+      role: run.role.name,
+      costSpent: Number(run.costUsd ?? 0),
+    }));
   }
 }
 
@@ -918,6 +997,32 @@ function toDbTaskState(state: TaskState): DbTaskState {
     throw new Error(`Task state ${state} is not persisted in the DB schema`);
   }
   return dbState;
+}
+
+function runtimePolicyConfigFromWorkerConfig(config: WorkerConfig): RuntimePolicyConfig {
+  return {
+    defaultRepoConcurrency: config.defaultRepoConcurrency,
+    defaultRoleConcurrency: config.defaultRoleConcurrency,
+    costBudget:
+      config.costBudgetLimit === undefined
+        ? undefined
+        : {
+            limit: config.costBudgetLimit,
+            spent: config.costBudgetSpent,
+            onExceeded: config.costBudgetExceededAction,
+          },
+  };
+}
+
+function numberFromEnv(value: string | undefined, fallback: number): number {
+  const parsed = optionalNumberFromEnv(value);
+  return parsed ?? fallback;
+}
+
+function optionalNumberFromEnv(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function parseStringArray(value: unknown): string[] {

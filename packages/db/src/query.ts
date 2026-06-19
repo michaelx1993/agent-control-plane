@@ -14,6 +14,7 @@ export type DbClient = Pick<
   PrismaClient,
   | "$transaction"
   | "agentDefinition"
+  | "conversationRef"
   | "project"
   | "promptRelease"
   | "repository"
@@ -21,6 +22,7 @@ export type DbClient = Pick<
   | "run"
   | "runEvent"
   | "task"
+  | "traceRef"
 >;
 
 export const dispatchableTaskStates = [
@@ -507,6 +509,116 @@ export async function markExpiredLeasesFailed(
     return {
       count: expiredRuns.length,
       runIds: expiredRuns.map((run) => run.id),
+    };
+  });
+}
+
+export interface RecordRunObservabilityRefsInput {
+  runId: string;
+  conversationId: string;
+  conversationUrl?: string;
+  eventCursor?: string;
+  traceId: string;
+  traceUrl?: string;
+  model?: string;
+  promptReleaseId?: string;
+  inputTokens?: bigint | number;
+  outputTokens?: bigint | number;
+  costUsd?: Prisma.Decimal | Prisma.DecimalJsLike | number | string;
+  latencyMs?: number;
+}
+
+export async function recordRunObservabilityRefs(
+  db: DbClient,
+  input: RecordRunObservabilityRefsInput,
+) {
+  const inputTokens = input.inputTokens === undefined ? undefined : BigInt(input.inputTokens);
+  const outputTokens = input.outputTokens === undefined ? undefined : BigInt(input.outputTokens);
+
+  return db.$transaction(async (tx) => {
+    const run = await tx.run.findUnique({
+      where: {
+        id: input.runId,
+      },
+      select: {
+        id: true,
+        promptReleaseId: true,
+      },
+    });
+
+    if (!run) {
+      throw new Error(`Run ${input.runId} not found`);
+    }
+
+    const promptReleaseId = input.promptReleaseId ?? run.promptReleaseId;
+
+    const conversationRef = await tx.conversationRef.upsert({
+      where: {
+        runId: input.runId,
+      },
+      update: {
+        conversationId: input.conversationId,
+        eventCursor: input.eventCursor,
+        uiUrl: input.conversationUrl,
+      },
+      create: {
+        runId: input.runId,
+        conversationId: input.conversationId,
+        eventCursor: input.eventCursor,
+        uiUrl: input.conversationUrl,
+      },
+    });
+
+    const existingTraceRef = await tx.traceRef.findFirst({
+      where: {
+        runId: input.runId,
+        traceId: input.traceId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const traceData = {
+      promptReleaseId,
+      model: input.model,
+      inputTokens,
+      outputTokens,
+      costUsd: input.costUsd,
+      latencyMs: input.latencyMs,
+      uiUrl: input.traceUrl,
+    };
+    const traceRef = existingTraceRef
+      ? await tx.traceRef.update({
+          where: {
+            id: existingTraceRef.id,
+          },
+          data: traceData,
+        })
+      : await tx.traceRef.create({
+          data: {
+            runId: input.runId,
+            traceId: input.traceId,
+            ...traceData,
+          },
+        });
+
+    await tx.runEvent.create({
+      data: {
+        runId: input.runId,
+        eventType: "state_sync",
+        message: "Recorded OpenHands conversation and Langfuse trace refs",
+        payload: {
+          conversationId: input.conversationId,
+          traceId: input.traceId,
+          promptReleaseId,
+        } satisfies Prisma.InputJsonObject,
+      },
+    });
+
+    return {
+      conversationRef,
+      traceRef,
     };
   });
 }

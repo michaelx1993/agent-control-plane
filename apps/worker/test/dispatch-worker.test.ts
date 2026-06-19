@@ -79,6 +79,9 @@ describe("DispatchWorker", () => {
       task: {
         findMany: taskFindMany,
       },
+      run: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
     } as unknown as DbClient;
     const store = new DbControlPlaneStore(db);
 
@@ -109,6 +112,89 @@ describe("DispatchWorker", () => {
         labels: ["repo:crs-src", "kind:worker"],
       }),
     ]);
+  });
+
+  it("applies repo concurrency policy before returning DB-backed dispatchable tasks", async () => {
+    const taskFindMany = vi.fn().mockResolvedValue([
+      {
+        id: "task-crs",
+        externalTaskId: "plane-crs",
+        title: "CRS task",
+        url: "https://plane.test/token/TOK-1",
+        state: "Development",
+        priority: 10,
+        createdAt: new Date("2026-06-18T10:00:00.000Z"),
+        labels: ["repo:crs-src"],
+        repositoryId: "repo-crs",
+        repository: {
+          slug: "crs-src",
+          status: "active",
+        },
+        project: {
+          slug: "token",
+          team: {
+            name: "token-team",
+            key: "TOK",
+            externalTeamId: "token-team",
+          },
+        },
+      },
+      {
+        id: "task-traffic",
+        externalTaskId: "plane-traffic",
+        title: "Traffic task",
+        url: "https://plane.test/token/TOK-2",
+        state: "Development",
+        priority: 5,
+        createdAt: new Date("2026-06-18T11:00:00.000Z"),
+        labels: ["repo:traffic"],
+        repositoryId: "repo-traffic",
+        repository: {
+          slug: "traffic",
+          status: "active",
+        },
+        project: {
+          slug: "token",
+          team: {
+            name: "token-team",
+            key: "TOK",
+            externalTeamId: "token-team",
+          },
+        },
+      },
+    ]);
+    const activeRunFindMany = vi.fn().mockResolvedValue([
+      {
+        taskId: "existing-task",
+        costUsd: null,
+        repository: {
+          slug: "crs-src",
+        },
+        role: {
+          name: "Development Agent",
+        },
+      },
+    ]);
+    const db = {
+      task: {
+        findMany: taskFindMany,
+      },
+      run: {
+        findMany: activeRunFindMany,
+      },
+    } as unknown as DbClient;
+    const store = new DbControlPlaneStore(db);
+
+    const tasks = await store.findDispatchableTasks(
+      loadConfig({
+        WORKER_MODE: "live",
+        WORKER_ENABLED_TEAMS: "token-team",
+        WORKER_DEFAULT_REPO_CONCURRENCY: "1",
+      }),
+    );
+
+    expect(activeRunFindMany).toHaveBeenCalled();
+    expect(tasks.map((task) => task.id)).toEqual(["task-traffic"]);
   });
 
   it("maps Plane state and repo labels into DB task input", () => {

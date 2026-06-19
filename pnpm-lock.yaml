@@ -59,6 +59,9 @@ importers:
       "@agent-control-plane/plane":
         specifier: workspace:*
         version: link:../../packages/plane
+      "@agent-control-plane/runtime-policy":
+        specifier: workspace:*
+        version: link:../../packages/runtime-policy
       tsx:
         specifier: ^4.20.3
         version: 4.22.4

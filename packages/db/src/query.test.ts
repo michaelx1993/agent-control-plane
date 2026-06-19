@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isDispatchableTaskCandidate, markExpiredLeasesFailed } from "./query.js";
+import {
+  isDispatchableTaskCandidate,
+  markExpiredLeasesFailed,
+  recordRunObservabilityRefs,
+} from "./query.js";
 import type { DbClient } from "./query.js";
 
 describe("isDispatchableTaskCandidate", () => {
@@ -85,4 +89,103 @@ describe("isDispatchableTaskCandidate", () => {
       }),
     ]);
   });
+
+  it("records OpenHands conversation and Langfuse trace refs for a run", async () => {
+    const conversationUpsert = viLike();
+    const traceCreate = viLike();
+    const eventCreate = viLike();
+    const db = {
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+        return callback({
+          run: {
+            findUnique: async () => ({
+              id: "run-1",
+              promptReleaseId: "prompt-release-1",
+            }),
+          },
+          conversationRef: {
+            upsert: async (input: unknown) => {
+              conversationUpsert(input);
+              return { id: "conversation-ref-1" };
+            },
+          },
+          traceRef: {
+            findFirst: async () => null,
+            create: async (input: unknown) => {
+              traceCreate(input);
+              return { id: "trace-ref-1" };
+            },
+          },
+          runEvent: {
+            create: async (input: unknown) => {
+              eventCreate(input);
+              return {};
+            },
+          },
+        });
+      },
+    } as unknown as DbClient;
+
+    const result = await recordRunObservabilityRefs(db, {
+      runId: "run-1",
+      conversationId: "conversation-1",
+      conversationUrl: "https://openhands.test/conversations/conversation-1",
+      eventCursor: "42",
+      traceId: "trace-1",
+      traceUrl: "https://langfuse.test/trace-1",
+      model: "gpt-5.5 medium",
+      inputTokens: 100,
+      outputTokens: 25,
+      costUsd: 0.03,
+      latencyMs: 1234,
+    });
+
+    expect(result).toEqual({
+      conversationRef: { id: "conversation-ref-1" },
+      traceRef: { id: "trace-ref-1" },
+    });
+    expect(conversationUpsert.calls[0]).toEqual(
+      expect.objectContaining({
+        where: { runId: "run-1" },
+        create: expect.objectContaining({
+          runId: "run-1",
+          conversationId: "conversation-1",
+          eventCursor: "42",
+          uiUrl: "https://openhands.test/conversations/conversation-1",
+        }),
+      }),
+    );
+    expect(traceCreate.calls[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          runId: "run-1",
+          traceId: "trace-1",
+          promptReleaseId: "prompt-release-1",
+          model: "gpt-5.5 medium",
+          inputTokens: 100n,
+          outputTokens: 25n,
+          costUsd: 0.03,
+          latencyMs: 1234,
+          uiUrl: "https://langfuse.test/trace-1",
+        }),
+      }),
+    );
+    expect(eventCreate.calls[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          runId: "run-1",
+          eventType: "state_sync",
+          message: "Recorded OpenHands conversation and Langfuse trace refs",
+        }),
+      }),
+    );
+  });
 });
+
+function viLike() {
+  const fn = (input: unknown) => {
+    fn.calls.push(input);
+  };
+  fn.calls = [] as unknown[];
+  return fn;
+}
