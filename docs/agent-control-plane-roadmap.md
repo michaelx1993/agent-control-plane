@@ -1,0 +1,468 @@
+# Agent Control Plane Roadmap
+
+## 开发原则
+
+- 先跑通闭环，再扩大自动化范围。
+- Plane 只做人类任务面板，不承载高频 agent runtime。
+- Control Plane 持有调度状态、lease、run、prompt release 关联。
+- OpenHands 持有执行过程、conversation、event log。
+- Langfuse 持有 prompt registry、LLM trace、token/cost、eval。
+- 每个阶段必须能独立验收，不能依赖“大重构完成后才可用”。
+
+## 总体阶段
+
+```text
+P0 方案固化
+-> P1 Plane 任务层接入
+-> P2 Control Plane Runtime
+-> P3 Prompt 平台化
+-> P4 OpenHands 执行层
+-> P5 Langfuse 观测层
+-> P6 状态机闭环
+-> P7 多 repo / 多 project / 多 agent
+-> P8 生产化与迁移
+```
+
+## P0 方案固化
+
+目标：把产品边界、数据模型、状态机和集成边界定死。
+
+模块：
+
+- PRD
+- ERD
+- 状态机
+- 权限模型
+- Prompt 装配规则
+- 外部系统边界
+
+交付物：
+
+- `docs/agent-control-plane-prd.md`
+- `docs/agent-control-plane-erd.md`
+- `docs/agent-control-plane-roadmap.md`
+
+验收标准：
+
+- 明确 Plane / Control Plane / OpenHands / Langfuse 各自职责。
+- 明确 task 必须指定 repo。
+- 明确 prompt 装配顺序。
+- 明确哪些状态自动执行，哪些状态人工判定。
+
+## P1 Plane 任务层接入
+
+目标：用 Plane 替代 Linear 作为任务和人工 review 面板。
+
+模块：
+
+- Plane API client
+- Plane webhook receiver
+- Plane polling fallback
+- Team/project/task 同步
+- Task 状态映射
+- Repo 字段/label 解析
+
+关键能力：
+
+- 从 Plane 拉取 project/task。
+- 接收 Plane task create/update webhook。
+- 将 Plane task 映射成本地 `tasks`。
+- 解析 repo：优先结构化字段，其次 label，例如 `repo:crs-src`。
+- 同步状态变更回 Plane。
+
+交付物：
+
+- `plane_client`
+- `plane_webhook_handler`
+- `task_sync_service`
+- `state_mapping`
+
+验收标准：
+
+- 创建 Plane task 后，本地能同步出 task。
+- task 没有 repo 时，不会进入可派发队列。
+- 修改 Plane 状态后，本地 task 状态能更新。
+- 本地 run 完成后，能把状态和摘要写回 Plane。
+
+风险：
+
+- Plane API/webhook 能力需要实测。
+- 如果 Plane 不支持自定义字段，repo 先用 label 承载。
+
+## P2 Control Plane Runtime
+
+目标：建立自己的 agent runtime 状态库，替代把 runtime 写进 Plane comments。
+
+模块：
+
+- Database migration
+- Task queue
+- Lease manager
+- Run manager
+- Heartbeat
+- Retry/backoff
+- Runtime event log
+- Admin API
+
+关键能力：
+
+- 查找可派发任务。
+- 创建 run。
+- 获取/续租 lease。
+- 记录 heartbeat。
+- 记录 queued / claimed / running / blocked / completed / failed。
+- 失败后按策略 retry。
+- 对外提供 run 查询 API。
+
+交付物：
+
+- `teams/projects/repositories/tasks/runs/run_events` 表。
+- `dispatch_loop`
+- `lease_manager`
+- `run_state_machine`
+- 基础 HTTP API。
+
+验收标准：
+
+- 同一个 task 同一时间只能被一个 run 持有 lease。
+- worker 崩溃后 lease 过期，任务可重新派发。
+- heartbeat 超时可标记 stalled。
+- run 状态变化不依赖 Plane comment。
+
+风险：
+
+- lease 过短会误判长任务失败。
+- lease 过长会导致崩溃恢复慢。
+
+## P3 Prompt 平台化
+
+目标：prompt 从 GitHub 文件迁移到平台管理。
+
+模块：
+
+- Prompt Component CRUD
+- Prompt Binding
+- Prompt Release
+- Prompt Renderer
+- Prompt Diff
+- Prompt Rollback
+- Prompt permission
+
+Prompt 装配顺序：
+
+```text
+global
++ team
++ project
++ repo
++ role
++ agent
++ task context
++ comments/workpad
++ runtime constraints
+```
+
+关键能力：
+
+- 创建/编辑 prompt component。
+- 将 prompt component 绑定到 team/project/repo/role/agent。
+- 每次 run 前生成不可变 prompt release。
+- 记录 prompt release 组成和 hash。
+- 支持回滚 active prompt。
+
+交付物：
+
+- `prompt_components`
+- `prompt_bindings`
+- `prompt_releases`
+- `prompt_release_components`
+- Prompt Manager UI
+
+验收标准：
+
+- 不改 GitHub 文件即可修改 agent prompt。
+- 每次 run 能看到实际使用的 prompt release。
+- 被 run 引用的 prompt release 不可变。
+- prompt 改动后只影响未来 run，不影响历史 run。
+
+风险：
+
+- prompt 平台化后必须限制权限，否则 agent 行为容易被误改。
+- prompt 内容可能包含敏感信息，需要审计和访问控制。
+
+## P4 OpenHands 执行层
+
+目标：用 OpenHands SDK 承接 agent 执行、workspace、conversation 和 event log。
+
+模块：
+
+- OpenHands adapter
+- Workspace manager
+- Conversation manager
+- Event stream consumer
+- Result parser
+- Execution timeout/stuck detection
+
+关键能力：
+
+- 根据 task/repo 创建 workspace。
+- 创建 OpenHands conversation。
+- 注入 prompt release。
+- 启动 agent run。
+- 订阅 event log。
+- 保存 conversation ref。
+- 将执行结果回传 Control Plane。
+
+交付物：
+
+- `openhands_adapter`
+- `conversation_refs`
+- OpenHands UI 跳转链接。
+- Event cursor 同步。
+
+验收标准：
+
+- Development 任务可由 OpenHands 完成一次代码修改。
+- 用户能从 run detail 跳到 OpenHands conversation。
+- OpenHands event log 中能看到 agent 消息、tool call、shell/file 操作。
+- OpenHands 失败时，Control Plane 能记录失败原因并决定 retry/block。
+
+风险：
+
+- OpenHands 的工具权限模型要和现有 Codex 运行方式重新对齐。
+- workspace 隔离、secret 注入、git 凭据需要单独验证。
+
+## P5 Langfuse 观测层
+
+目标：让每次 LLM 调用可追踪、可归因、可评估。
+
+模块：
+
+- Langfuse project setup
+- Trace instrumentation
+- Prompt registry integration
+- Token/cost collector
+- Trace linking
+- Eval/annotation
+
+关键能力：
+
+- 每次 LLM call 写入 Langfuse trace。
+- trace 关联 task/run/conversation/prompt release/repo/role。
+- 收集 token、cost、latency。
+- 从 run detail 跳转 Langfuse trace。
+- 按 prompt version 统计成功率、平均成本、平均 token。
+
+交付物：
+
+- `trace_refs`
+- Langfuse SDK 集成。
+- Prompt version metrics 页面。
+
+验收标准：
+
+- 用户能看到每次 LLM call 的 prompt、output、token、cost。
+- 用户能按 prompt version 查看历史 run 表现。
+- run detail 同时有 OpenHands conversation 和 Langfuse trace 链接。
+
+风险：
+
+- trace 可能包含源码、密钥、业务数据，必须做脱敏策略。
+- Langfuse 与 OpenHands 的 callback/instrumentation 方式需要实测。
+
+## P6 状态机闭环
+
+目标：恢复并增强当前 Symphony 状态机能力。
+
+模块：
+
+- State transition engine
+- Role router
+- Human gate handler
+- Feedback ingestion
+- Plane sync writer
+- Workpad/progress model
+
+状态路由：
+
+```text
+Todo             -> Intake
+Development      -> Development Agent
+Code Review      -> Review Agent
+Human Review     -> Human Gate
+In Merge          -> Merge Agent
+Merged            -> Human Gate
+Release Version  -> Release Agent
+Released          -> Human Gate
+Deployment        -> Deploy Agent
+Deployed          -> Human Gate
+Done              -> Terminal
+```
+
+关键能力：
+
+- 自动状态由 Control Plane 派发。
+- 人工状态只等待用户操作。
+- reviewer/human 打回后，Development agent 必须读到反馈。
+- agent 完成后只建议或执行允许的状态转移。
+
+交付物：
+
+- `state_transition_rules`
+- `role_router`
+- `feedback_collector`
+- `plane_state_sync`
+
+验收标准：
+
+- Development 完成后能进入 Code Review。
+- Code Review 发现问题能回 Development。
+- Human Review 打回后能回 Development，并保留反馈。
+- Merged/Released/Deployed 由人决定下一步。
+
+风险：
+
+- 状态流转权限要严格，避免 agent 越过人工 gate。
+- Plane 与本地状态可能短暂不一致，需要 reconciliation。
+
+## P7 多 repo / 多 project / 多 agent
+
+目标：支持一个 team 下多个 project，一个 project 下多个 repo，多个 agent 并发执行。
+
+模块：
+
+- Repo routing
+- Project routing
+- Agent pool
+- Per-role concurrency
+- Per-repo concurrency
+- Cost budget
+- Queue priority
+
+关键能力：
+
+- token project 下通过 repo 字段分发到 `crs-src` / `sub3` / `traffic`。
+- 不同 repo 使用不同 repo prompt。
+- 不同 role 使用不同 agent definition。
+- 同 repo 可限制并发，避免多个 agent 修改同一仓库冲突。
+- 同 task 不允许重复执行。
+
+交付物：
+
+- `repository_routing_rules`
+- `agent_pool`
+- `concurrency_policy`
+- `budget_policy`
+
+验收标准：
+
+- 同一 project 下不同 repo 任务能进入不同 workspace。
+- repo prompt 能正确注入。
+- role prompt 能正确注入。
+- 超过并发限制的任务保持 queued。
+- 超过预算的任务进入 blocked 或 waiting-approval。
+
+风险：
+
+- 多 agent 并发可能造成 git/PR 冲突。
+- repo label 缺失或错误会导致任务派发失败，必须早阻断。
+
+## P8 生产化与迁移
+
+目标：从当前 Linear/Symphony 实验环境迁移到新的平台化架构。
+
+模块：
+
+- Data migration
+- Backfill
+- Access control
+- Audit log
+- Secret management
+- Backup/restore
+- Deployment
+- Monitoring
+
+关键能力：
+
+- 迁移现有 team/project/repo/prompt。
+- 从 Linear 导出未完成任务，导入 Plane。
+- 保留旧 run/log 链接。
+- 配置权限和审计。
+- 部署 Control Plane。
+- 监控 queue length、run success rate、token/cost、stalled runs。
+
+交付物：
+
+- Migration scripts
+- Deployment manifests
+- Monitoring dashboard
+- Runbook
+
+验收标准：
+
+- 新任务完全走 Plane。
+- 新 prompt 完全走平台。
+- 新 run 都有 OpenHands conversation 和 Langfuse trace。
+- 旧 Linear 只保留归档，不再作为 agent 任务源。
+
+风险：
+
+- 迁移期间可能出现双写和重复派发。
+- 需要冻结旧 Symphony poller 或确保只读。
+
+## 推荐任务拆分
+
+第一批任务：
+
+1. 搭建 Control Plane repo 和基础服务框架。
+2. 建库并实现 ERD 中 P1/P2 必需表。
+3. 接入 Plane API，完成 task sync。
+4. 实现 repo 必填校验和可派发任务查询。
+5. 实现 run/lease/heartbeat。
+6. 实现 prompt component/binding/release 最小模型。
+7. 用 mock OpenHands adapter 跑通状态闭环。
+8. 替换 mock 为真实 OpenHands SDK。
+9. 接入 Langfuse trace。
+10. 做 run detail 页面，展示 Plane task、OpenHands conversation、Langfuse trace。
+
+## 里程碑
+
+### M1: Task Sync 可用
+
+- Plane task 能同步到本地。
+- repo 缺失会阻断派发。
+- 状态变更可双向同步。
+
+### M2: Runtime Queue 可用
+
+- run/lease/heartbeat/retry 可用。
+- 可从 API 查看运行状态。
+
+### M3: Prompt Platform 可用
+
+- prompt 不再依赖 GitHub。
+- 每次 run 绑定 prompt release。
+
+### M4: OpenHands Run 可用
+
+- Development 任务可完成真实代码修改。
+- conversation/event log 可查看。
+
+### M5: Observability 可用
+
+- Langfuse trace 可查看。
+- token/cost 可统计。
+
+### M6: Workflow 闭环可用
+
+- Development -> Code Review -> Human Review -> In Merge 可跑通。
+- 打回返工可跑通。
+
+## 当前待决策
+
+- Plane repo 字段用自定义字段还是 label。
+- Control Plane 技术栈。
+- 数据库选 PostgreSQL 还是 SQLite 起步。
+- OpenHands workspace 用本机目录、Docker 还是远程 runtime。
+- Langfuse trace 是否保存完整 prompt payload，还是只保存 hash/reference。
+- 是否保留 Symphony 名字，还是新建独立 Control Plane。
