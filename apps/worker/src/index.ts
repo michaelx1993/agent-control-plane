@@ -391,6 +391,21 @@ export class DispatchWorker {
       });
 
       const nextState = this.decideNextState(task, runningRun, openHandsResult);
+      if (this.config.mode === "live") {
+        try {
+          await this.store.syncRunResult(task, openHandsResult, traceRef, nextState);
+        } catch (error) {
+          const syncError =
+            error instanceof Error
+              ? error
+              : new Error(`Failed to sync run result: ${String(error)}`);
+          const failedRun = await this.store.failRun(runningRun.id, syncError, openHandsResult);
+          failureRecorded = true;
+          await this.syncRunStatusBestEffort(task, failedRun, "Failed");
+          throw syncError;
+        }
+      }
+
       const completedRun = await this.store.completeRun(
         runningRun.id,
         openHandsResult,
@@ -398,7 +413,9 @@ export class DispatchWorker {
         nextState,
       );
       await this.store.updateTaskState(task.id, nextState);
-      await this.syncRunResultBestEffort(task, openHandsResult, traceRef, nextState);
+      if (this.config.mode !== "live") {
+        await this.syncRunResultBestEffort(task, openHandsResult, traceRef, nextState);
+      }
 
       return {
         task: (await this.store.getTask(task.id)) ?? task,

@@ -43,6 +43,8 @@ P0 方案固化
 - 已有 OpenHands adapter、workspace 记录和注入、Run Detail workspace 可视化、可配置 runtime endpoint paths、conversation refs、poll heartbeat hook。
 - 已有 Langfuse trace refs、可配置 trace/generation endpoint paths、token/cost summary 写入、prompt version metrics 和 dashboard 展示。
 - 已有 Plane 低频状态 comment：Claimed / Running / Completed / Failed。
+- Live 模式下 final Plane 状态/comment 回写是强制门禁；失败时 run 标 failed，本地 task
+  不推进，避免“agent 完成但 Plane 没切状态”的假阳性。
 - 已有 Run Detail feedback 表单和 feedback API，支持打回 Development。
 - 已有 Operator Timeline API/UI，聚合 run event、audit event、feedback。
 - 已有 Audit Log API/UI，支持按 action/entity type 查询 operator action 与 payload。

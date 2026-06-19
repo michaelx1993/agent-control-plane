@@ -656,3 +656,8 @@ context.
 
 Verify the Run Detail workspace metadata, OpenHands conversation, Langfuse trace, and Plane status
 comment before enabling a long-running worker.
+
+In live mode, final Plane result sync is mandatory: the worker writes the Plane state and completion
+comment before marking the local run succeeded and advancing the local task mirror. If that final
+Plane update/comment fails, the run is marked failed and the task remains in its previous state for
+operator inspection. Mock mode keeps final Plane sync best-effort for local development.

@@ -337,6 +337,32 @@ describe("DispatchWorker", () => {
     expect(run.promptSnapshot).not.toContain("secret-key-material");
   });
 
+  it("fails a live dispatch when final Plane result sync fails", async () => {
+    const task = createMockTask({ id: "task-live-sync", state: "Development" });
+    class FailingPlaneSyncStore extends InMemoryControlPlaneStore {
+      override async syncRunResult(): Promise<void> {
+        throw new Error("Plane final sync failed");
+      }
+    }
+
+    const store = new FailingPlaneSyncStore([task]);
+    const worker = new DispatchWorker(
+      loadConfig({ WORKER_MODE: "live", WORKER_ENABLED_TEAMS: "token-team" }),
+      store,
+      new MockOpenHandsAdapter(),
+      new MockTraceRecorder(),
+    );
+
+    await expect(worker.dispatchOnce()).rejects.toThrow("Plane final sync failed");
+
+    const [run] = [...store.runs.values()];
+    expect(run.status).toBe("failed");
+    expect(run.statusHistory).toEqual(["queued", "claimed", "running", "failed"]);
+    expect(run.conversationId).toMatch(/^oh-run-/);
+    expect(run.error).toBe("Plane final sync failed");
+    expect(store.tasks.get(task.id)?.state).toBe("Development");
+  });
+
   it("redacts known token shapes in arbitrary runtime text", () => {
     expect(redactRuntimeSecrets("token: ghp_abcdefghijklmnopqrstuvwxyz123456")).toContain(
       "token: [REDACTED_SECRET]",

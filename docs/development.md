@@ -133,3 +133,7 @@ Successful live evidence must include URL-level OpenHands and Langfuse refs that
 record, and `task.state` must match `run.nextState` and `verification.expectedNextState`. Failed or
 blocked live evidence may lack a Langfuse trace, but still needs Run Detail, Plane, workspace, and
 OpenHands/debug context.
+
+Live mode treats final Plane state/comment sync as mandatory. The worker only marks the local run
+succeeded after Plane accepts the final result; if Plane sync fails, the run becomes failed and the
+task stays in its previous dispatchable state for operator review.
