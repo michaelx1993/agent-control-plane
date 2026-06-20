@@ -40,11 +40,18 @@
 
 ## 发布镜像
 
+先校验本次统一发布 tag。默认只做 dry-run，不创建 git tag；只有显式设置 `ACP_CREATE_GIT_TAG=true` 才会创建 annotated tag。
+
+```bash
+ACP_RELEASE_TAG="agent-control-plane-$(git rev-parse --short=12 HEAD)" \
+pnpm release:tag
+```
+
 本地或 CI 执行：
 
 ```bash
 IMAGE_REPOSITORY="ghcr.io/<owner>/agent-control-plane" \
-IMAGE_TAG="$(git rev-parse --short=12 HEAD)" \
+IMAGE_TAG="$ACP_RELEASE_TAG" \
 PUSH_IMAGE=true \
 pnpm release:image
 ```

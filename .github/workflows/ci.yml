@@ -59,6 +59,9 @@ jobs:
       - name: Compose smoke
         run: pnpm compose:smoke
 
+      - name: Release tag smoke
+        run: ACP_RELEASE_TAG=agent-control-plane-ci-smoke pnpm release:tag
+
       - name: Release image smoke
         run: RELEASE_IMAGE_SKIP_VALIDATION=true IMAGE_REPOSITORY=agent-control-plane IMAGE_TAG=ci-smoke pnpm release:image
 
