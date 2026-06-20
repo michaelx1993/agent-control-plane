@@ -184,7 +184,7 @@
 
 ## 未完成或未真实验收
 
-- 已用本机 self-host Plane task + split HTTP Worker + `WORKER_EXECUTION_ADAPTER=codex-cli` 跑通 Development -> Code Review -> Human Review 样本；`worker:codex-plane-smoke` 已能写出成功 JSON evidence report，但仍缺 production/cutover 级 URL、专用 Plane-routed task 复跑和最终 evidence 归档。
+- 已用本机 self-host Plane task + split HTTP Worker + `WORKER_EXECUTION_ADAPTER=codex-cli` 跑通 Development -> Code Review -> Human Review 样本；`worker:codex-plane-smoke` 已能写出成功 JSON evidence report。2026-06-20 复测发现 split Worker 只通过 Worker API 写入 `workspace.ready` run event，Control Plane 未同步归档到 `workspaces` 表，导致真实 `pnpm task-source:smoke` 缺 workspace evidence；当前已修复 Worker events route，收到有效 `workspace.ready` payload 时会在同一幂等写链路内 upsert `workspaces`。复测 `TOKEN-3` 真实 Plane-routed Development run 后，`pnpm task-source:smoke` 输出 `checked=1`、`routed_count=1`、`run_evidence_count=1`、`run_event_count=1`、`progress_item_count=1`、`prompt_release_count=1`、`workspace_count=1`、`violations=0`、`task_source_smoke=passed`。
 - 尚未用真实 Plane task 或真实业务长任务返回校准 `run_events` / Progress / Workpad / Run Detail 的事件分类、截断策略和噪声过滤；`codex-app-server` previous thread resume、Worker loop adapter 复用和 persistent app-server follow-up 已有 fake 与本机真实 Codex 临时 DB 验证，仍未证明真实 Plane 派发路径下的跨 turn 长会话复用。
 - 尚未用真实 cutover report 验证默认 `codex-cli` profile 下的 Codex run evidence、Plane writeback、task-source、secret provider 和 provider audit。
 - OpenHands/Langfuse 真实 smoke、payload 校准、UI 跳转和逐 LLM call trace 只属于 optional/legacy profile 验收项，不阻断第一版 Codex-first 完成。

@@ -18,11 +18,13 @@
     "@agent-control-plane/db": "workspace:*",
     "@agent-control-plane/plane": "workspace:*",
     "next": "^16.2.9",
+    "pg": "^8.21.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "typescript": "^5.9.3",
