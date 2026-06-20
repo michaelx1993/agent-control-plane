@@ -33,6 +33,7 @@ run_step "core_db_plane_build" bash -c \
 run_step "operator_query_smoke" pnpm --silent operator:query-smoke
 run_step "linear_migration_smoke" pnpm --silent linear:migrate-smoke
 run_step "plane_human_gate_writeback_smoke" pnpm --silent plane:human-gate-writeback-smoke
+run_step "worker_contract_smoke" pnpm --silent worker:contract-smoke
 run_step "worker_codex_plane_smoke_skip" pnpm --silent worker:codex-plane-smoke
 run_step "worker_codex_plane_app_server_smoke_skip" env WORKER_EXECUTION_ADAPTER=codex-app-server pnpm --silent worker:codex-plane-smoke
 run_step "worker_codex_plane_app_server_followup_smoke_skip" env WORKER_EXECUTION_ADAPTER=codex-app-server WORKER_CODEX_PLANE_SMOKE_FOLLOW_UP=true pnpm --silent worker:codex-plane-smoke
