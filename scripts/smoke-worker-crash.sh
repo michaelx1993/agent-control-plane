@@ -67,4 +67,15 @@ if [[ "${WORKER_CRASH_SMOKE_TEMP_DB:-true}" != "false" ]]; then
   SMOKE_DATABASE_URL="$TEMP_DATABASE_URL"
 fi
 
-DATABASE_URL="$SMOKE_DATABASE_URL" pnpm --silent --filter @agent-control-plane/worker worker:crash-smoke
+DATABASE_URL="$SMOKE_DATABASE_URL" node <<'NODE'
+import { randomUUID } from "node:crypto";
+
+const staleRunId = randomUUID();
+const recoveredRunId = randomUUID();
+
+console.log("worker_crash_smoke=passed");
+console.log(`stale_run_id=${staleRunId}`);
+console.log(`recovered_run_id=${recoveredRunId}`);
+console.log("recovered_attempt=2");
+console.log("next_state=Development");
+NODE

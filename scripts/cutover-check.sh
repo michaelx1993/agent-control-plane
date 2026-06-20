@@ -376,7 +376,10 @@ run_production_smoke() {
     plane_probe="${base_url%/}/api/readiness"
     plane_status="200"
   fi
-  PRODUCTION_SMOKE_EVIDENCE="plane=${plane_probe:-not-run};plane_status=${plane_status:-unknown};openhands=${openhands_probe:-not-run};openhands_status=${openhands_status:-unknown};langfuse=${langfuse_probe:-not-run};langfuse_status=${langfuse_status:-unknown}"
+  PRODUCTION_SMOKE_EVIDENCE="plane=${plane_probe:-not-run};plane_status=${plane_status:-unknown}"
+  if [[ "${ACP_COMPLETION_EXECUTION_PROFILE:-codex-cli}" != "codex-cli" ]]; then
+    PRODUCTION_SMOKE_EVIDENCE="${PRODUCTION_SMOKE_EVIDENCE};openhands=${openhands_probe:-not-run};openhands_status=${openhands_status:-unknown};langfuse=${langfuse_probe:-not-run};langfuse_status=${langfuse_status:-unknown}"
+  fi
   rm -f "$output_file"
 }
 
