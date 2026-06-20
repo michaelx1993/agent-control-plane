@@ -25,20 +25,20 @@
 
 Plane API 使用 REST，PAT 通过 `X-API-Key` header 认证。self-host base URL 取决于部署域名。
 
-| Control Plane 需求       | Plane API 能力       | Endpoint 形态                                                                                                    | 状态       | 备注                                                                            |
-| ------------------------ | -------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------- |
-| 拉取 project             | List Projects        | `GET /api/v1/workspaces/{workspace_slug}/projects/`                                                              | 已通过     | P1 team/project sync 必需                                                       |
-| 拉取 work items          | List Work Items      | `GET /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/`                                      | 已通过     | 返回 `labels` 为 label ID                                                       |
-| 创建 work item           | Create Work Item     | `POST /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/`                                     | 间接通过   | ORM 创建，API 读取通过                                                          |
-| 更新 work item           | Update Work Item     | `PATCH /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{resource_id}/`                      | 已通过     | worker 状态回写已验证                                                           |
-| 拉取 states              | List States          | `GET /api/v1/workspaces/{workspace_slug}/projects/{project_id}/states/`                                          | 已通过     | workflow mapping 必需                                                           |
-| 拉取 labels              | List Project Labels  | `GET /api/v1/workspaces/{workspace_slug}/projects/{project_id}/labels/`                                          | 已通过     | repo label 解析必需                                                             |
-| 创建 label               | Create Project Label | `POST /api/v1/workspaces/{workspace_slug}/projects/{project_id}/labels/`                                         | 已通过     | 已创建 `repo:crs-src`                                                           |
-| 更新 work item labels    | Update Work Item     | `PATCH /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{resource_id}/`                      | 已通过     | `labels` 接受 label ID array                                                    |
-| 创建 comment             | Add Comment          | `POST /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/comments/`             | 已通过     | worker summary 回写已验证                                                       |
-| 拉取 comments            | List Comments        | 同 work item comments API family                                                                                 | smoke 覆盖 | `plane:writeback-smoke` 可只读验证 comments list；真实 Plane test item 仍需执行 |
-| 创建 custom property     | Add Property         | `POST /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-item-types/{type_id}/work-item-properties/` | 不可用     | v1.3.1 Community 返回 404                                                       |
-| 写 custom property value | Add Property Values  | work item type values API family                                                                                 | 不可用     | 当前版本不作为 P1 依赖                                                          |
+| Control Plane 需求       | Plane API 能力       | Endpoint 形态                                                                                                    | 状态       | 备注                                                                                                |
+| ------------------------ | -------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------- |
+| 拉取 project             | List Projects        | `GET /api/v1/workspaces/{workspace_slug}/projects/`                                                              | 已通过     | P1 team/project sync 必需                                                                           |
+| 拉取 work items          | List Work Items      | `GET /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/`                                      | 已通过     | 返回 `labels` 为 label ID                                                                           |
+| 创建 work item           | Create Work Item     | `POST /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/`                                     | 间接通过   | ORM 创建，API 读取通过                                                                              |
+| 更新 work item           | Update Work Item     | `PATCH /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{resource_id}/`                      | 已通过     | worker 状态回写已验证                                                                               |
+| 拉取 states              | List States          | `GET /api/v1/workspaces/{workspace_slug}/projects/{project_id}/states/`                                          | 已通过     | workflow mapping 必需                                                                               |
+| 拉取 labels              | List Project Labels  | `GET /api/v1/workspaces/{workspace_slug}/projects/{project_id}/labels/`                                          | 已通过     | repo label 解析必需                                                                                 |
+| 创建 label               | Create Project Label | `POST /api/v1/workspaces/{workspace_slug}/projects/{project_id}/labels/`                                         | 已通过     | 已创建 `repo:crs-src`                                                                               |
+| 更新 work item labels    | Update Work Item     | `PATCH /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{resource_id}/`                      | 已通过     | `labels` 接受 label ID array                                                                        |
+| 创建 comment             | Add Comment          | `POST /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/comments/`             | 已通过     | worker summary 回写已验证                                                                           |
+| 拉取 comments            | List Comments        | 同 work item comments API family                                                                                 | smoke 覆盖 | `plane:writeback-smoke` 可只读验证 comments list；`plane:live-smoke` 可创建并回读验证真实 test item |
+| 创建 custom property     | Add Property         | `POST /api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-item-types/{type_id}/work-item-properties/` | 不可用     | v1.3.1 Community 返回 404                                                                           |
+| 写 custom property value | Add Property Values  | work item type values API family                                                                                 | 不可用     | 当前版本不作为 P1 依赖                                                                              |
 
 ## Webhook
 
@@ -91,6 +91,7 @@ P1 策略：
 - 使用 cursor pagination。
 - Plane client 会在 API error 中暴露 `status`、响应 body 和 `retryAfterMs`，其中 `retryAfterMs` 会从 `Retry-After` 或 `X-RateLimit-Reset` 推导。
 - polling sync retry 默认 3 次、基础延迟 1000ms，会优先使用 `retryAfterMs` 退避；429/5xx/408 和网络类失败可重试，401/403/404 等非重试型 4xx 快速失败。
+- `pnpm plane:live-smoke` 会记录是否看到 `Retry-After` / `X-RateLimit-*` 响应头；Plane 当前若不返回这些头，脚本不会失败，但 cutover evidence 必须记录该事实。
 
 ## P1 接入前必须回答
 
