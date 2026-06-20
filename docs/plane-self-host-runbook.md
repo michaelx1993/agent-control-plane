@@ -223,6 +223,46 @@ DATABASE_URL="postgresql://agent:agent@localhost:54329/agent_control_plane_migra
 }
 ```
 
+## Live API / Webhook Smoke
+
+`plane:live-smoke` 是 P1 自部署 Plane 验收入口，覆盖：
+
+- PAT / `X-API-Key` 能访问 Plane API。
+- project states、labels、work items 可读取。
+- `PLANE_LIVE_SMOKE_APPLY=true` 时创建临时 work item，更新 state，写入 comment，并回读验证。
+- `PLANE_LIVE_SMOKE_VERIFY_WEBHOOK=true` 时向 Control Plane webhook receiver 发送签名 synthetic webhook，验证 HMAC 和 receiver 可达。
+- 记录是否看到 `Retry-After` / `X-RateLimit-*` 响应头；没有头不会失败，但会在输出中标记 `rate_limit_headers_seen=false`。
+
+先跑无副作用只读验证：
+
+```bash
+ACP_SECRET_ENV_FILE=~/plane-selfhost/agent-control-plane.env pnpm plane:live-smoke
+```
+
+跑真实 work item / state / comment 写入验证：
+
+```bash
+ACP_SECRET_ENV_FILE=~/plane-selfhost/agent-control-plane.env \
+PLANE_LIVE_SMOKE_APPLY=true \
+PLANE_LIVE_SMOKE_NEXT_STATE=Development \
+pnpm plane:live-smoke
+```
+
+如果本地 Control Plane 已启动并配置 `PLANE_WEBHOOK_SECRET`，再验证 webhook receiver：
+
+```bash
+ACP_SECRET_ENV_FILE=~/plane-selfhost/agent-control-plane.env \
+ACP_PLANE_WEBHOOK_URL=http://127.0.0.1:3112/api/plane/webhook \
+PLANE_LIVE_SMOKE_VERIFY_WEBHOOK=true \
+pnpm plane:live-smoke
+```
+
+脚本自测不依赖真实 Plane，会启动临时 fake Plane API 和 fake webhook receiver：
+
+```bash
+pnpm plane:live-smoke-self-test
+```
+
 注意：
 
 - Plane work item API 返回的是 label ID，不是 label name。
