@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { insertRunEvents, withDatabasePool, withTransaction } from "@agent-control-plane/db";
+import {
+  insertRunEvents,
+  upsertConversationRef,
+  withDatabasePool,
+  withTransaction,
+} from "@agent-control-plane/db";
 import {
   executeWorkerWrite,
   isRouteFailure,
@@ -54,6 +59,15 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ru
             payload,
           },
         ]);
+
+        const conversation = extractConversationRef(payload);
+        if (conversation) {
+          await upsertConversationRef(client, {
+            runId,
+            ...conversation,
+          });
+        }
+
         return {
           status: 200,
           body: { ok: true, events },
@@ -67,4 +81,46 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ru
   }
 
   return NextResponse.json(result.body, { status: result.status });
+}
+
+function extractConversationRef(payload: Record<string, unknown>):
+  | {
+      provider: string;
+      conversationId: string;
+      eventLogUri?: string;
+      eventCursor?: string;
+      uiUrl?: string;
+    }
+  | undefined {
+  const conversation = payload.conversation;
+  if (!conversation || typeof conversation !== "object" || Array.isArray(conversation)) {
+    return undefined;
+  }
+
+  const record = conversation as Record<string, unknown>;
+  const provider = stringValue(record.provider);
+  const conversationId = stringValue(record.conversationId);
+  if (!provider || !conversationId) {
+    return undefined;
+  }
+
+  const eventLogUri = stringValue(record.eventLogUri);
+  const eventCursor = stringValue(record.eventCursor);
+  const uiUrl = stringValue(record.uiUrl);
+
+  return {
+    provider,
+    conversationId,
+    ...(eventLogUri ? { eventLogUri } : {}),
+    ...(eventCursor ? { eventCursor } : {}),
+    ...(uiUrl ? { uiUrl } : {}),
+  };
+}
+
+function stringValue(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }

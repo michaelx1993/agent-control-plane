@@ -12,6 +12,7 @@ const db = vi.hoisted(() => ({
   insertRunEvents: vi.fn(),
   recordWorkspaceReady: vi.fn(),
   recordTaskProgress: vi.fn(),
+  upsertConversationRef: vi.fn(),
   verifyRunLease: vi.fn(),
   withDatabasePool: vi.fn(async (callback: (pool: unknown) => Promise<unknown>) =>
     callback({ pool: true }),
@@ -59,6 +60,7 @@ describe("Worker API routes", () => {
     db.insertRunEvents.mockReset();
     db.recordWorkspaceReady.mockReset();
     db.recordTaskProgress.mockReset();
+    db.upsertConversationRef.mockReset();
     db.verifyRunLease.mockReset();
     db.withDatabasePool.mockClear();
     db.withTransaction.mockClear();
@@ -412,6 +414,60 @@ describe("Worker API routes", () => {
         payload: { files: ["dist/index.js"] },
       },
     ]);
+    expect(db.upsertConversationRef).not.toHaveBeenCalled();
+  });
+
+  it("records conversation refs from worker artifacts", async () => {
+    db.verifyRunLease.mockResolvedValue({
+      runId: "run-1",
+      taskId: "task-1",
+      status: "running",
+      leaseOwner: "worker-1",
+    });
+    db.insertRunEvents.mockResolvedValue([
+      {
+        id: "event-1",
+        eventType: "worker.artifacts",
+        message: "Worker reported artifacts.",
+        payload: {
+          conversation: {
+            provider: "codex-app-server",
+            conversationId: "thread-123/turns/turn-456",
+            eventLogUri: "process://codex-app-server/threads/thread-123/turns/turn-456",
+          },
+        },
+        createdAt: new Date("2026-06-20T10:00:00Z"),
+      },
+    ]);
+    db.upsertConversationRef.mockResolvedValue({
+      id: "conversation-ref-1",
+      runId: "run-1",
+      provider: "codex-app-server",
+      conversationId: "thread-123/turns/turn-456",
+      eventLogUri: "process://codex-app-server/threads/thread-123/turns/turn-456",
+      createdAt: new Date("2026-06-20T10:00:00Z"),
+      updatedAt: new Date("2026-06-20T10:00:00Z"),
+    });
+
+    const route = await import("../app/api/worker/v1/runs/[runId]/artifacts/route");
+    const response = await route.POST(
+      jsonRequest({
+        conversation: {
+          provider: "codex-app-server",
+          conversationId: "thread-123/turns/turn-456",
+          eventLogUri: "process://codex-app-server/threads/thread-123/turns/turn-456",
+        },
+      }),
+      routeContext,
+    );
+
+    expect(response.status).toBe(200);
+    expect(db.upsertConversationRef).toHaveBeenCalledWith(expect.any(Object), {
+      runId: "run-1",
+      provider: "codex-app-server",
+      conversationId: "thread-123/turns/turn-456",
+      eventLogUri: "process://codex-app-server/threads/thread-123/turns/turn-456",
+    });
   });
 
   it("records workspace evidence from worker events", async () => {
