@@ -85,6 +85,10 @@ describe("claimRuns", () => {
       expect.any(Array),
     );
     expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining("completed.status = 'succeeded'"),
+      expect.any(Array),
+    );
+    expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining("order by active_agent_runs asc, ad.created_at asc"),
       expect.any(Array),
     );

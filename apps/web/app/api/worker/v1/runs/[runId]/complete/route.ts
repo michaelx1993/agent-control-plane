@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isWorkflowState } from "@agent-control-plane/core";
 import { completeRun, withDatabasePool, withTransaction } from "@agent-control-plane/db";
 import {
   executeWorkerWrite,
@@ -38,6 +39,17 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ru
   }
 
   const nextState = optionalString(payload, "nextStateSuggestion");
+  if (nextState && !isWorkflowState(nextState)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "nextStateSuggestion must be a valid workflow state.",
+        reason: "invalid_next_state",
+      },
+      { status: 400 },
+    );
+  }
+
   const result = await withDatabasePool((pool) =>
     withTransaction(pool, (client) =>
       executeWorkerWrite(client, safety, async () => {
@@ -46,7 +58,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ru
           leaseOwner: worker.workerId,
           resultSummary,
           ...(nextState ? { nextState } : {}),
-          advanceTaskState: false,
+          advanceTaskState: Boolean(nextState),
         });
         if (!run) {
           return {

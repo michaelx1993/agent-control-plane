@@ -912,6 +912,12 @@ async function claimRun(
               and active.status in ('queued', 'claimed', 'running')
               and (active.lease_expires_at is null or active.lease_expires_at > now())
           )
+          and not exists (
+            select 1
+            from runs completed
+            where completed.task_id = t.id
+              and completed.status = 'succeeded'
+          )
           and (
             $8::integer is null
             or (

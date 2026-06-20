@@ -362,7 +362,7 @@ describe("Worker API routes", () => {
     ]);
   });
 
-  it("completes a run without directly advancing task state", async () => {
+  it("completes a run and advances task state from the worker suggestion", async () => {
     db.completeRun.mockResolvedValue({
       runId: "run-1",
       taskId: "task-1",
@@ -385,8 +385,25 @@ describe("Worker API routes", () => {
       leaseOwner: "worker-1",
       resultSummary: "实现完成",
       nextState: "Code Review",
-      advanceTaskState: false,
+      advanceTaskState: true,
     });
+  });
+
+  it("rejects invalid worker next state suggestions before completing the run", async () => {
+    const route = await import("../app/api/worker/v1/runs/[runId]/complete/route");
+    const response = await route.POST(
+      jsonRequest({
+        resultSummary: "实现完成",
+        nextStateSuggestion: "Ready To Merge",
+      }),
+      routeContext,
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.reason).toBe("invalid_next_state");
+    expect(db.completeRun).not.toHaveBeenCalled();
+    expect(db.beginWorkerApiRequest).not.toHaveBeenCalled();
   });
 
   it("fails a run after lease verification", async () => {
