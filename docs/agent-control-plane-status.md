@@ -39,6 +39,7 @@
 
 2026-06-20 增量验收：
 
+- 本轮修复 Worker claim/complete 状态推进裂口：Worker API `complete` 现在会校验 `nextStateSuggestion` 为合法 workflow state，并由 Control Plane 在同一 completion 流程中推进 `tasks.state`；`claimRuns` 不再选择已有 `succeeded` run 的 task，避免 Development task 因状态未推进而被重复 claim 形成循环。该增量已通过 `pnpm check`、`pnpm format` 和 `git diff --check`。
 - PR #3 已合入 `main`：新增 opt-in `worker:codex-real-smoke` 和 `worker:codex-plane-smoke`，Run Detail conversation 标签改为 provider-aware，默认 Codex CLI 参数保持 `gpt-5.5` + high reasoning。
 - PR #4 已合入 `main`：修复 `/api/tasks` 和 `/api/runs` 在 PostgreSQL enum 字段与 text filter 比较时返回 500 的问题，`TaskState` / `RunStatus` 过滤统一使用 `::text` 比较。
 - PR #6 已合入 `main`：新增 `operator:query-smoke`，在临时 PostgreSQL 数据库上执行真实 `listOperatorTasks` / `listOperatorRuns` 查询，覆盖 operator queue/run filters 的 enum/text 兼容问题；该 smoke 已纳入 `completion:local-smoke` 和 doc/script parity gate。

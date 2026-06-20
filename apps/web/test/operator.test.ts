@@ -134,6 +134,8 @@ describe("operator API token auth", () => {
   });
 
   it("accepts signed operator session cookies", async () => {
+    const issuedAt = new Date();
+    const verifiedAt = new Date(issuedAt.getTime() + 30 * 1000);
     const token = await createOperatorSessionToken(
       {
         userId: "00000000-0000-4000-8000-000000000901",
@@ -142,15 +144,11 @@ describe("operator API token auth", () => {
       },
       "session-secret-that-is-long-enough",
       24 * 60 * 60,
-      new Date("2026-06-19T12:00:00Z"),
+      issuedAt,
     );
 
     await expect(
-      verifyOperatorSessionToken(
-        token,
-        "session-secret-that-is-long-enough",
-        new Date("2026-06-19T12:00:30Z"),
-      ),
+      verifyOperatorSessionToken(token, "session-secret-that-is-long-enough", verifiedAt),
     ).resolves.toMatchObject({
       name: "local-operator",
       roles: ["owner"],
