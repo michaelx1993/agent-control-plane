@@ -39,7 +39,7 @@ const [file, name] = process.argv.slice(2);
 const content = fs.readFileSync(file, "utf8");
 for (const line of content.split(/\r?\n/)) {
   if (!line.trim() || line.trimStart().startsWith("#")) continue;
-  const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+  const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
   if (!match || match[1] !== name) continue;
   let value = match[2].trim();
   if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
