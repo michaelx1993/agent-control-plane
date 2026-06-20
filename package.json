@@ -21,6 +21,8 @@
     "plane:human-gate-writeback-smoke": "pnpm --filter @agent-control-plane/web test:human-gate-writeback",
     "plane:live-smoke": "bash scripts/smoke-plane-live.sh",
     "plane:live-smoke-self-test": "bash scripts/smoke-plane-live-self-test.sh",
+    "plane:sync": "bash scripts/plane-sync.sh",
+    "plane:sync-self-test": "node scripts/plane-sync-self-test.mjs",
     "plane:writeback-smoke": "bash scripts/smoke-plane-writeback.sh",
     "release:image": "bash scripts/release-image.sh",
     "rollback:compose": "bash scripts/rollback-compose.sh",

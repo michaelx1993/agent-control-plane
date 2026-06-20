@@ -1033,6 +1033,21 @@ limit 20;
 - 一条 cutover 后新建 Plane 任务在 Control Plane 中有 Plane URL、repo routing、run、Codex run events 和 Progress / Workpad。
 - 旧 Linear/Symphony poller 已停止或只读的操作记录。
 
+## Plane Polling Sync
+
+Webhook 是常规事件入口；cutover、漏投回放和低频一致性校验必须使用 polling sync：
+
+```bash
+ACP_SECRET_ENV_FILE=/path/to/agent-control-plane.env pnpm plane:sync
+```
+
+要求：
+
+- `ACP_SECRET_ENV_FILE` 使用安全 dotenv parser，支持 `export KEY=value`，拒绝 `$(...)` 和反引号命令替换。
+- env file 必须提供 `PLANE_BASE_URL`、`PLANE_API_KEY`、`PLANE_WORKSPACE_SLUG`、`PLANE_PROJECT_ID` 和 `PLANE_PROJECT_SLUG`。
+- 命令会拉取 Plane work items/comments，写入 Control Plane DB，并更新 `app_settings` 中的 project sync cursor。
+- 可用 `PLANE_SYNC_CURSOR=<iso-time>` 指定回放起点；可用 `PLANE_SYNC_SERVER_DELTA=false` 强制全量拉取后本地按 cursor 过滤。
+
 ## 事故止血
 
 暂停 agent 派发：
