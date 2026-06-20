@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/lib/secret-env.sh"
 TEMP_DATABASE_NAME=""
 TEMP_DATABASE_URL=""
 WORKER_OUTPUT_FILE=""
+WORKER_LOOP_SCRIPT=""
 
 cleanup() {
   if [[ -n "$TEMP_DATABASE_NAME" && -n "$TEMP_DATABASE_URL" ]]; then
@@ -15,6 +16,9 @@ cleanup() {
   fi
   if [[ -n "$WORKER_OUTPUT_FILE" ]]; then
     rm -f "$WORKER_OUTPUT_FILE"
+  fi
+  if [[ -n "$WORKER_LOOP_SCRIPT" ]]; then
+    rm -f "$WORKER_LOOP_SCRIPT"
   fi
 }
 trap cleanup EXIT
@@ -293,6 +297,46 @@ throw new Error("worker_output_missing_result_json");
 NODE
 }
 
+write_follow_up_worker_runner() {
+  WORKER_LOOP_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/acp-worker-follow-up-runner.XXXXXX.ts")"
+  cat >"$WORKER_LOOP_SCRIPT" <<'TS'
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const repoPath = process.env.AGENT_WORKER_REPO_PATH;
+if (!repoPath) {
+  throw new Error("AGENT_WORKER_REPO_PATH_missing");
+}
+
+const configModule = await import(pathToFileURL(join(repoPath, "apps/worker/src/config.ts")).href);
+const indexModule = await import(pathToFileURL(join(repoPath, "apps/worker/src/index.ts")).href);
+const adaptersModule = await import(
+  pathToFileURL(join(repoPath, "apps/worker/src/adapters/index.ts")).href
+);
+
+const config = configModule.loadWorkerConfig();
+const executionAdapter = adaptersModule.createExecutionAdapter(config.executionAdapter);
+let lastResult;
+
+try {
+  for (let iteration = 0; iteration < 2; iteration += 1) {
+    const result = await indexModule.runOnce({ config, executionAdapter });
+    if (!Array.isArray(result.claimed) || result.claimed.length === 0) {
+      throw new Error(`follow_up_iteration_${iteration + 1}_claimed_no_runs`);
+    }
+    if (Array.isArray(result.failed) && result.failed.length > 0) {
+      throw new Error(`follow_up_iteration_${iteration + 1}_reported_failed_runs`);
+    }
+    lastResult = result;
+  }
+} finally {
+  await executionAdapter.dispose?.();
+}
+
+console.log(JSON.stringify(lastResult));
+TS
+}
+
 write_success_report() {
   local report_file="$1"
   local worker_json="$2"
@@ -372,7 +416,14 @@ if [[ "${WORKER_CODEX_PLANE_SMOKE_FOLLOW_UP:-false}" == "true" && "${WORKER_EXEC
 fi
 
 WORKER_OUTPUT_FILE="$(mktemp)"
+worker_command=(pnpm --silent --dir "$AGENT_WORKER_REPO_PATH" --filter @agent-control-plane/worker dev)
+if [[ "${WORKER_CODEX_PLANE_SMOKE_FOLLOW_UP:-false}" == "true" ]]; then
+  write_follow_up_worker_runner
+  worker_command=(pnpm --silent --dir "$AGENT_WORKER_REPO_PATH" exec tsx "$WORKER_LOOP_SCRIPT")
+fi
+
 if ! env \
+  AGENT_WORKER_REPO_PATH="$AGENT_WORKER_REPO_PATH" \
   CONTROL_PLANE_BASE_URL="$CONTROL_PLANE_BASE_URL" \
   ACP_WORKER_API_TOKEN="$ACP_WORKER_API_TOKEN" \
   WORKER_ID="$WORKER_ID" \
@@ -387,8 +438,7 @@ if ! env \
   WORKER_CODEX_MODEL="${WORKER_CODEX_MODEL:-gpt-5.5}" \
   WORKER_CODEX_REASONING_EFFORT="${WORKER_CODEX_REASONING_EFFORT:-medium}" \
   WORKER_CODEX_TIMEOUT_MS="${WORKER_CODEX_TIMEOUT_MS:-600000}" \
-  pnpm --silent --dir "$AGENT_WORKER_REPO_PATH" --filter @agent-control-plane/worker dev \
-    >"$WORKER_OUTPUT_FILE"; then
+  "${worker_command[@]}" >"$WORKER_OUTPUT_FILE"; then
   cat "$WORKER_OUTPUT_FILE" >&2
   fail "agent_worker_run_failed"
 fi
