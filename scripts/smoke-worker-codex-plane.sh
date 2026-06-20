@@ -293,6 +293,136 @@ throw new Error("worker_output_missing_result_json");
 NODE
 }
 
+write_success_report() {
+  local report_file="$1"
+  local worker_json="$2"
+  local database_evidence="$3"
+  local execution_adapter="$4"
+  local control_plane_base_url="$5"
+  local agent_worker_repo_path="$6"
+  local workspace_strategy="$7"
+  local workspace_root="$8"
+  local codex_model="$9"
+  local codex_reasoning_effort="${10}"
+  local follow_up_required="${11}"
+
+  if [[ -z "$report_file" ]]; then
+    return
+  fi
+  if [[ -e "$report_file" && "${WORKER_CODEX_PLANE_SMOKE_REPORT_OVERWRITE:-false}" != "true" ]]; then
+    fail "report_file_exists"
+  fi
+
+  mkdir -p "$(dirname "$report_file")"
+  node - \
+    "$report_file" \
+    "$worker_json" \
+    "$database_evidence" \
+    "$execution_adapter" \
+    "$control_plane_base_url" \
+    "$agent_worker_repo_path" \
+    "$workspace_strategy" \
+    "$workspace_root" \
+    "$codex_model" \
+    "$codex_reasoning_effort" \
+    "$follow_up_required" <<'NODE'
+import { chmodSync, writeFileSync } from "node:fs";
+
+const [
+  reportFile,
+  workerJson,
+  databaseEvidenceRaw,
+  executionAdapter,
+  controlPlaneBaseUrl,
+  agentWorkerRepoPath,
+  workspaceStrategy,
+  workspaceRoot,
+  codexModel,
+  codexReasoningEffort,
+  followUpRequired,
+] = process.argv.slice(2);
+const workerResult = JSON.parse(workerJson);
+const claimed = workerResult.claimed?.[0] ?? {};
+const completed = workerResult.completed?.[0] ?? {};
+
+function parseKeyValueLines(raw) {
+  const values = {};
+  for (const line of String(raw ?? "").split(/\r?\n/)) {
+    const match = /^([^=\s]+)=(.*)$/.exec(line.trim());
+    if (!match) continue;
+    const [, key, value] = match;
+    values[key] = value;
+  }
+  return values;
+}
+
+function numberOrNull(value) {
+  if (value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+const db = parseKeyValueLines(databaseEvidenceRaw);
+const report = {
+  reportVersion: 1,
+  generatedAt: new Date().toISOString(),
+  status: "passed",
+  smoke: "worker:codex-plane-smoke",
+  executionAdapter,
+  controlPlaneBaseUrl,
+  agentWorkerRepoPath,
+  worker: {
+    workerId: workerResult.workerId ?? null,
+  },
+  run: {
+    runId: completed.runId ?? claimed.runId ?? null,
+    taskId: completed.taskId ?? claimed.taskId ?? null,
+    identifier: claimed.identifier ?? db.task_identifier ?? null,
+    role: claimed.role ?? db.role ?? null,
+    repositorySlug: claimed.repositorySlug ?? db.repository_slug ?? null,
+    nextState: completed.nextState ?? db.run_next_state ?? null,
+  },
+  codex: {
+    model: codexModel,
+    reasoningEffort: codexReasoningEffort,
+    followUpRequired: followUpRequired === "true",
+  },
+  workspace: {
+    strategy: workspaceStrategy,
+    root: workspaceRoot,
+  },
+  evidence: {
+    database: Object.keys(db).length
+      ? {
+          taskIdentifier: db.task_identifier ?? null,
+          taskState: db.task_state ?? null,
+          taskUrl: db.task_url ?? null,
+          repositorySlug: db.repository_slug ?? null,
+          role: db.role ?? null,
+          runStatus: db.run_status ?? null,
+          runNextState: db.run_next_state ?? null,
+          codexEvents: numberOrNull(db.codex_events),
+          runningProgress: numberOrNull(db.running_progress),
+          eventProgress: numberOrNull(db.event_progress),
+          completedProgress: numberOrNull(db.completed_progress),
+          threadReuseEvents: numberOrNull(db.thread_reuse_events),
+          appServerConversations: numberOrNull(db.app_server_conversations),
+        }
+      : null,
+    checks: {
+      claimedRuns: Array.isArray(workerResult.claimed) ? workerResult.claimed.length : 0,
+      completedRuns: Array.isArray(workerResult.completed) ? workerResult.completed.length : 0,
+      failedRuns: Array.isArray(workerResult.failed) ? workerResult.failed.length : 0,
+    },
+  },
+};
+
+writeFileSync(reportFile, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+chmodSync(reportFile, 0o600);
+NODE
+  printf 'worker_codex_plane_smoke_report_file=%s\n' "$report_file"
+}
+
 load_secret_env_file
 load_secret_command
 
@@ -389,6 +519,21 @@ process.stdout.write(result.completed?.[0]?.runId ?? result.claimed?.[0]?.runId 
 NODE
 )"
 
+database_evidence_output=""
 if [[ -n "${SMOKE_DATABASE_URL:-}" && -n "$run_id" ]]; then
-  verify_database_evidence "$SMOKE_DATABASE_URL" "$run_id"
+  database_evidence_output="$(verify_database_evidence "$SMOKE_DATABASE_URL" "$run_id")"
+  printf '%s\n' "$database_evidence_output"
 fi
+
+write_success_report \
+  "${WORKER_CODEX_PLANE_SMOKE_REPORT_FILE:-}" \
+  "$worker_result_json" \
+  "$database_evidence_output" \
+  "${WORKER_EXECUTION_ADAPTER:-codex-cli}" \
+  "$CONTROL_PLANE_BASE_URL" \
+  "$AGENT_WORKER_REPO_PATH" \
+  "$WORKER_WORKSPACE_STRATEGY" \
+  "$WORKER_WORKSPACE_ROOT" \
+  "${WORKER_CODEX_MODEL:-gpt-5.5}" \
+  "${WORKER_CODEX_REASONING_EFFORT:-medium}" \
+  "${WORKER_CODEX_PLANE_SMOKE_FOLLOW_UP:-false}"
