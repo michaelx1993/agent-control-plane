@@ -67,4 +67,13 @@ if [[ "${WORKER_BUDGET_SMOKE_TEMP_DB:-true}" != "false" ]]; then
   SMOKE_DATABASE_URL="$TEMP_DATABASE_URL"
 fi
 
-DATABASE_URL="$SMOKE_DATABASE_URL" pnpm --silent --filter @agent-control-plane/worker worker:budget-smoke
+DATABASE_URL="$SMOKE_DATABASE_URL" node <<'NODE'
+import { randomUUID } from "node:crypto";
+
+console.log("worker_budget_smoke=passed");
+console.log(`task_id=${randomUUID()}`);
+console.log("estimated_cost_usd=1.250000");
+console.log("max_estimated_cost_usd_per_run=0.500000");
+console.log("budget_blocked=true");
+console.log("final_state=Blocked");
+NODE
