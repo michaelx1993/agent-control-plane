@@ -56,5 +56,17 @@ jobs:
       - name: Check
         run: pnpm check
 
+      - name: Compose smoke
+        run: pnpm compose:smoke
+
+      - name: Release image smoke
+        run: RELEASE_IMAGE_SKIP_VALIDATION=true IMAGE_REPOSITORY=agent-control-plane IMAGE_TAG=ci-smoke pnpm release:image
+
+      - name: Deploy compose dry-run
+        run: DEPLOY_COMPOSE_DRY_RUN=true ACP_IMAGE=agent-control-plane:ci-smoke pnpm deploy:compose
+
+      - name: Rollback compose dry-run
+        run: ROLLBACK_COMPOSE_DRY_RUN=true ROLLBACK_IMAGE=agent-control-plane:ci-smoke pnpm rollback:compose
+
       - name: Build
         run: pnpm build

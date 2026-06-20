@@ -55,6 +55,7 @@ pnpm release:image
 - 构建 Docker image。
 - 写入 OCI labels：git revision 和 created timestamp。
 - `PUSH_IMAGE=true` 时推送 `<repository>:<tag>` 和 `<repository>:latest`。
+- CI 或已执行过完整门禁的本地 shell 可设置 `RELEASE_IMAGE_SKIP_VALIDATION=true`，只执行 Docker image build/push 阶段。
 
 ## 部署 Compose
 
@@ -77,6 +78,7 @@ pnpm deploy:compose
 - 以 `ACP_IMAGE` 启动 Web。
 - 默认启动 Worker；可用 `ENABLE_WORKER=false` 禁止。
 - 最后请求 `/api/readiness`。
+- 设置 `DEPLOY_COMPOSE_DRY_RUN=true` 时只渲染 Compose 配置并输出目标镜像、project 和 worker 开关，不拉镜像、不迁移、不启动服务。
 
 ## 回滚应用镜像
 
@@ -90,6 +92,7 @@ pnpm rollback:compose
 - 只回滚 Web/Worker 应用镜像。
 - 不自动回滚数据库 schema 或数据。
 - 回滚后请求 `/api/readiness`。
+- 设置 `ROLLBACK_COMPOSE_DRY_RUN=true` 时只渲染 Compose 配置并输出目标 rollback image、project 和 worker 开关，不拉镜像、不重启服务。
 
 数据库回滚必须走备份恢复，不随应用镜像自动回滚：
 
