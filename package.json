@@ -31,7 +31,8 @@
     "secrets:validate": "bash scripts/validate-secrets.sh",
     "smoke:production": "bash scripts/smoke-production.sh",
     "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "worker:codex-plane-smoke": "bash scripts/smoke-worker-codex-plane.sh"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
