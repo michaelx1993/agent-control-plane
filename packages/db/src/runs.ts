@@ -917,6 +917,11 @@ async function claimRun(
             from runs completed
             where completed.task_id = t.id
               and completed.status = 'succeeded'
+              and completed.role_id = r.id
+              and (
+                completed.next_state is null
+                or completed.next_state = t.state::text
+              )
           )
           and (
             $8::integer is null
