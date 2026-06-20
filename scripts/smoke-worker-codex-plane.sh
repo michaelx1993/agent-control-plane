@@ -7,10 +7,14 @@ source "$SCRIPT_DIR/lib/secret-env.sh"
 
 TEMP_DATABASE_NAME=""
 TEMP_DATABASE_URL=""
+WORKER_OUTPUT_FILE=""
 
 cleanup() {
   if [[ -n "$TEMP_DATABASE_NAME" && -n "$TEMP_DATABASE_URL" ]]; then
     drop_temp_database "$TEMP_DATABASE_URL" "$TEMP_DATABASE_NAME" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$WORKER_OUTPUT_FILE" ]]; then
+    rm -f "$WORKER_OUTPUT_FILE"
   fi
 }
 trap cleanup EXIT
@@ -173,6 +177,19 @@ try {
             and feedback_items.source = 'agent_progress'
             and feedback_items.body like 'Agent Status: Completed.%'
         ) as completed_progress
+        ,
+        (
+          select count(*)::integer
+          from run_events
+          where run_events.run_id = runs.id
+            and run_events.event_type = 'codex.thread_reused'
+        ) as thread_reuse_events,
+        (
+          select count(*)::integer
+          from conversation_refs
+          where conversation_refs.run_id = runs.id
+            and conversation_refs.provider = 'codex-app-server'
+        ) as app_server_conversations
       from runs
       join tasks on tasks.id = runs.task_id
       join roles on roles.id = runs.role_id
@@ -204,6 +221,14 @@ try {
   if (Number(row.completed_progress) <= 0) {
     throw new Error("missing_completed_progress");
   }
+  if (process.env.WORKER_CODEX_PLANE_SMOKE_FOLLOW_UP === "true") {
+    if (Number(row.thread_reuse_events) <= 0) {
+      throw new Error("missing_codex_app_server_thread_reuse_event");
+    }
+    if (Number(row.app_server_conversations) <= 0) {
+      throw new Error("missing_codex_app_server_conversation_ref");
+    }
+  }
 
   console.log(`task_identifier=${row.identifier}`);
   console.log(`task_state=${row.state}`);
@@ -216,9 +241,55 @@ try {
   console.log(`running_progress=${row.running_progress}`);
   console.log(`event_progress=${row.event_progress}`);
   console.log(`completed_progress=${row.completed_progress}`);
+  console.log(`thread_reuse_events=${row.thread_reuse_events}`);
+  console.log(`app_server_conversations=${row.app_server_conversations}`);
 } finally {
   await client.end();
 }
+NODE
+}
+
+extract_worker_result_json() {
+  node - "$1" <<'NODE'
+import { readFileSync } from "node:fs";
+
+const file = process.argv[2];
+const raw = readFileSync(file, "utf8");
+const candidates = [
+  raw.trim(),
+  ...raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("{") && line.endsWith("}")),
+];
+
+for (const candidate of candidates) {
+  if (!candidate) continue;
+  try {
+    const parsed = JSON.parse(candidate);
+    if (parsed && typeof parsed === "object" && Array.isArray(parsed.claimed)) {
+      process.stdout.write(JSON.stringify(parsed));
+      process.exit(0);
+    }
+  } catch {
+    // Try the next candidate.
+  }
+}
+
+const firstBrace = raw.indexOf("{");
+if (firstBrace >= 0) {
+  try {
+    const parsed = JSON.parse(raw.slice(firstBrace));
+    if (parsed && typeof parsed === "object" && Array.isArray(parsed.claimed)) {
+      process.stdout.write(JSON.stringify(parsed));
+      process.exit(0);
+    }
+  } catch {
+    // Fall through to the explicit error below.
+  }
+}
+
+throw new Error("worker_output_missing_result_json");
 NODE
 }
 
@@ -262,7 +333,11 @@ WORKER_ID="${WORKER_ID:-worker-codex-plane-smoke-$$}"
 WORKER_WORKSPACE_ROOT="${WORKER_WORKSPACE_ROOT:-/tmp/acp-worker-codex-plane-smoke}"
 WORKER_WORKSPACE_STRATEGY="${WORKER_WORKSPACE_STRATEGY:-git-worktree}"
 
-worker_output_file="$(mktemp)"
+if [[ "${WORKER_CODEX_PLANE_SMOKE_FOLLOW_UP:-false}" == "true" && "${WORKER_EXECUTION_ADAPTER:-codex-cli}" != "codex-app-server" ]]; then
+  fail "follow_up_smoke_requires_codex_app_server"
+fi
+
+WORKER_OUTPUT_FILE="$(mktemp)"
 if ! env \
   CONTROL_PLANE_BASE_URL="$CONTROL_PLANE_BASE_URL" \
   ACP_WORKER_API_TOKEN="$ACP_WORKER_API_TOKEN" \
@@ -272,25 +347,22 @@ if ! env \
   WORKER_WORKSPACE_ROOT="$WORKER_WORKSPACE_ROOT" \
   WORKER_WORKSPACE_STRATEGY="$WORKER_WORKSPACE_STRATEGY" \
   WORKER_CODEX_COMMAND="${WORKER_CODEX_COMMAND:-codex}" \
+  WORKER_CODEX_ARGS_JSON="${WORKER_CODEX_ARGS_JSON:-}" \
+  WORKER_CODEX_APP_SERVER_COMMAND="${WORKER_CODEX_APP_SERVER_COMMAND:-${WORKER_CODEX_COMMAND:-codex}}" \
+  WORKER_CODEX_APP_SERVER_ARGS_JSON="${WORKER_CODEX_APP_SERVER_ARGS_JSON:-}" \
   WORKER_CODEX_MODEL="${WORKER_CODEX_MODEL:-gpt-5.5}" \
   WORKER_CODEX_REASONING_EFFORT="${WORKER_CODEX_REASONING_EFFORT:-medium}" \
   WORKER_CODEX_TIMEOUT_MS="${WORKER_CODEX_TIMEOUT_MS:-600000}" \
   pnpm --silent --dir "$AGENT_WORKER_REPO_PATH" --filter @agent-control-plane/worker dev \
-    >"$worker_output_file"; then
-  cat "$worker_output_file" >&2
+    >"$WORKER_OUTPUT_FILE"; then
+  cat "$WORKER_OUTPUT_FILE" >&2
   fail "agent_worker_run_failed"
 fi
 
-node - "$worker_output_file" <<'NODE'
-import { readFileSync } from "node:fs";
+worker_result_json="$(extract_worker_result_json "$WORKER_OUTPUT_FILE")"
 
-const file = process.argv[2];
-const raw = readFileSync(file, "utf8").trim();
-const start = raw.indexOf("{");
-if (start < 0) {
-  throw new Error("worker_output_missing_json");
-}
-const result = JSON.parse(raw.slice(start));
+node - "$worker_result_json" <<'NODE'
+const result = JSON.parse(process.argv[2]);
 if (!Array.isArray(result.claimed) || result.claimed.length === 0) {
   throw new Error("worker_claimed_no_runs");
 }
@@ -311,10 +383,8 @@ console.log(`role=${claimed.role}`);
 console.log(`repository_slug=${claimed.repositorySlug}`);
 NODE
 
-run_id="$(node - "$worker_output_file" <<'NODE'
-import { readFileSync } from "node:fs";
-const raw = readFileSync(process.argv[2], "utf8").trim();
-const result = JSON.parse(raw.slice(raw.indexOf("{")));
+run_id="$(node - "$worker_result_json" <<'NODE'
+const result = JSON.parse(process.argv[2]);
 process.stdout.write(result.completed?.[0]?.runId ?? result.claimed?.[0]?.runId ?? "");
 NODE
 )"
