@@ -1,0 +1,2 @@
+ALTER TABLE "roles"
+ADD COLUMN "status" TEXT NOT NULL DEFAULT 'active';

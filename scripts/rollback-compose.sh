@@ -1,31 +1,40 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-compose_file="${COMPOSE_FILE:-infra/docker/docker-compose.yml}"
-base_url="${CONTROL_PLANE_BASE_URL:-http://127.0.0.1:3100}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
-run() {
-  if [[ "${DRY_RUN:-}" == "1" ]]; then
-    printf 'dry-run:'
-    printf ' %q' "$@"
-    printf '\n'
-    return 0
-  fi
-  "$@"
-}
-
-run docker compose -f "${compose_file}" --profile app stop web worker
-
-if [[ -n "${BACKUP_FILE:-}" ]]; then
-  run scripts/check-backup.sh
-  run scripts/db-restore.sh "${BACKUP_FILE}"
+if [[ -z "${ROLLBACK_IMAGE:-}" ]]; then
+  echo "ROLLBACK_IMAGE is required, for example: ROLLBACK_IMAGE=agent-control-plane:<previous-sha>" >&2
+  exit 2
 fi
 
-if [[ "${RESTART_AFTER_ROLLBACK:-1}" == "1" ]]; then
-  run docker compose -f "${compose_file}" --profile app up -d web worker
-  if [[ "${SKIP_HEALTH_CHECK:-}" != "1" ]]; then
-    run env CONTROL_PLANE_BASE_URL="${base_url}" pnpm health
-  fi
+ACP_IMAGE="$ROLLBACK_IMAGE"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-agent-control-plane}"
+ENABLE_WORKER="${ENABLE_WORKER:-true}"
+SKIP_PULL="${SKIP_PULL:-false}"
+
+export ACP_IMAGE COMPOSE_PROJECT_NAME
+
+if [[ "$SKIP_PULL" != "true" ]]; then
+  echo "==> pulling rollback image ${ACP_IMAGE}"
+  docker compose pull web worker || true
 fi
 
-echo "rollback-compose completed for ${base_url}"
+echo "==> rolling back web to ${ACP_IMAGE}"
+docker compose up -d --no-build web
+
+if [[ "$ENABLE_WORKER" == "true" ]]; then
+  echo "==> rolling back worker to ${ACP_IMAGE}"
+  docker compose --profile worker up -d --no-build worker
+fi
+
+echo "==> checking readiness"
+curl -fsS "${READINESS_URL:-http://127.0.0.1:3112/api/readiness}" >/dev/null
+
+cat <<EOF
+rollback_image=${ACP_IMAGE}
+compose_project=${COMPOSE_PROJECT_NAME}
+worker_enabled=${ENABLE_WORKER}
+database_rollback=not_performed
+EOF

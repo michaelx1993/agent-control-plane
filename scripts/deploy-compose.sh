@@ -1,27 +1,95 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-compose_file="${COMPOSE_FILE:-infra/docker/docker-compose.yml}"
-base_url="${CONTROL_PLANE_BASE_URL:-http://127.0.0.1:3100}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
-run() {
-  if [[ "${DRY_RUN:-}" == "1" ]]; then
-    printf 'dry-run:'
-    printf ' %q' "$@"
-    printf '\n'
-    return 0
+# shellcheck source=scripts/lib/secret-env.sh
+source "$ROOT_DIR/scripts/lib/secret-env.sh"
+
+ACP_IMAGE="${ACP_IMAGE:-agent-control-plane:latest}"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-agent-control-plane}"
+ENABLE_WORKER="${ENABLE_WORKER:-true}"
+SKIP_PULL="${SKIP_PULL:-false}"
+
+export ACP_IMAGE COMPOSE_PROJECT_NAME
+
+load_secret_env_file() {
+  local file="${ACP_SECRET_ENV_FILE:-}"
+  if [[ -z "$file" ]]; then
+    return
   fi
-  "$@"
+
+  if [[ ! -f "$file" ]]; then
+    echo "secret_env_file_not_found=${file}" >&2
+    exit 1
+  fi
+
+  local mode
+  mode="$(stat -f '%Lp' "$file" 2>/dev/null || stat -c '%a' "$file" 2>/dev/null || printf '')"
+  if [[ "$mode" != "600" && "$mode" != "400" ]]; then
+    echo "secret_env_file_permissions=${mode}" >&2
+    exit 1
+  fi
+
+  if ! load_dotenv_file_safe "$file"; then
+    echo "secret_env_file_invalid=true" >&2
+    exit 1
+  fi
 }
 
-if [[ "${SKIP_RELEASE_CHECK:-}" != "1" ]]; then
-  run pnpm release:check
+load_secret_command() {
+  local command="${ACP_SECRET_COMMAND:-}"
+  if [[ -z "$command" ]]; then
+    return
+  fi
+
+  local tmp_file
+  tmp_file="$(mktemp)"
+  if ! bash -c "$command" >"$tmp_file"; then
+    rm -f "$tmp_file"
+    echo "secret_command_failed=true" >&2
+    exit 1
+  fi
+
+  chmod 600 "$tmp_file"
+  if ! load_dotenv_file_safe "$tmp_file"; then
+    echo "secret_command_invalid_dotenv=true" >&2
+    exit 1
+  fi
+  rm -f "$tmp_file"
+}
+
+load_secret_env_file
+load_secret_command
+
+echo "==> validating secrets"
+bash scripts/validate-secrets.sh
+
+if [[ "$SKIP_PULL" != "true" ]]; then
+  echo "==> pulling ${ACP_IMAGE}"
+  docker compose pull web migrate worker || true
 fi
 
-run docker compose -f "${compose_file}" --profile app up --build -d
+echo "==> starting postgres"
+docker compose up -d postgres
 
-if [[ "${SKIP_HEALTH_CHECK:-}" != "1" ]]; then
-  run env CONTROL_PLANE_BASE_URL="${base_url}" pnpm health
+echo "==> running migrations"
+docker compose run --rm migrate
+
+echo "==> deploying web with ${ACP_IMAGE}"
+docker compose up -d --no-build web
+
+if [[ "$ENABLE_WORKER" == "true" ]]; then
+  echo "==> deploying worker with ${ACP_IMAGE}"
+  docker compose --profile worker up -d --no-build worker
 fi
 
-echo "deploy-compose completed for ${base_url}"
+echo "==> checking readiness"
+curl -fsS "${READINESS_URL:-http://127.0.0.1:3112/api/readiness}" >/dev/null
+
+cat <<EOF
+deployed_image=${ACP_IMAGE}
+compose_project=${COMPOSE_PROJECT_NAME}
+worker_enabled=${ENABLE_WORKER}
+EOF
