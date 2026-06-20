@@ -578,20 +578,25 @@ run_task_source_smoke() {
 
   local completion_profile require_conversation_evidence require_trace_evidence
   local require_run_event_evidence require_progress_item_evidence
+  local require_prompt_release_evidence require_workspace_evidence
   completion_profile="${ACP_COMPLETION_EXECUTION_PROFILE:-codex-cli}"
   if [[ "$completion_profile" == "codex-cli" ]]; then
     require_conversation_evidence="${TASK_SOURCE_SMOKE_REQUIRE_CONVERSATION_EVIDENCE:-false}"
     require_trace_evidence="${TASK_SOURCE_SMOKE_REQUIRE_TRACE_EVIDENCE:-false}"
     require_run_event_evidence="${TASK_SOURCE_SMOKE_REQUIRE_RUN_EVENT_EVIDENCE:-true}"
     require_progress_item_evidence="${TASK_SOURCE_SMOKE_REQUIRE_PROGRESS_ITEM_EVIDENCE:-true}"
+    require_prompt_release_evidence="${TASK_SOURCE_SMOKE_REQUIRE_PROMPT_RELEASE_EVIDENCE:-true}"
+    require_workspace_evidence="${TASK_SOURCE_SMOKE_REQUIRE_WORKSPACE_EVIDENCE:-true}"
   else
     require_conversation_evidence="${TASK_SOURCE_SMOKE_REQUIRE_CONVERSATION_EVIDENCE:-true}"
     require_trace_evidence="${TASK_SOURCE_SMOKE_REQUIRE_TRACE_EVIDENCE:-true}"
     require_run_event_evidence="${TASK_SOURCE_SMOKE_REQUIRE_RUN_EVENT_EVIDENCE:-false}"
     require_progress_item_evidence="${TASK_SOURCE_SMOKE_REQUIRE_PROGRESS_ITEM_EVIDENCE:-false}"
+    require_prompt_release_evidence="${TASK_SOURCE_SMOKE_REQUIRE_PROMPT_RELEASE_EVIDENCE:-false}"
+    require_workspace_evidence="${TASK_SOURCE_SMOKE_REQUIRE_WORKSPACE_EVIDENCE:-false}"
   fi
 
-  local output output_file checked plane_url_count linear_url_count routed_count run_count run_event_count progress_item_count conversation_count trace_count
+  local output output_file checked plane_url_count linear_url_count routed_count run_count run_event_count progress_item_count prompt_release_count workspace_count conversation_count trace_count
   output_file="$(mktemp)"
   run_smoke_to_file "task-source: smoke" "$output_file" env \
     TASK_SOURCE_SMOKE_REQUIRE_SAMPLE="${TASK_SOURCE_SMOKE_REQUIRE_SAMPLE:-true}" \
@@ -603,6 +608,8 @@ run_task_source_smoke() {
     TASK_SOURCE_SMOKE_REQUIRE_PROGRESS_EVIDENCE="$require_progress_item_evidence" \
     TASK_SOURCE_SMOKE_REQUIRE_PROGRESS_ITEM_EVIDENCE="$require_progress_item_evidence" \
     TASK_SOURCE_SMOKE_REQUIRE_PROGRESS_ITEMS_EVIDENCE="$require_progress_item_evidence" \
+    TASK_SOURCE_SMOKE_REQUIRE_PROMPT_RELEASE_EVIDENCE="$require_prompt_release_evidence" \
+    TASK_SOURCE_SMOKE_REQUIRE_WORKSPACE_EVIDENCE="$require_workspace_evidence" \
     pnpm --silent task-source:smoke || {
       rm -f "$output_file"
       return
@@ -616,9 +623,11 @@ run_task_source_smoke() {
   run_count="$(output_value "$output" "run_evidence_count")"
   run_event_count="$(output_value_any "$output" "run_event_count" "run_events_count" "run_events")"
   progress_item_count="$(output_value_any "$output" "progress_item_count" "progress_items_count" "progress_items")"
+  prompt_release_count="$(output_value_any "$output" "prompt_release_count" "prompt_releases_count" "prompt_releases")"
+  workspace_count="$(output_value_any "$output" "workspace_count" "workspaces_count" "workspaces")"
   conversation_count="$(output_value "$output" "conversation_evidence_count")"
   trace_count="$(output_value "$output" "trace_evidence_count")"
-  TASK_SOURCE_EVIDENCE="checked=${checked:-unknown};plane_urls=${plane_url_count:-unknown};linear_urls=${linear_url_count:-unknown};routed=${routed_count:-unknown};runs=${run_count:-unknown};run_events=${run_event_count:-unknown};progress_items=${progress_item_count:-unknown};conversations=${conversation_count:-unknown};traces=${trace_count:-unknown}"
+  TASK_SOURCE_EVIDENCE="checked=${checked:-unknown};plane_urls=${plane_url_count:-unknown};linear_urls=${linear_url_count:-unknown};routed=${routed_count:-unknown};runs=${run_count:-unknown};run_events=${run_event_count:-unknown};progress_items=${progress_item_count:-unknown};prompt_releases=${prompt_release_count:-unknown};workspaces=${workspace_count:-unknown};conversations=${conversation_count:-unknown};traces=${trace_count:-unknown}"
 }
 
 run_worker_crash_smoke() {

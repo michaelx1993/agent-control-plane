@@ -12,6 +12,8 @@ export interface TaskSourceAuditOptions {
   requireRunEvidence?: boolean;
   requireRunEventEvidence?: boolean;
   requireProgressEvidence?: boolean;
+  requirePromptReleaseEvidence?: boolean;
+  requireWorkspaceEvidence?: boolean;
   requireConversationEvidence?: boolean;
   requireTraceEvidence?: boolean;
 }
@@ -37,6 +39,8 @@ export interface TaskSourceAuditRecord {
   latestRunStatus?: string;
   latestRunEventCount: number;
   progressItemCount: number;
+  promptReleaseCount: number;
+  workspaceCount: number;
   conversationUrl?: string;
   traceUrl?: string;
   updatedAt: Date;
@@ -50,6 +54,8 @@ export type TaskSourceAuditViolationType =
   | "missing_run_evidence"
   | "missing_run_event_evidence"
   | "missing_progress_evidence"
+  | "missing_prompt_release_evidence"
+  | "missing_workspace_evidence"
   | "missing_conversation_evidence"
   | "missing_trace_evidence";
 
@@ -68,6 +74,8 @@ export interface TaskSourceAuditResult {
   runEvidenceCount: number;
   runEventEvidenceCount: number;
   progressEvidenceCount: number;
+  promptReleaseEvidenceCount: number;
+  workspaceEvidenceCount: number;
   conversationEvidenceCount: number;
   traceEvidenceCount: number;
   violations: TaskSourceAuditViolation[];
@@ -86,6 +94,8 @@ interface TaskSourceAuditRow {
   latest_run_status: string | null;
   latest_run_event_count: string | number | null;
   progress_item_count: string | number | null;
+  prompt_release_count: string | number | null;
+  workspace_count: string | number | null;
   conversation_url: string | null;
   trace_url: string | null;
   updated_at: Date;
@@ -175,6 +185,22 @@ export async function auditTaskSources(
       });
     }
 
+    if (requirements.requirePromptReleaseEvidence && record.promptReleaseCount <= 0) {
+      violations.push({
+        type: "missing_prompt_release_evidence",
+        identifier: record.identifier,
+        message: "Task has no immutable prompt release evidence",
+      });
+    }
+
+    if (requirements.requireWorkspaceEvidence && record.workspaceCount <= 0) {
+      violations.push({
+        type: "missing_workspace_evidence",
+        identifier: record.identifier,
+        message: "Task has no workspace evidence",
+      });
+    }
+
     if (requirements.requireConversationEvidence && !record.conversationUrl) {
       violations.push({
         type: "missing_conversation_evidence",
@@ -202,6 +228,8 @@ export async function auditTaskSources(
     runEvidenceCount: records.filter((record) => Boolean(record.latestRunId)).length,
     runEventEvidenceCount: records.filter((record) => record.latestRunEventCount > 0).length,
     progressEvidenceCount: records.filter((record) => record.progressItemCount > 0).length,
+    promptReleaseEvidenceCount: records.filter((record) => record.promptReleaseCount > 0).length,
+    workspaceEvidenceCount: records.filter((record) => record.workspaceCount > 0).length,
     conversationEvidenceCount: records.filter((record) => Boolean(record.conversationUrl)).length,
     traceEvidenceCount: records.filter((record) => Boolean(record.traceUrl)).length,
     violations,
@@ -236,6 +264,8 @@ export async function fetchTaskSourceAuditRecords(
         latest_run.status as latest_run_status,
         coalesce(latest_run_events.run_event_count, 0) as latest_run_event_count,
         coalesce(progress_items.progress_item_count, 0) as progress_item_count,
+        coalesce(prompt_releases.prompt_release_count, 0) as prompt_release_count,
+        coalesce(workspaces.workspace_count, 0) as workspace_count,
         conversation_refs.ui_url as conversation_url,
         trace_refs.ui_url as trace_url,
         tasks.updated_at
@@ -243,7 +273,7 @@ export async function fetchTaskSourceAuditRecords(
       join projects on projects.id = tasks.project_id
       left join repositories on repositories.id = tasks.repository_id
       left join lateral (
-        select id, status
+        select id, status, prompt_release_id
         from runs
         where runs.task_id = tasks.id
         order by runs.created_at desc
@@ -260,6 +290,17 @@ export async function fetchTaskSourceAuditRecords(
         where feedback_items.task_id = tasks.id
           and feedback_items.source = 'agent_progress'
       ) progress_items on true
+      left join lateral (
+        select count(*)::int as prompt_release_count
+        from prompt_releases
+        where prompt_releases.id = latest_run.prompt_release_id
+      ) prompt_releases on true
+      left join lateral (
+        select count(*)::int as workspace_count
+        from workspaces
+        where workspaces.run_id = latest_run.id
+          and workspaces.status in ('ready', 'cleaned')
+      ) workspaces on true
       left join lateral (
         select ui_url
         from conversation_refs
@@ -298,6 +339,8 @@ function mapAuditRow(row: TaskSourceAuditRow): TaskSourceAuditRecord {
     projectSlug: row.project_slug,
     latestRunEventCount: numberFromPg(row.latest_run_event_count),
     progressItemCount: numberFromPg(row.progress_item_count),
+    promptReleaseCount: numberFromPg(row.prompt_release_count),
+    workspaceCount: numberFromPg(row.workspace_count),
     updatedAt: row.updated_at,
   };
 
@@ -333,6 +376,8 @@ interface ResolvedTaskSourceAuditRequirements {
   requireRunEvidence: boolean;
   requireRunEventEvidence: boolean;
   requireProgressEvidence: boolean;
+  requirePromptReleaseEvidence: boolean;
+  requireWorkspaceEvidence: boolean;
   requireConversationEvidence: boolean;
   requireTraceEvidence: boolean;
 }
@@ -350,6 +395,8 @@ function resolveAuditRequirements(
     requireRunEvidence: options.requireRunEvidence ?? true,
     requireRunEventEvidence: options.requireRunEventEvidence ?? !openHandsProfile,
     requireProgressEvidence: options.requireProgressEvidence ?? !openHandsProfile,
+    requirePromptReleaseEvidence: options.requirePromptReleaseEvidence ?? !openHandsProfile,
+    requireWorkspaceEvidence: options.requireWorkspaceEvidence ?? !openHandsProfile,
     requireConversationEvidence: options.requireConversationEvidence ?? openHandsProfile,
     requireTraceEvidence: options.requireTraceEvidence ?? openHandsProfile,
   };

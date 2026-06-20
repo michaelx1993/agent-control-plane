@@ -657,7 +657,15 @@ if (!isCodexProfile || smokeFlag("smoke.production")) {
 const taskSource = evidence("evidence.taskSource");
 const taskSourceChecked = numberField(taskSource, "checked");
 const requiredTaskSourceFields = isCodexProfile
-  ? ["plane_urls", "routed", "runs", "run_events", "progress_items"]
+  ? [
+      "plane_urls",
+      "routed",
+      "runs",
+      "run_events",
+      "progress_items",
+      "prompt_releases",
+      "workspaces",
+    ]
   : ["plane_urls", "routed", "runs", "conversations", "traces"];
 checks.push(
   isNonMock(taskSource) &&
@@ -670,7 +678,7 @@ checks.push(
         "task source cutover",
         taskSource,
         isCodexProfile
-          ? "requires checked>0, linear_urls=0, and plane_urls/routed/runs/run_events/progress_items covering every checked task"
+          ? "requires checked>0, linear_urls=0, and plane_urls/routed/runs/run_events/progress_items/prompt_releases/workspaces covering every checked task"
           : "requires checked>0, linear_urls=0, and plane_urls/routed/runs/conversations/traces covering every checked task",
       ),
 );

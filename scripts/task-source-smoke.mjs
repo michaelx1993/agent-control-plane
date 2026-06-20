@@ -31,6 +31,11 @@ const result = await withDatabasePool((client) =>
     requireRunEvidence: readBoolean("TASK_SOURCE_SMOKE_REQUIRE_RUN_EVIDENCE", true),
     requireRunEventEvidence: readBoolean("TASK_SOURCE_SMOKE_REQUIRE_RUN_EVENT_EVIDENCE", true),
     requireProgressEvidence: readBoolean("TASK_SOURCE_SMOKE_REQUIRE_PROGRESS_EVIDENCE", true),
+    requirePromptReleaseEvidence: readBoolean(
+      "TASK_SOURCE_SMOKE_REQUIRE_PROMPT_RELEASE_EVIDENCE",
+      true,
+    ),
+    requireWorkspaceEvidence: readBoolean("TASK_SOURCE_SMOKE_REQUIRE_WORKSPACE_EVIDENCE", true),
     requireConversationEvidence: readBoolean(
       "TASK_SOURCE_SMOKE_REQUIRE_CONVERSATION_EVIDENCE",
       false,
@@ -46,6 +51,8 @@ console.log(`routed_count=${result.routedCount}`);
 console.log(`run_evidence_count=${result.runEvidenceCount}`);
 console.log(`run_event_count=${result.runEventEvidenceCount}`);
 console.log(`progress_item_count=${result.progressEvidenceCount}`);
+console.log(`prompt_release_count=${result.promptReleaseEvidenceCount}`);
+console.log(`workspace_count=${result.workspaceEvidenceCount}`);
 console.log(`conversation_evidence_count=${result.conversationEvidenceCount}`);
 console.log(`trace_evidence_count=${result.traceEvidenceCount}`);
 console.log(`violations=${result.violations.length}`);

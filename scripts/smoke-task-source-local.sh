@@ -69,6 +69,7 @@ try {
   const repositoryId = "00000000-0000-4000-8000-000000000201";
   const roleId = "00000000-0000-4000-8000-000000000302";
   const agentDefinitionId = "00000000-0000-4000-8000-000000000403";
+  const promptReleaseId = "00000000-0000-4000-8000-000000009701";
 
   await client.query(
     `
@@ -126,12 +127,41 @@ try {
 
   await client.query(
     `
+      insert into prompt_releases (
+        id,
+        task_id,
+        repository_id,
+        role_id,
+        agent_definition_id,
+        content_hash,
+        rendered_content,
+        created_at
+      )
+      values (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        'task-source-smoke-prompt-hash',
+        'Task source smoke immutable prompt snapshot.',
+        now()
+      )
+      on conflict (id) do update set
+        rendered_content = excluded.rendered_content
+    `,
+    [promptReleaseId, taskId, repositoryId, roleId, agentDefinitionId],
+  );
+
+  await client.query(
+    `
       insert into runs (
         id,
         task_id,
         repository_id,
         role_id,
         agent_definition_id,
+        prompt_release_id,
         status,
         attempt,
         started_at,
@@ -151,6 +181,7 @@ try {
         $3,
         $4,
         $5,
+        $6,
         'succeeded',
         1,
         now() - interval '2 minutes',
@@ -165,13 +196,48 @@ try {
         now() - interval '1 minute'
       )
       on conflict (id) do update set
+        prompt_release_id = excluded.prompt_release_id,
         status = excluded.status,
         finished_at = excluded.finished_at,
         result_summary = excluded.result_summary,
         next_state = excluded.next_state,
         updated_at = now()
     `,
-    [runId, taskId, repositoryId, roleId, agentDefinitionId],
+    [runId, taskId, repositoryId, roleId, agentDefinitionId, promptReleaseId],
+  );
+
+  await client.query(
+    `
+      insert into workspaces (
+        id,
+        run_id,
+        repository_id,
+        strategy,
+        path,
+        base_ref,
+        head_ref,
+        status,
+        created_at
+      )
+      values (
+        '00000000-0000-4000-8000-000000009702',
+        $1,
+        $2,
+        'git-worktree',
+        '/tmp/acp-task-source-smoke/crs-src/run-1',
+        'main',
+        'codex/task-source-smoke',
+        'ready',
+        now()
+      )
+      on conflict (run_id) do update set
+        strategy = excluded.strategy,
+        path = excluded.path,
+        base_ref = excluded.base_ref,
+        head_ref = excluded.head_ref,
+        status = excluded.status
+    `,
+    [runId, repositoryId],
   );
 
   await client.query(
@@ -480,6 +546,22 @@ fi
 if ! grep -q "missing_progress_evidence" "$FAIL_OUTPUT"; then
   echo "task_source_local_smoke=failed" >&2
   echo "error=task-source smoke did not fail on missing progress evidence" >&2
+  cat "$FAIL_OUTPUT" >&2
+  rm -f "$FAIL_OUTPUT"
+  exit 1
+fi
+
+if ! grep -q "missing_prompt_release_evidence" "$FAIL_OUTPUT"; then
+  echo "task_source_local_smoke=failed" >&2
+  echo "error=task-source smoke did not fail on missing prompt release evidence" >&2
+  cat "$FAIL_OUTPUT" >&2
+  rm -f "$FAIL_OUTPUT"
+  exit 1
+fi
+
+if ! grep -q "missing_workspace_evidence" "$FAIL_OUTPUT"; then
+  echo "task_source_local_smoke=failed" >&2
+  echo "error=task-source smoke did not fail on missing workspace evidence" >&2
   cat "$FAIL_OUTPUT" >&2
   rm -f "$FAIL_OUTPUT"
   exit 1

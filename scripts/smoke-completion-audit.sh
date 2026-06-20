@@ -287,7 +287,7 @@ report.evidence.openhandsDbRun = "not-run";
 report.evidence.langfuseTrace = "not-run";
 report.evidence.productionSmoke = "not-run";
 report.evidence.taskSource =
-  "checked=3;plane_urls=3;linear_urls=0;routed=3;runs=3;run_events=3;progress_items=3;conversations=0;traces=0";
+  "checked=3;plane_urls=3;linear_urls=0;routed=3;runs=3;run_events=3;progress_items=3;prompt_releases=3;workspaces=3;conversations=0;traces=0";
 report.evidence.externalPreflight = "preflight_id=preflight-codex;ready_count=6;missing_count=0";
 report.config.completionExecutionProfile = "codex-cli";
 report.config.workerExecutionAdapter = "codex-cli";
@@ -300,7 +300,7 @@ ACP_COMPLETION_AUDIT_REPORT_FILE="$CODEX_COMPLETE_REPORT" node scripts/completio
 
 if ! grep -q "completion_audit_status=passed" "$CODEX_COMPLETE_OUTPUT"; then
   echo "completion_audit_smoke=failed" >&2
-  echo "error=codex-cli report did not pass with run_events/progress_items task-source evidence" >&2
+  echo "error=codex-cli report did not pass with run_events/progress_items/prompt_releases/workspaces task-source evidence" >&2
   cat "$CODEX_COMPLETE_OUTPUT" >&2
   exit 1
 fi
@@ -329,7 +329,7 @@ const fs = require("node:fs");
 const [input, output] = process.argv.slice(2);
 const report = JSON.parse(fs.readFileSync(input, "utf8"));
 report.evidence.taskSource =
-  "checked=3;plane_urls=3;linear_urls=0;routed=3;runs=3;run_events=3;progress_items=3;conversations=0;traces=0";
+  "checked=3;plane_urls=3;linear_urls=0;routed=3;runs=3;run_events=3;progress_items=3;prompt_releases=3;workspaces=3;conversations=0;traces=0";
 fs.writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
 NODE
 
