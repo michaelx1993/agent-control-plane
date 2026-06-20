@@ -1,6 +1,19 @@
-import { PrismaClient } from "@prisma/client";
-
-export const prisma = new PrismaClient();
-
-export * from "@prisma/client";
-export * from "./query.js";
+export * from "./client.js";
+export * from "./config.js";
+export * from "./conversations.js";
+export * from "./dispatch-settings.js";
+export * from "./feedback.js";
+export * from "./monitoring-alert-notifications.js";
+export * from "./monitoring-settings.js";
+export * from "./prompts.js";
+export * from "./runs.js";
+export * from "./settings.js";
+export * from "./snapshots.js";
+export * from "./summary.js";
+export * from "./task-source.js";
+export * from "./tasks.js";
+export * from "./task-sync.js";
+export * from "./traces.js";
+export * from "./users.js";
+export * from "./workspaces.js";
+export * from "./worker-api-requests.js";

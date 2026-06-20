@@ -1,0 +1,126 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent
+      POSTGRES_DB: agent_control_plane
+    ports:
+      - "54329:5432"
+    volumes:
+      - agent-control-plane-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d agent_control_plane"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    image: ${ACP_IMAGE:-agent-control-plane:local}
+    build:
+      context: .
+    environment:
+      DATABASE_URL: postgresql://agent:agent@postgres:5432/agent_control_plane
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -lc "pnpm db:migrate && pnpm db:seed"
+    restart: "no"
+
+  web:
+    image: ${ACP_IMAGE:-agent-control-plane:local}
+    build:
+      context: .
+    environment:
+      DATABASE_URL: postgresql://agent:agent@postgres:5432/agent_control_plane
+      PLANE_WEBHOOK_SECRET: ${PLANE_WEBHOOK_SECRET:-}
+      ACP_OPERATOR_USER_ID: ${ACP_OPERATOR_USER_ID:-00000000-0000-4000-8000-000000000901}
+      ACP_OPERATOR_NAME: ${ACP_OPERATOR_NAME:-local-operator}
+      ACP_OPERATOR_ROLES: ${ACP_OPERATOR_ROLES:-owner,prompt_admin,prompt_editor}
+      ACP_OPERATOR_API_TOKEN: ${ACP_OPERATOR_API_TOKEN:-}
+      ACP_OPERATOR_LOGIN_PASSWORD: ${ACP_OPERATOR_LOGIN_PASSWORD:-}
+      ACP_OPERATOR_SESSION_SECRET: ${ACP_OPERATOR_SESSION_SECRET:-}
+      ACP_OPERATOR_SESSION_TTL_SECONDS: ${ACP_OPERATOR_SESSION_TTL_SECONDS:-28800}
+      MONITORING_QUEUE_BACKLOG_WARNING: ${MONITORING_QUEUE_BACKLOG_WARNING:-20}
+      MONITORING_STALLED_RUNS_CRITICAL: ${MONITORING_STALLED_RUNS_CRITICAL:-0}
+      MONITORING_RETRY_BACKLOG_WARNING: ${MONITORING_RETRY_BACKLOG_WARNING:-0}
+      MONITORING_FAILURE_RATE_CRITICAL: ${MONITORING_FAILURE_RATE_CRITICAL:-0.5}
+      MONITORING_FAILURE_RATE_MIN_FINISHED: ${MONITORING_FAILURE_RATE_MIN_FINISHED:-3}
+      MONITORING_COST_WARNING_USD: ${MONITORING_COST_WARNING_USD:-50}
+      MONITORING_RETRY_BACKOFF_MS: ${MONITORING_RETRY_BACKOFF_MS:-300000}
+      MONITORING_ALERT_WEBHOOK_URL: ${MONITORING_ALERT_WEBHOOK_URL:-}
+      MONITORING_ALERT_MIN_INTERVAL_MS: ${MONITORING_ALERT_MIN_INTERVAL_MS:-900000}
+      MONITORING_ALERT_FORMAT: ${MONITORING_ALERT_FORMAT:-generic}
+      MONITORING_ALERT_REPLAY_LIMIT: ${MONITORING_ALERT_REPLAY_LIMIT:-10}
+      MONITORING_ALERT_RETRY_BACKOFF_MS: ${MONITORING_ALERT_RETRY_BACKOFF_MS:-300000}
+    ports:
+      - "3112:3112"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command:
+      [
+        "pnpm",
+        "--filter",
+        "@agent-control-plane/web",
+        "exec",
+        "next",
+        "start",
+        "--hostname",
+        "0.0.0.0",
+        "--port",
+        "3112",
+      ]
+
+  worker:
+    profiles: ["worker"]
+    image: ${ACP_IMAGE:-agent-control-plane:local}
+    build:
+      context: .
+    environment:
+      DATABASE_URL: postgresql://agent:agent@postgres:5432/agent_control_plane
+      WORKER_RUN_LOOP: "true"
+      WORKER_LOOP_INTERVAL_MS: ${WORKER_LOOP_INTERVAL_MS:-60000}
+      ACP_OPERATOR_LOGIN_PASSWORD: ${ACP_OPERATOR_LOGIN_PASSWORD:-}
+      ACP_OPERATOR_SESSION_SECRET: ${ACP_OPERATOR_SESSION_SECRET:-}
+      ACP_OPERATOR_SESSION_TTL_SECONDS: ${ACP_OPERATOR_SESSION_TTL_SECONDS:-28800}
+      WORKER_LEASE_TTL_MS: ${WORKER_LEASE_TTL_MS:-900000}
+      WORKER_LEASE_RENEWAL_INTERVAL_MS: ${WORKER_LEASE_RENEWAL_INTERVAL_MS:-300000}
+      WORKER_EXECUTION_ADAPTER: ${WORKER_EXECUTION_ADAPTER:-mock-openhands}
+      WORKER_WORKSPACE_ROOT: ${WORKER_WORKSPACE_ROOT:-/tmp/agent-control-plane-workspaces}
+      PLANE_WRITEBACK_ENABLED: ${PLANE_WRITEBACK_ENABLED:-false}
+      PLANE_BASE_URL: ${PLANE_BASE_URL:-}
+      PLANE_WORKSPACE_SLUG: ${PLANE_WORKSPACE_SLUG:-}
+      PLANE_API_KEY: ${PLANE_API_KEY:-}
+      OPENHANDS_BASE_URL: ${OPENHANDS_BASE_URL:-}
+      OPENHANDS_API_KEY: ${OPENHANDS_API_KEY:-}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-}
+      LANGFUSE_PROJECT_ID: ${LANGFUSE_PROJECT_ID:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_TRACING_ENVIRONMENT: ${LANGFUSE_TRACING_ENVIRONMENT:-dev}
+      LANGFUSE_RELEASE: ${LANGFUSE_RELEASE:-docker}
+      MONITORING_QUEUE_BACKLOG_WARNING: ${MONITORING_QUEUE_BACKLOG_WARNING:-20}
+      MONITORING_STALLED_RUNS_CRITICAL: ${MONITORING_STALLED_RUNS_CRITICAL:-0}
+      MONITORING_RETRY_BACKLOG_WARNING: ${MONITORING_RETRY_BACKLOG_WARNING:-0}
+      MONITORING_FAILURE_RATE_CRITICAL: ${MONITORING_FAILURE_RATE_CRITICAL:-0.5}
+      MONITORING_FAILURE_RATE_MIN_FINISHED: ${MONITORING_FAILURE_RATE_MIN_FINISHED:-3}
+      MONITORING_COST_WARNING_USD: ${MONITORING_COST_WARNING_USD:-50}
+      MONITORING_RETRY_BACKOFF_MS: ${MONITORING_RETRY_BACKOFF_MS:-300000}
+      MONITORING_ALERT_WEBHOOK_URL: ${MONITORING_ALERT_WEBHOOK_URL:-}
+      MONITORING_ALERT_MIN_INTERVAL_MS: ${MONITORING_ALERT_MIN_INTERVAL_MS:-900000}
+      MONITORING_ALERT_FORMAT: ${MONITORING_ALERT_FORMAT:-generic}
+      MONITORING_ALERT_REPLAY_LIMIT: ${MONITORING_ALERT_REPLAY_LIMIT:-10}
+      MONITORING_ALERT_RETRY_BACKOFF_MS: ${MONITORING_ALERT_RETRY_BACKOFF_MS:-300000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: ["pnpm", "--filter", "@agent-control-plane/worker", "start"]
+
+volumes:
+  agent-control-plane-postgres:

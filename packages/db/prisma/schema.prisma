@@ -1,172 +1,36 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-enum ExternalProvider {
-  plane
-  github
-  local
-}
-
-enum ProjectStatus {
-  active
-  archived
-}
-
-enum RepositoryStatus {
-  active
-  archived
-}
-
-enum TaskState {
-  Todo
-  Development
-  CodeReview     @map("Code Review")
-  HumanReview    @map("Human Review")
-  InMerge        @map("In Merge")
-  Merged
-  ReleaseVersion @map("Release Version")
-  Released
-  Deployment
-  Deployed
-  Done
-  Blocked
-  Canceled
-}
-
-enum AgentRuntime {
-  openhands
-}
-
-enum ReasoningEffort {
-  low
-  medium
-  high
-}
-
-enum AgentDefinitionStatus {
-  active
-  disabled
-}
-
-enum PromptScopeType {
-  global
-  team
-  project
-  repo
-  role
-  agent
-}
-
-enum PromptComponentStatus {
-  draft
-  active
-  archived
-}
-
-enum PromptBindingEnvironment {
-  dev
-  staging
-  prod
-}
-
-enum PromptBindingStatus {
-  active
-  disabled
-}
-
-enum RunStatus {
-  queued
-  claimed
-  running
-  succeeded
-  blocked
-  failed
-  canceled
-}
-
-enum WorkspaceStrategy {
-  clone
-  worktree
-  existing
-}
-
-enum WorkspaceStatus {
-  preparing
-  ready
-  dirty
-  archived
-  cleaned
-}
-
-enum ConversationProvider {
-  openhands
-}
-
-enum TraceProvider {
-  langfuse
-}
-
-enum RunEventType {
-  queued
-  claimed
-  heartbeat
-  state_sync
-  blocked
-  completed
-  failed
-  canceled
-}
-
-enum FeedbackSource {
-  human
-  code_review
-  pr_review
-  agent
-  plane_comment
-}
-
-enum FeedbackSeverity {
-  info
-  minor
-  major
-  blocker
 }
 
 model Team {
-  id               String           @id @default(uuid()) @db.Uuid
-  externalProvider ExternalProvider @map("external_provider")
-  externalTeamId   String           @map("external_team_id")
-  key              String
+  id               String       @id @default(uuid()) @db.Uuid
+  externalProvider String       @map("external_provider")
+  externalTeamId   String       @map("external_team_id")
+  key              String       @unique
   name             String
   description      String?
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
   projects         Project[]
+  auditEvents      AuditEvent[]
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([externalProvider, externalTeamId])
-  @@unique([key])
   @@map("teams")
 }
 
 model Project {
-  id                String        @id @default(uuid()) @db.Uuid
-  teamId            String        @map("team_id") @db.Uuid
-  externalProjectId String        @map("external_project_id")
+  id                String       @id @default(uuid()) @db.Uuid
+  teamId            String       @map("team_id") @db.Uuid
+  team              Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  externalProjectId String       @map("external_project_id")
   slug              String
   name              String
   description       String?
-  status            ProjectStatus @default(active)
-  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  team              Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  status            String       @default("active")
   repositories      Repository[]
   tasks             Task[]
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([teamId, slug])
   @@unique([teamId, externalProjectId])
@@ -174,161 +38,160 @@ model Project {
 }
 
 model Repository {
-  id             String           @id @default(uuid()) @db.Uuid
-  projectId      String           @map("project_id") @db.Uuid
+  id             String          @id @default(uuid()) @db.Uuid
+  projectId      String          @map("project_id") @db.Uuid
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   slug           String
-  gitUrl         String           @map("git_url")
-  defaultBranch  String           @default("main") @map("default_branch")
-  localPath      String?          @map("local_path")
-  status         RepositoryStatus @default(active)
+  gitUrl         String          @unique @map("git_url")
+  defaultBranch  String          @default("main") @map("default_branch")
+  localPath      String?         @map("local_path")
+  status         String          @default("active")
   description    String?
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks          Task[]
   promptReleases PromptRelease[]
   runs           Run[]
   workspaces     Workspace[]
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([projectId, slug])
-  @@unique([gitUrl])
   @@map("repositories")
 }
 
 model Task {
-  id             String          @id @default(uuid()) @db.Uuid
-  projectId      String          @map("project_id") @db.Uuid
-  repositoryId   String?         @map("repository_id") @db.Uuid
-  externalTaskId String          @map("external_task_id")
-  identifier     String
-  title          String
-  state          TaskState
-  priority       Int?
-  labels         Json            @default("[]")
-  assignee       String?
-  url            String?
-  retryAfterAttempt Int          @default(0) @map("retry_after_attempt")
-  lastSyncedAt   DateTime?       @map("last_synced_at") @db.Timestamptz(6)
-  syncCursor     String?         @map("sync_cursor")
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
-  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  repository     Repository?     @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
-  promptReleases PromptRelease[]
-  runs           Run[]
-  feedbackItems  FeedbackItem[]
+  id               String          @id @default(uuid()) @db.Uuid
+  projectId        String          @map("project_id") @db.Uuid
+  project          Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  repositoryId     String?         @map("repository_id") @db.Uuid
+  repository       Repository?     @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
+  externalTaskId   String          @map("external_task_id")
+  identifier       String
+  title            String
+  state            String
+  priority         Int?
+  estimatedCostUsd Decimal?        @map("estimated_cost_usd") @db.Decimal(12, 6)
+  labels           Json            @default("[]")
+  assignee         String?
+  url              String?
+  lastSyncedAt     DateTime?       @map("last_synced_at") @db.Timestamptz(6)
+  syncCursor       String?         @map("sync_cursor")
+  runs             Run[]
+  feedbackItems    FeedbackItem[]
+  promptReleases   PromptRelease[]
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([projectId, externalTaskId])
   @@unique([projectId, identifier])
-  @@index([repositoryId])
   @@index([state, updatedAt])
+  @@index([repositoryId, state])
   @@map("tasks")
 }
 
 model Role {
   id               String            @id @default(uuid()) @db.Uuid
-  key              String
+  key              String            @unique
   name             String
-  activeStates     TaskState[]       @map("active_states")
-  nextStates       TaskState[]       @map("next_states")
+  activeStates     String[]          @map("active_states")
+  nextStates       String[]          @map("next_states")
   description      String?
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status           String            @default("active")
   agentDefinitions AgentDefinition[]
   promptReleases   PromptRelease[]
   runs             Run[]
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@unique([key])
   @@map("roles")
 }
 
 model AgentDefinition {
-  id              String                @id @default(uuid()) @db.Uuid
+  id              String          @id @default(uuid()) @db.Uuid
   name            String
-  roleId          String                @map("role_id") @db.Uuid
-  runtime         AgentRuntime          @default(openhands)
+  roleId          String          @map("role_id") @db.Uuid
+  role            Role            @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  runtime         String          @default("openhands")
   model           String
-  reasoningEffort ReasoningEffort       @default(medium) @map("reasoning_effort")
-  toolProfile     String                @map("tool_profile")
-  maxTurns        Int                   @default(80) @map("max_turns")
-  timeoutSeconds  Int                   @default(7200) @map("timeout_seconds")
-  status          AgentDefinitionStatus @default(active)
-  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
-  role            Role                  @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  reasoningEffort String          @default("high") @map("reasoning_effort")
+  toolProfile     String          @map("tool_profile")
+  maxTurns        Int             @default(80) @map("max_turns")
+  timeoutSeconds  Int             @default(7200) @map("timeout_seconds")
+  status          String          @default("active")
   promptReleases  PromptRelease[]
   runs            Run[]
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("agent_definitions")
 }
 
 model PromptComponent {
   id                      String                   @id @default(uuid()) @db.Uuid
-  scopeType               PromptScopeType          @map("scope_type")
+  scopeType               String                   @map("scope_type")
   scopeId                 String?                  @map("scope_id") @db.Uuid
   name                    String
   version                 Int
-  status                  PromptComponentStatus    @default(draft)
+  status                  String                   @default("draft")
   content                 String
   changelog               String?
   author                  String?
-  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
   promptBindings          PromptBinding[]
   promptReleaseComponents PromptReleaseComponent[]
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([scopeType, scopeId, name, version])
   @@map("prompt_components")
 }
 
 model PromptBinding {
-  id                String                   @id @default(uuid()) @db.Uuid
-  scopeType         PromptScopeType          @map("scope_type")
-  scopeId           String                   @map("scope_id") @db.Uuid
-  promptComponentId String                   @map("prompt_component_id") @db.Uuid
-  orderIndex        Int                      @map("order_index")
-  environment       PromptBindingEnvironment @default(dev)
-  status            PromptBindingStatus      @default(active)
-  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
-  promptComponent   PromptComponent          @relation(fields: [promptComponentId], references: [id], onDelete: Restrict)
+  id                String          @id @default(uuid()) @db.Uuid
+  scopeType         String          @map("scope_type")
+  scopeId           String          @map("scope_id") @db.Uuid
+  promptComponentId String          @map("prompt_component_id") @db.Uuid
+  promptComponent   PromptComponent @relation(fields: [promptComponentId], references: [id], onDelete: Restrict)
+  orderIndex        Int             @default(0) @map("order_index")
+  environment       String          @default("dev")
+  status            String          @default("pending")
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@index([scopeType, scopeId, environment, status])
+  @@index([scopeType, scopeId, status])
   @@map("prompt_bindings")
 }
 
 model PromptRelease {
-  id                    String                   @id @default(uuid()) @db.Uuid
-  taskId                String                   @map("task_id") @db.Uuid
-  repositoryId          String                   @map("repository_id") @db.Uuid
-  roleId                String                   @map("role_id") @db.Uuid
-  agentDefinitionId     String                   @map("agent_definition_id") @db.Uuid
-  langfusePromptId      String?                  @map("langfuse_prompt_id")
-  langfusePromptVersion String?                  @map("langfuse_prompt_version")
-  contentHash           String                   @map("content_hash")
-  renderedContent       String                   @map("rendered_content")
-  createdAt             DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  task                  Task                     @relation(fields: [taskId], references: [id], onDelete: Restrict)
-  repository            Repository               @relation(fields: [repositoryId], references: [id], onDelete: Restrict)
-  role                  Role                     @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  agentDefinition       AgentDefinition          @relation(fields: [agentDefinitionId], references: [id], onDelete: Restrict)
-  components            PromptReleaseComponent[]
-  runs                  Run[]
-  traceRefs             TraceRef[]
+  id                      String                   @id @default(uuid()) @db.Uuid
+  taskId                  String                   @map("task_id") @db.Uuid
+  task                    Task                     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  repositoryId            String                   @map("repository_id") @db.Uuid
+  repository              Repository               @relation(fields: [repositoryId], references: [id], onDelete: Restrict)
+  roleId                  String                   @map("role_id") @db.Uuid
+  role                    Role                     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  agentDefinitionId       String                   @map("agent_definition_id") @db.Uuid
+  agentDefinition         AgentDefinition          @relation(fields: [agentDefinitionId], references: [id], onDelete: Restrict)
+  langfusePromptId        String?                  @map("langfuse_prompt_id")
+  langfusePromptVersion   String?                  @map("langfuse_prompt_version")
+  contentHash             String                   @map("content_hash")
+  renderedContent         String                   @map("rendered_content")
+  runs                    Run[]
+  traceRefs               TraceRef[]
+  promptReleaseComponents PromptReleaseComponent[]
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@index([taskId])
-  @@index([repositoryId])
+  @@index([taskId, createdAt])
+  @@index([contentHash])
   @@map("prompt_releases")
 }
 
 model PromptReleaseComponent {
   id                String          @id @default(uuid()) @db.Uuid
   promptReleaseId   String          @map("prompt_release_id") @db.Uuid
+  promptRelease     PromptRelease   @relation(fields: [promptReleaseId], references: [id], onDelete: Cascade)
   promptComponentId String          @map("prompt_component_id") @db.Uuid
+  promptComponent   PromptComponent @relation(fields: [promptComponentId], references: [id], onDelete: Restrict)
   orderIndex        Int             @map("order_index")
   contentHash       String          @map("content_hash")
-  promptRelease     PromptRelease   @relation(fields: [promptReleaseId], references: [id], onDelete: Cascade)
-  promptComponent   PromptComponent @relation(fields: [promptComponentId], references: [id], onDelete: Restrict)
 
   @@unique([promptReleaseId, orderIndex])
   @@map("prompt_release_components")
@@ -337,11 +200,16 @@ model PromptReleaseComponent {
 model Run {
   id                String           @id @default(uuid()) @db.Uuid
   taskId            String           @map("task_id") @db.Uuid
+  task              Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
   repositoryId      String           @map("repository_id") @db.Uuid
+  repository        Repository       @relation(fields: [repositoryId], references: [id], onDelete: Restrict)
   roleId            String           @map("role_id") @db.Uuid
+  role              Role             @relation(fields: [roleId], references: [id], onDelete: Restrict)
   agentDefinitionId String           @map("agent_definition_id") @db.Uuid
-  promptReleaseId   String           @map("prompt_release_id") @db.Uuid
-  status            RunStatus        @default(queued)
+  agentDefinition   AgentDefinition  @relation(fields: [agentDefinitionId], references: [id], onDelete: Restrict)
+  promptReleaseId   String?          @map("prompt_release_id") @db.Uuid
+  promptRelease     PromptRelease?   @relation(fields: [promptReleaseId], references: [id], onDelete: SetNull)
+  status            String           @default("queued")
   leaseOwner        String?          @map("lease_owner")
   leaseExpiresAt    DateTime?        @map("lease_expires_at") @db.Timestamptz(6)
   heartbeatAt       DateTime?        @map("heartbeat_at") @db.Timestamptz(6)
@@ -350,79 +218,75 @@ model Run {
   finishedAt        DateTime?        @map("finished_at") @db.Timestamptz(6)
   resultSummary     String?          @map("result_summary")
   failureReason     String?          @map("failure_reason")
-  nextState         TaskState?       @map("next_state")
+  nextState         String?          @map("next_state")
   tokenInput        BigInt?          @map("token_input")
   tokenOutput       BigInt?          @map("token_output")
   tokenTotal        BigInt?          @map("token_total")
   costUsd           Decimal?         @map("cost_usd") @db.Decimal(12, 6)
-  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  task              Task             @relation(fields: [taskId], references: [id], onDelete: Restrict)
-  repository        Repository       @relation(fields: [repositoryId], references: [id], onDelete: Restrict)
-  role              Role             @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  agentDefinition   AgentDefinition  @relation(fields: [agentDefinitionId], references: [id], onDelete: Restrict)
-  promptRelease     PromptRelease    @relation(fields: [promptReleaseId], references: [id], onDelete: Restrict)
   workspace         Workspace?
   conversationRef   ConversationRef?
   traceRefs         TraceRef[]
   runEvents         RunEvent[]
+  workerApiRequests WorkerApiRequest[]
   feedbackItems     FeedbackItem[]
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@index([taskId, createdAt(sort: Desc)])
+  @@index([taskId, createdAt])
   @@index([status, leaseExpiresAt])
   @@index([repositoryId, status])
   @@map("runs")
 }
 
 model Workspace {
-  id           String            @id @default(uuid()) @db.Uuid
-  runId        String            @unique @map("run_id") @db.Uuid
-  repositoryId String            @map("repository_id") @db.Uuid
-  strategy     WorkspaceStrategy
+  id           String     @id @default(uuid()) @db.Uuid
+  runId        String     @unique @map("run_id") @db.Uuid
+  run          Run        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  repositoryId String     @map("repository_id") @db.Uuid
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Restrict)
+  strategy     String
   path         String
-  baseRef      String            @map("base_ref")
-  headRef      String?           @map("head_ref")
-  status       WorkspaceStatus   @default(preparing)
-  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  cleanedAt    DateTime?         @map("cleaned_at") @db.Timestamptz(6)
-  run          Run               @relation(fields: [runId], references: [id], onDelete: Cascade)
-  repository   Repository        @relation(fields: [repositoryId], references: [id], onDelete: Restrict)
+  baseRef      String?    @map("base_ref")
+  headRef      String?    @map("head_ref")
+  status       String     @default("preparing")
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  cleanedAt    DateTime?  @map("cleaned_at") @db.Timestamptz(6)
 
   @@map("workspaces")
 }
 
 model ConversationRef {
-  id             String               @id @default(uuid()) @db.Uuid
-  runId          String               @unique @map("run_id") @db.Uuid
-  provider       ConversationProvider @default(openhands)
-  conversationId String               @map("conversation_id")
-  eventLogUri    String?              @map("event_log_uri")
-  eventCursor    String?              @map("event_cursor")
-  uiUrl          String?              @map("ui_url")
-  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  run            Run                  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  id             String   @id @default(uuid()) @db.Uuid
+  runId          String   @unique @map("run_id") @db.Uuid
+  run            Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  provider       String   @default("openhands")
+  conversationId String   @map("conversation_id")
+  eventLogUri    String?  @map("event_log_uri")
+  eventCursor    String?  @map("event_cursor")
+  uiUrl          String?  @map("ui_url")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([provider, conversationId])
   @@map("conversation_refs")
 }
 
 model TraceRef {
-  id              String        @id @default(uuid()) @db.Uuid
-  runId           String        @map("run_id") @db.Uuid
-  provider        TraceProvider @default(langfuse)
-  traceId         String        @map("trace_id")
-  generationId    String?       @map("generation_id")
+  id              String         @id @default(uuid()) @db.Uuid
+  runId           String         @map("run_id") @db.Uuid
+  run             Run            @relation(fields: [runId], references: [id], onDelete: Cascade)
+  provider        String         @default("langfuse")
+  traceId         String         @map("trace_id")
+  generationId    String?        @map("generation_id")
   model           String?
-  promptReleaseId String        @map("prompt_release_id") @db.Uuid
-  inputTokens     BigInt?       @map("input_tokens")
-  outputTokens    BigInt?       @map("output_tokens")
-  costUsd         Decimal?      @map("cost_usd") @db.Decimal(12, 6)
-  latencyMs       Int?          @map("latency_ms")
-  uiUrl           String?       @map("ui_url")
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  run             Run           @relation(fields: [runId], references: [id], onDelete: Cascade)
-  promptRelease   PromptRelease @relation(fields: [promptReleaseId], references: [id], onDelete: Restrict)
+  promptReleaseId String?        @map("prompt_release_id") @db.Uuid
+  promptRelease   PromptRelease? @relation(fields: [promptReleaseId], references: [id], onDelete: SetNull)
+  inputTokens     BigInt?        @map("input_tokens")
+  outputTokens    BigInt?        @map("output_tokens")
+  costUsd         Decimal?       @map("cost_usd") @db.Decimal(12, 6)
+  latencyMs       Int?           @map("latency_ms")
+  uiUrl           String?        @map("ui_url")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([runId])
   @@index([traceId])
@@ -431,31 +295,50 @@ model TraceRef {
 }
 
 model RunEvent {
-  id        String       @id @default(uuid()) @db.Uuid
-  runId     String       @map("run_id") @db.Uuid
-  eventType RunEventType @map("event_type")
-  message   String?
-  payload   Json         @default("{}")
-  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  run       Run          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid()) @db.Uuid
+  runId     String   @map("run_id") @db.Uuid
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  eventType String   @map("event_type")
+  message   String
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([runId, createdAt])
   @@index([eventType, createdAt])
   @@map("run_events")
 }
 
+model WorkerApiRequest {
+  id             String   @id @default(uuid()) @db.Uuid
+  workerId       String   @map("worker_id")
+  runId          String   @map("run_id") @db.Uuid
+  run            Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  operation      String
+  idempotencyKey String   @map("idempotency_key")
+  requestHash    String   @map("request_hash")
+  responseStatus Int?     @map("response_status")
+  responseBody   Json?    @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workerId, idempotencyKey])
+  @@index([runId, createdAt])
+  @@index([operation, createdAt])
+  @@map("worker_api_requests")
+}
+
 model FeedbackItem {
-  id          String           @id @default(uuid()) @db.Uuid
-  taskId      String           @map("task_id") @db.Uuid
-  runId       String?          @map("run_id") @db.Uuid
-  source      FeedbackSource
-  severity    FeedbackSeverity
+  id          String    @id @default(uuid()) @db.Uuid
+  taskId      String    @map("task_id") @db.Uuid
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  runId       String?   @map("run_id") @db.Uuid
+  run         Run?      @relation(fields: [runId], references: [id], onDelete: SetNull)
+  source      String
+  severity    String    @default("info")
   body        String
-  externalUrl String?          @map("external_url")
-  resolvedAt  DateTime?        @map("resolved_at") @db.Timestamptz(6)
-  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  task        Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  run         Run?             @relation(fields: [runId], references: [id], onDelete: SetNull)
+  externalUrl String?   @map("external_url")
+  resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([taskId, resolvedAt])
   @@index([source, createdAt])
@@ -463,29 +346,60 @@ model FeedbackItem {
 }
 
 model User {
-  id               String           @id @default(uuid()) @db.Uuid
-  externalProvider ExternalProvider @map("external_provider")
-  externalUserId   String           @map("external_user_id")
+  id               String       @id @default(uuid()) @db.Uuid
+  externalProvider String       @map("external_provider")
+  externalUserId   String       @map("external_user_id")
   name             String
   email            String?
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
   auditEvents      AuditEvent[]
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([externalProvider, externalUserId])
   @@map("users")
 }
 
+model AppSetting {
+  key         String   @id
+  value       Json
+  description String?
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("app_settings")
+}
+
+model MonitoringAlertNotification {
+  id            String    @id @default(uuid()) @db.Uuid
+  fingerprint   String
+  level         String
+  status        String    @default("pending")
+  webhookUrl    String    @map("webhook_url")
+  format        String    @default("generic")
+  payload       Json
+  attempts      Int       @default(0)
+  lastError     String?   @map("last_error")
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  sentAt        DateTime? @map("sent_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([fingerprint, webhookUrl])
+  @@index([status, nextAttemptAt])
+  @@map("monitoring_alert_notifications")
+}
+
 model AuditEvent {
   id          String   @id @default(uuid()) @db.Uuid
   actorUserId String?  @map("actor_user_id") @db.Uuid
+  actorUser   User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  teamId      String?  @map("team_id") @db.Uuid
+  team        Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
   action      String
   entityType  String   @map("entity_type")
   entityId    String   @map("entity_id") @db.Uuid
-  message     String?
-  payload     Json     @default("{}")
+  message     String
+  payload     Json?
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  actorUser   User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([entityType, entityId, createdAt])
   @@index([action, createdAt])
