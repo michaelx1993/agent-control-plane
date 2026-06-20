@@ -603,7 +603,7 @@ run_task_source_smoke() {
     TASK_SOURCE_SMOKE_REQUIRE_PROGRESS_EVIDENCE="$require_progress_item_evidence" \
     TASK_SOURCE_SMOKE_REQUIRE_PROGRESS_ITEM_EVIDENCE="$require_progress_item_evidence" \
     TASK_SOURCE_SMOKE_REQUIRE_PROGRESS_ITEMS_EVIDENCE="$require_progress_item_evidence" \
-    bash scripts/smoke-task-source.sh || {
+    pnpm --silent task-source:smoke || {
       rm -f "$output_file"
       return
     }

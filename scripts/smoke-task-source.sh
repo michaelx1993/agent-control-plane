@@ -93,4 +93,4 @@ case "$TASK_SOURCE_SMOKE_EXECUTION_PROFILE" in
 esac
 
 pnpm --filter @agent-control-plane/db build >/dev/null
-pnpm --filter @agent-control-plane/worker task-source:smoke
+node scripts/task-source-smoke.mjs

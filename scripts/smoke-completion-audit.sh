@@ -71,9 +71,28 @@ LANGFUSE_TRACE_OUTPUT="$TMP_DIR/langfuse-trace.out"
 PRODUCTION_SMOKE_OUTPUT="$TMP_DIR/production-smoke.out"
 PLANE_WRITEBACK_OUTPUT="$TMP_DIR/plane-writeback.out"
 
-cp apps/worker/fixtures/openhands-payload-contract.sample.json "$PAYLOAD_CONTRACT_FILE"
+cat >"$PAYLOAD_CONTRACT_FILE" <<'JSON'
+{
+  "conversation": {
+    "id": "conv-smoke",
+    "status": "completed",
+    "ui_url": "https://openhands.acp-smoke.invalid/conversation/conv-smoke",
+    "events": [
+      {
+        "type": "agent_message",
+        "message": "completed"
+      },
+      {
+        "type": "tool_call",
+        "tool": "shell",
+        "command": "pnpm test"
+      }
+    ]
+  }
+}
+JSON
 chmod 600 "$PAYLOAD_CONTRACT_FILE"
-cp apps/worker/fixtures/openhands-payload-contract.sample.json "$BAD_PAYLOAD_CONTRACT_FILE"
+cp "$PAYLOAD_CONTRACT_FILE" "$BAD_PAYLOAD_CONTRACT_FILE"
 chmod 644 "$BAD_PAYLOAD_CONTRACT_FILE"
 printf '{"conversation":{"id":"conv-smoke"},"events":[]}\n' >"$BAD_PAYLOAD_CONTENT_FILE"
 chmod 600 "$BAD_PAYLOAD_CONTENT_FILE"
