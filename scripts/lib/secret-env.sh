@@ -13,13 +13,13 @@ load_dotenv_file_safe() {
       continue
     fi
 
-    if [[ ! "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+    if [[ ! "$line" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
       echo "invalid dotenv line ${line_no}" >&2
       return 1
     fi
 
-    key="${BASH_REMATCH[1]}"
-    value="${BASH_REMATCH[2]}"
+    key="${BASH_REMATCH[2]}"
+    value="${BASH_REMATCH[3]}"
     value="${value#"${value%%[![:space:]]*}"}"
     value="${value%"${value##*[![:space:]]}"}"
 
