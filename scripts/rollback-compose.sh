@@ -13,8 +13,21 @@ ACP_IMAGE="$ROLLBACK_IMAGE"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-agent-control-plane}"
 ENABLE_WORKER="${ENABLE_WORKER:-true}"
 SKIP_PULL="${SKIP_PULL:-false}"
+DRY_RUN="${ROLLBACK_COMPOSE_DRY_RUN:-false}"
 
 export ACP_IMAGE COMPOSE_PROJECT_NAME
+
+if [[ "$DRY_RUN" == "true" ]]; then
+  docker compose config >/dev/null
+  cat <<EOF
+rollback_compose=dry_run
+rollback_image=${ACP_IMAGE}
+compose_project=${COMPOSE_PROJECT_NAME}
+worker_enabled=${ENABLE_WORKER}
+database_rollback=not_performed
+EOF
+  exit 0
+fi
 
 if [[ "$SKIP_PULL" != "true" ]]; then
   echo "==> pulling rollback image ${ACP_IMAGE}"

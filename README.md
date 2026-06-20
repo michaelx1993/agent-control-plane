@@ -83,6 +83,8 @@ Worker writes require `x-acp-worker-id`, bearer auth when configured, lease owne
 ```bash
 docker build -t agent-control-plane:local .
 docker compose up -d
+pnpm compose:smoke
+pnpm release:image
 pnpm deploy:compose
 pnpm rollback:compose
 ```

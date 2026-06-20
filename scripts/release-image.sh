@@ -9,10 +9,12 @@ IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short=12 HEAD)}"
 IMAGE="${IMAGE_REPOSITORY}:${IMAGE_TAG}"
 LATEST_IMAGE="${IMAGE_REPOSITORY}:latest"
 
-echo "==> validating release gate"
-pnpm format
-pnpm check
-pnpm build
+if [[ "${RELEASE_IMAGE_SKIP_VALIDATION:-false}" != "true" ]]; then
+  echo "==> validating release gate"
+  pnpm format
+  pnpm check
+  pnpm build
+fi
 
 echo "==> building ${IMAGE}"
 docker build \

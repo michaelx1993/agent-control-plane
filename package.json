@@ -19,6 +19,7 @@
     "completion:gap-smoke": "bash scripts/smoke-completion-gap.sh",
     "completion:local-smoke": "bash scripts/local-completion-smoke.sh",
     "completion:local-web-build-smoke": "bash scripts/smoke-local-web-build-retry.sh",
+    "compose:smoke": "bash scripts/compose-smoke.sh",
     "cutover:check": "bash scripts/cutover-check.sh",
     "cutover:report-smoke": "bash scripts/smoke-cutover-report.sh",
     "doc-script-parity-smoke": "node scripts/check-doc-script-parity.mjs",

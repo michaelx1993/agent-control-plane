@@ -11,6 +11,7 @@ ACP_IMAGE="${ACP_IMAGE:-agent-control-plane:latest}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-agent-control-plane}"
 ENABLE_WORKER="${ENABLE_WORKER:-true}"
 SKIP_PULL="${SKIP_PULL:-false}"
+DRY_RUN="${DEPLOY_COMPOSE_DRY_RUN:-false}"
 
 export ACP_IMAGE COMPOSE_PROJECT_NAME
 
@@ -62,6 +63,17 @@ load_secret_command() {
 
 load_secret_env_file
 load_secret_command
+
+if [[ "$DRY_RUN" == "true" ]]; then
+  docker compose config >/dev/null
+  cat <<EOF
+deploy_compose=dry_run
+deployed_image=${ACP_IMAGE}
+compose_project=${COMPOSE_PROJECT_NAME}
+worker_enabled=${ENABLE_WORKER}
+EOF
+  exit 0
+fi
 
 echo "==> validating secrets"
 bash scripts/validate-secrets.sh
