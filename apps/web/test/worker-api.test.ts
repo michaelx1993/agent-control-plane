@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { workerApiOpenApiDocument, workerApiPaths } from "@agent-control-plane/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
@@ -102,10 +103,59 @@ describe("Worker API routes", () => {
     const payload = await response.json();
 
     expect(response.status).toBe(200);
-    expect(payload.openapi).toBe("3.1.0");
-    expect(payload.paths).toHaveProperty("/api/worker/v1/runs/claim");
-    expect(payload.paths).toHaveProperty("/api/worker/v1/runs/{runId}/complete");
-    expect(payload.components.parameters.workerId.required).toBe(true);
+    expect(payload).toEqual(workerApiOpenApiDocument);
+  });
+
+  it("keeps OpenAPI run write paths aligned with implemented route handlers", async () => {
+    const routeModules = [
+      {
+        path: workerApiPaths.heartbeat,
+        route: await import("../app/api/worker/v1/runs/[runId]/heartbeat/route"),
+      },
+      {
+        path: workerApiPaths.events,
+        route: await import("../app/api/worker/v1/runs/[runId]/events/route"),
+      },
+      {
+        path: workerApiPaths.progress,
+        route: await import("../app/api/worker/v1/runs/[runId]/progress/route"),
+      },
+      {
+        path: workerApiPaths.artifacts,
+        route: await import("../app/api/worker/v1/runs/[runId]/artifacts/route"),
+      },
+      {
+        path: workerApiPaths.complete,
+        route: await import("../app/api/worker/v1/runs/[runId]/complete/route"),
+      },
+      {
+        path: workerApiPaths.fail,
+        route: await import("../app/api/worker/v1/runs/[runId]/fail/route"),
+      },
+    ];
+
+    const openApiWritePaths = Object.entries(workerApiOpenApiDocument.paths)
+      .filter(([, operation]) =>
+        operation.post.parameters.some(
+          (parameter) =>
+            "$ref" in parameter && parameter.$ref === "#/components/parameters/idempotencyKey",
+        ),
+      )
+      .map(([path]) => path);
+
+    expect(routeModules.map((entry) => entry.path)).toEqual(openApiWritePaths);
+    routeModules.forEach((entry) => {
+      expect(entry.route.POST).toEqual(expect.any(Function));
+      expect(workerApiOpenApiDocument.paths[entry.path].post.parameters).toContainEqual({
+        $ref: "#/components/parameters/workerId",
+      });
+      expect(workerApiOpenApiDocument.paths[entry.path].post.parameters).toContainEqual({
+        $ref: "#/components/parameters/runId",
+      });
+      expect(workerApiOpenApiDocument.paths[entry.path].post.parameters).toContainEqual({
+        $ref: "#/components/parameters/idempotencyKey",
+      });
+    });
   });
 
   it("rejects route access when worker id is missing", async () => {
