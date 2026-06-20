@@ -34,6 +34,7 @@ const localSmokeStepDocs = new Map([
   ["operator_query_smoke", "operator:query-smoke"],
   ["linear_migration_smoke", "linear:migrate-smoke"],
   ["plane_human_gate_writeback_smoke", "plane:human-gate-writeback-smoke"],
+  ["worker_contract_smoke", "worker:contract-smoke"],
   ["worker_codex_plane_smoke_skip", "worker:codex-plane-smoke"],
   [
     "worker_codex_plane_app_server_smoke_skip",
