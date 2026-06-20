@@ -28,27 +28,17 @@ run_step "doc_script_parity_smoke" pnpm --silent doc-script-parity-smoke
 run_step "check" pnpm --silent check
 run_step "db_validate" pnpm --silent db:validate
 run_step "secrets_validate" pnpm --silent secrets:validate
-run_step "core_db_plane_worker_build" bash -c \
-  'pnpm --silent --filter @agent-control-plane/core build && pnpm --silent --filter @agent-control-plane/db build && pnpm --silent --filter @agent-control-plane/plane build && pnpm --silent --filter @agent-control-plane/worker build'
+run_step "core_db_plane_build" bash -c \
+  'pnpm --silent --filter @agent-control-plane/core build && pnpm --silent --filter @agent-control-plane/db build && pnpm --silent --filter @agent-control-plane/plane build'
 run_step "operator_query_smoke" pnpm --silent operator:query-smoke
 run_step "linear_migration_smoke" pnpm --silent linear:migrate-smoke
 run_step "plane_human_gate_writeback_smoke" pnpm --silent plane:human-gate-writeback-smoke
-run_step "codex_adapter_smoke" pnpm --silent codex:adapter-smoke
-run_step "codex_app_server_smoke" pnpm --silent codex:app-server-smoke
-run_step "worker_codex_smoke" pnpm --silent worker:codex-smoke
-run_step "worker_codex_app_server_followup_smoke" env WORKER_EXECUTION_ADAPTER=codex-app-server WORKER_CODEX_SMOKE_FOLLOW_UP=true pnpm --silent worker:codex-smoke
 run_step "worker_codex_plane_smoke_skip" pnpm --silent worker:codex-plane-smoke
 run_step "worker_codex_plane_app_server_smoke_skip" env WORKER_EXECUTION_ADAPTER=codex-app-server pnpm --silent worker:codex-plane-smoke
 run_step "worker_codex_plane_app_server_followup_smoke_skip" env WORKER_EXECUTION_ADAPTER=codex-app-server WORKER_CODEX_PLANE_SMOKE_FOLLOW_UP=true pnpm --silent worker:codex-plane-smoke
+run_step "worker_codex_plane_report_smoke" pnpm --silent worker:codex-plane-report-smoke
 run_step "openhands_payload_contract" pnpm --silent openhands:payload-contract
 run_step "task_source_local_smoke" pnpm --silent task-source:local-smoke
-run_step "worker_fairness_smoke" pnpm --silent worker:fairness-smoke
-run_step "worker_workspace_smoke" pnpm --silent worker:workspace-smoke
-run_step "worker_lease_smoke" pnpm --silent worker:lease-smoke
-run_step "worker_crash_smoke" pnpm --silent worker:crash-smoke
-run_step "worker_budget_smoke" pnpm --silent worker:budget-smoke
-run_step "worker_workflow_smoke" pnpm --silent worker:workflow-smoke
-run_step "workspace_cleanup_smoke" pnpm --silent workspace:cleanup-smoke
 run_step "cutover_report_smoke" pnpm --silent cutover:report-smoke
 run_step "external_preflight_smoke" pnpm --silent external:preflight-smoke
 run_step "completion_doctor_smoke" pnpm --silent completion:doctor-smoke
@@ -57,9 +47,6 @@ run_step "completion_final_env_template_smoke" pnpm --silent completion:final-en
 run_step "completion_audit_smoke" pnpm --silent completion:audit-smoke
 run_step "completion_final_smoke" pnpm --silent completion:final-smoke
 run_step "completion_local_web_build_smoke" pnpm --silent completion:local-web-build-smoke
-run_step "cutover_codex_rehearsal" pnpm --silent cutover:codex-rehearsal
-run_step "cutover_rehearsal" pnpm --silent cutover:rehearsal
-
 WEB_BUILD_MODE="${ACP_LOCAL_COMPLETION_RUN_WEB_BUILD:-auto}"
 
 if [[ "$WEB_BUILD_MODE" == "true" ]]; then
