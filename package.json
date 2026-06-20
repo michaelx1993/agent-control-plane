@@ -57,6 +57,7 @@
     "task-source:smoke": "bash scripts/smoke-task-source.sh",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
+    "worker:contract-smoke": "pnpm --filter @agent-control-plane/web test:worker-contract",
     "worker:codex-plane-report-smoke": "bash scripts/smoke-worker-codex-plane-report.sh",
     "worker:codex-plane-smoke": "bash scripts/smoke-worker-codex-plane.sh"
   },
