@@ -53,6 +53,7 @@ const defaultLeaseTtlMs = 10 * 60 * 1000;
 const defaultRetryBackoffMs = 60 * 1000;
 const defaultStalledAfterMs = 15 * 60 * 1000;
 const defaultMaxRuns = 1;
+const minDispatchScanWindow = 10;
 
 export async function claimWorkerRuns(input: WorkerClaimInput): Promise<WorkerClaimResult> {
   return withDatabasePool((pool) =>
@@ -60,6 +61,7 @@ export async function claimWorkerRuns(input: WorkerClaimInput): Promise<WorkerCl
       const now = new Date();
       const leaseTtlMs = input.leaseTtlMs ?? defaultLeaseTtlMs;
       const maxRuns = Math.max(1, Math.trunc(input.maxRuns ?? defaultMaxRuns));
+      const dispatchScanLimit = Math.max(maxRuns, maxRuns + minDispatchScanWindow);
       const stalled = await markStalledRuns(client, {
         heartbeatStaleBefore: new Date(
           now.getTime() - (input.stalledAfterMs ?? defaultStalledAfterMs),
@@ -73,7 +75,7 @@ export async function claimWorkerRuns(input: WorkerClaimInput): Promise<WorkerCl
       });
       const cycle = runDispatchCycle({
         ...snapshot,
-        tasks: snapshot.tasks.slice(0, maxRuns),
+        tasks: snapshot.tasks.slice(0, dispatchScanLimit),
         workerId: input.workerId,
         leaseTtlMs,
         concurrencyPolicy: {
