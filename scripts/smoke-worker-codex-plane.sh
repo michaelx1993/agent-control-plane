@@ -308,32 +308,41 @@ if (!repoPath) {
   throw new Error("AGENT_WORKER_REPO_PATH_missing");
 }
 
-const configModule = await import(pathToFileURL(join(repoPath, "apps/worker/src/config.ts")).href);
-const indexModule = await import(pathToFileURL(join(repoPath, "apps/worker/src/index.ts")).href);
-const adaptersModule = await import(
-  pathToFileURL(join(repoPath, "apps/worker/src/adapters/index.ts")).href
-);
+async function main() {
+  const configModule = await import(
+    pathToFileURL(join(repoPath, "apps/worker/src/config.ts")).href
+  );
+  const indexModule = await import(pathToFileURL(join(repoPath, "apps/worker/src/index.ts")).href);
+  const adaptersModule = await import(
+    pathToFileURL(join(repoPath, "apps/worker/src/adapters/index.ts")).href
+  );
 
-const config = configModule.loadWorkerConfig();
-const executionAdapter = adaptersModule.createExecutionAdapter(config.executionAdapter);
-let lastResult;
+  const config = configModule.loadWorkerConfig();
+  const executionAdapter = adaptersModule.createExecutionAdapter(config.executionAdapter);
+  let lastResult;
 
-try {
-  for (let iteration = 0; iteration < 2; iteration += 1) {
-    const result = await indexModule.runOnce({ config, executionAdapter });
-    if (!Array.isArray(result.claimed) || result.claimed.length === 0) {
-      throw new Error(`follow_up_iteration_${iteration + 1}_claimed_no_runs`);
+  try {
+    for (let iteration = 0; iteration < 2; iteration += 1) {
+      const result = await indexModule.runOnce({ config, executionAdapter });
+      if (!Array.isArray(result.claimed) || result.claimed.length === 0) {
+        throw new Error(`follow_up_iteration_${iteration + 1}_claimed_no_runs`);
+      }
+      if (Array.isArray(result.failed) && result.failed.length > 0) {
+        throw new Error(`follow_up_iteration_${iteration + 1}_reported_failed_runs`);
+      }
+      lastResult = result;
     }
-    if (Array.isArray(result.failed) && result.failed.length > 0) {
-      throw new Error(`follow_up_iteration_${iteration + 1}_reported_failed_runs`);
-    }
-    lastResult = result;
+  } finally {
+    await executionAdapter.dispose?.();
   }
-} finally {
-  await executionAdapter.dispose?.();
+
+  console.log(JSON.stringify(lastResult));
 }
 
-console.log(JSON.stringify(lastResult));
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
 TS
 }
 
