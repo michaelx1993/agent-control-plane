@@ -1,5 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { insertRunEvents, withDatabasePool, withTransaction } from "@agent-control-plane/db";
+import {
+  type DatabaseClient,
+  insertRunEvents,
+  recordWorkspaceReady,
+  withDatabasePool,
+  withTransaction,
+} from "@agent-control-plane/db";
 import {
   executeWorkerWrite,
   isRouteFailure,
@@ -56,6 +62,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ru
         }
 
         const inserted = await insertRunEvents(client, runId, events);
+        await recordWorkspaceReadyEvents(client, runId, events);
         return {
           status: 200,
           body: { ok: true, events: inserted },
@@ -69,6 +76,68 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ru
   }
 
   return NextResponse.json(result.body, { status: result.status });
+}
+
+async function recordWorkspaceReadyEvents(
+  client: DatabaseClient,
+  runId: string,
+  events: Array<{ eventType: string; payload: unknown }>,
+) {
+  for (const event of events) {
+    if (event.eventType !== "workspace.ready") {
+      continue;
+    }
+
+    const workspace = normalizeWorkspaceReadyPayload(event.payload);
+    if (!workspace) {
+      continue;
+    }
+
+    await recordWorkspaceReady(client, {
+      runId,
+      ...workspace,
+    });
+  }
+}
+
+function normalizeWorkspaceReadyPayload(payload: unknown):
+  | {
+      strategy: string;
+      path: string;
+      baseRef?: string;
+      headRef?: string;
+    }
+  | undefined {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return undefined;
+  }
+
+  const record = payload as Record<string, unknown>;
+  const strategy = normalizeString(record.strategy);
+  const path = normalizeString(record.path);
+  if (!strategy || !path) {
+    return undefined;
+  }
+
+  const workspace: {
+    strategy: string;
+    path: string;
+    baseRef?: string;
+    headRef?: string;
+  } = {
+    strategy,
+    path,
+  };
+  const baseRef = normalizeString(record.baseRef);
+  const headRef = normalizeString(record.headRef);
+  if (baseRef) {
+    workspace.baseRef = baseRef;
+  }
+  if (headRef) {
+    workspace.headRef = headRef;
+  }
+
+  return workspace;
 }
 
 function normalizeEvents(value: unknown) {

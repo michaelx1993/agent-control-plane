@@ -10,6 +10,7 @@ const db = vi.hoisted(() => ({
   heartbeatRun: vi.fn(),
   insertWorkerApiAuditEvent: vi.fn(),
   insertRunEvents: vi.fn(),
+  recordWorkspaceReady: vi.fn(),
   recordTaskProgress: vi.fn(),
   verifyRunLease: vi.fn(),
   withDatabasePool: vi.fn(async (callback: (pool: unknown) => Promise<unknown>) =>
@@ -56,6 +57,7 @@ describe("Worker API routes", () => {
     db.heartbeatRun.mockReset();
     db.insertWorkerApiAuditEvent.mockReset();
     db.insertRunEvents.mockReset();
+    db.recordWorkspaceReady.mockReset();
     db.recordTaskProgress.mockReset();
     db.verifyRunLease.mockReset();
     db.withDatabasePool.mockClear();
@@ -410,6 +412,68 @@ describe("Worker API routes", () => {
         payload: { files: ["dist/index.js"] },
       },
     ]);
+  });
+
+  it("records workspace evidence from worker events", async () => {
+    db.verifyRunLease.mockResolvedValue({
+      runId: "run-1",
+      taskId: "task-1",
+      status: "running",
+      leaseOwner: "worker-1",
+    });
+    db.insertRunEvents.mockResolvedValue([
+      {
+        id: "event-1",
+        eventType: "workspace.ready",
+        message: "Workspace prepared.",
+        payload: {
+          strategy: "git-worktree",
+          path: "/tmp/acp/run-1",
+          baseRef: "main",
+          headRef: "agent/run-1",
+        },
+        createdAt: new Date("2026-06-20T10:00:00Z"),
+      },
+    ]);
+    db.recordWorkspaceReady.mockResolvedValue({
+      id: "workspace-1",
+      runId: "run-1",
+      repositoryId: "repo-1",
+      strategy: "git-worktree",
+      path: "/tmp/acp/run-1",
+      baseRef: "main",
+      headRef: "agent/run-1",
+      status: "ready",
+      createdAt: new Date("2026-06-20T10:00:00Z"),
+    });
+
+    const route = await import("../app/api/worker/v1/runs/[runId]/events/route");
+    const response = await route.POST(
+      jsonRequest({
+        events: [
+          {
+            eventType: "workspace.ready",
+            message: "Workspace prepared.",
+            payload: {
+              strategy: "git-worktree",
+              path: "/tmp/acp/run-1",
+              baseRef: "main",
+              headRef: "agent/run-1",
+            },
+          },
+        ],
+      }),
+      routeContext,
+    );
+
+    expect(response.status).toBe(200);
+    expect(db.recordWorkspaceReady).toHaveBeenCalledWith(expect.any(Object), {
+      runId: "run-1",
+      strategy: "git-worktree",
+      path: "/tmp/acp/run-1",
+      baseRef: "main",
+      headRef: "agent/run-1",
+    });
   });
 
   it("completes a run and advances task state from the worker suggestion", async () => {

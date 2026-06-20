@@ -30,6 +30,14 @@ export interface WorkspaceRecord {
   cleanedAt?: Date;
 }
 
+export interface RecordWorkspaceReadyInput {
+  runId: string;
+  strategy: string;
+  path: string;
+  baseRef?: string;
+  headRef?: string;
+}
+
 export interface WorkspaceCleanupCandidate extends WorkspaceRecord {
   finishedAt: Date;
   repositoryLocalPath?: string;
@@ -168,6 +176,53 @@ export async function listEphemeralWorkspacesForCleanup(
     finishedAt: row.finished_at,
     ...(row.repository_local_path ? { repositoryLocalPath: row.repository_local_path } : {}),
   }));
+}
+
+export async function recordWorkspaceReady(
+  client: DatabaseClient,
+  input: RecordWorkspaceReadyInput,
+): Promise<WorkspaceRecord | undefined> {
+  const result = await client.query<WorkspaceRow>(
+    `
+      insert into workspaces (
+        id,
+        run_id,
+        repository_id,
+        strategy,
+        path,
+        base_ref,
+        head_ref,
+        status,
+        created_at
+      )
+      select
+        gen_random_uuid(),
+        runs.id,
+        runs.repository_id,
+        $2,
+        $3,
+        $4,
+        $5,
+        'ready',
+        now()
+      from runs
+      where runs.id = $1::uuid
+        and runs.repository_id is not null
+      on conflict (run_id) do update set
+        repository_id = excluded.repository_id,
+        strategy = excluded.strategy,
+        path = excluded.path,
+        base_ref = excluded.base_ref,
+        head_ref = excluded.head_ref,
+        status = 'ready',
+        cleaned_at = null
+      returning *
+    `,
+    [input.runId, input.strategy, input.path, input.baseRef ?? null, input.headRef ?? null],
+  );
+
+  const row = result.rows[0];
+  return row ? mapWorkspaceRow(row) : undefined;
 }
 
 export async function markWorkspaceCleaned(
