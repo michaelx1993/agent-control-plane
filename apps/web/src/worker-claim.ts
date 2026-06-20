@@ -92,7 +92,17 @@ export async function claimWorkerRuns(input: WorkerClaimInput): Promise<WorkerCl
         budgetPolicy: resolveBudgetPolicy(input, dispatchPolicy),
         now,
       });
-      const claimed = await claimRuns(client, cycle.claimed.slice(0, maxRuns));
+      const claimed: RunClaimRecord[] = [];
+      for (const claim of cycle.claimed) {
+        if (claimed.length >= maxRuns) {
+          break;
+        }
+
+        const [run] = await claimRuns(client, [claim]);
+        if (run) {
+          claimed.push(run);
+        }
+      }
       const hydrated = [];
 
       for (const run of claimed) {
