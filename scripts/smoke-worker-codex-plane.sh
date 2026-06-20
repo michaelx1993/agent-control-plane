@@ -298,7 +298,7 @@ NODE
 }
 
 write_follow_up_worker_runner() {
-  WORKER_LOOP_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/acp-worker-follow-up-runner.XXXXXX.ts")"
+  WORKER_LOOP_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/acp-worker-follow-up-runner.XXXXXX.mjs")"
   cat >"$WORKER_LOOP_SCRIPT" <<'TS'
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -309,12 +309,10 @@ if (!repoPath) {
 }
 
 async function main() {
-  const configModule = await import(
-    pathToFileURL(join(repoPath, "apps/worker/src/config.ts")).href
-  );
-  const indexModule = await import(pathToFileURL(join(repoPath, "apps/worker/src/index.ts")).href);
+  const configModule = await import(pathToFileURL(join(repoPath, "apps/worker/dist/config.js")).href);
+  const indexModule = await import(pathToFileURL(join(repoPath, "apps/worker/dist/index.js")).href);
   const adaptersModule = await import(
-    pathToFileURL(join(repoPath, "apps/worker/src/adapters/index.ts")).href
+    pathToFileURL(join(repoPath, "apps/worker/dist/adapters/index.js")).href
   );
 
   const config = configModule.loadWorkerConfig();
@@ -428,7 +426,8 @@ WORKER_OUTPUT_FILE="$(mktemp)"
 worker_command=(pnpm --silent --dir "$AGENT_WORKER_REPO_PATH" --filter @agent-control-plane/worker dev)
 if [[ "${WORKER_CODEX_PLANE_SMOKE_FOLLOW_UP:-false}" == "true" ]]; then
   write_follow_up_worker_runner
-  worker_command=(pnpm --silent --dir "$AGENT_WORKER_REPO_PATH" exec tsx "$WORKER_LOOP_SCRIPT")
+  pnpm --silent --dir "$AGENT_WORKER_REPO_PATH" --filter @agent-control-plane/worker build
+  worker_command=(node "$WORKER_LOOP_SCRIPT")
 fi
 
 if ! env \
