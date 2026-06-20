@@ -847,6 +847,11 @@ docker compose up --build postgres migrate web
 open "http://127.0.0.1:3112"
 ```
 
+PostgreSQL 18 Docker image expects the persistent mount at `/var/lib/postgresql`
+instead of the old `/var/lib/postgresql/data` mount point. The compose file uses
+that parent directory so a fresh local volume can initialize without the
+`pg_ctlcluster` compatibility error.
+
 启动 Worker：
 
 ```bash
