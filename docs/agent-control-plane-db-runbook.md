@@ -829,7 +829,7 @@ Task progress / Workpad：
 
 - `codex-cli` adapter 已有第一阶段 `codex exec --json`、本地 `pnpm codex:adapter-smoke` 和 DB-driven `pnpm worker:codex-smoke`；真实 Plane task + 真实 repo 的 Codex Development run 仍待验收。
 - Codex event stream 摘要已可同步到本地 `run_events`，并可把高信号事件写入任务级 Progress / Workpad；真实 Codex 长任务的事件分类、截断策略、噪声过滤和失败/重试映射仍需用实际返回校准。
-- 默认 completion/task-source 证据必须覆盖 Plane URL、repo routing、Control Plane run、`codex-cli` run events、Progress / Workpad。真实 task-source cutover 样本仍待在 Plane/Control Plane 上验收。
+- 默认 completion/task-source 证据必须覆盖 Plane URL、repo routing、Control Plane run、`codex-cli` run events、Progress / Workpad、prompt release 和 workspace。真实 task-source cutover 样本仍待在 Plane/Control Plane 上验收。
 - `mock-openhands` 只模拟成功结果，不执行真实代码；它会写入 agent message / tool call / shell 三类事件用于本地 timeline 验证，但不能作为 Codex-first 完成证据。
 - `openhands-cloud` adapter 已实现 V1 REST 调用；真实 OpenHands conversation/payload/UI URL 校准只属于 legacy/optional profile，不阻断第一版 Codex-first 完成。
 - trace ref 表、mock trace 和 Langfuse SDK run-level instrumentation 已打通；真实 Langfuse credentials 下的端到端 trace smoke 只属于 optional/legacy profile。

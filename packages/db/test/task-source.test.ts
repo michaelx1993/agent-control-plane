@@ -20,6 +20,8 @@ describe("fetchTaskSourceAuditRecords", () => {
             latest_run_status: "succeeded",
             latest_run_event_count: "3",
             progress_item_count: "2",
+            prompt_release_count: "1",
+            workspace_count: "1",
             conversation_url: "https://openhands.local/conversation/run-1",
             trace_url: "https://langfuse.local/project/p/traces/t",
             updated_at: new Date("2026-06-19T12:00:00.000Z"),
@@ -47,6 +49,8 @@ describe("fetchTaskSourceAuditRecords", () => {
         latestRunStatus: "succeeded",
         latestRunEventCount: 3,
         progressItemCount: 2,
+        promptReleaseCount: 1,
+        workspaceCount: 1,
         conversationUrl: "https://openhands.local/conversation/run-1",
         traceUrl: "https://langfuse.local/project/p/traces/t",
         updatedAt: new Date("2026-06-19T12:00:00.000Z"),
@@ -70,6 +74,8 @@ describe("auditTaskSources", () => {
         latest_run_id: "run-1",
         latest_run_event_count: "4",
         progress_item_count: "2",
+        prompt_release_count: "1",
+        workspace_count: "1",
         conversation_url: null,
         trace_url: null,
       }),
@@ -87,6 +93,8 @@ describe("auditTaskSources", () => {
       runEvidenceCount: 1,
       runEventEvidenceCount: 1,
       progressEvidenceCount: 1,
+      promptReleaseEvidenceCount: 1,
+      workspaceEvidenceCount: 1,
       conversationEvidenceCount: 0,
       traceEvidenceCount: 0,
       violations: [],
@@ -114,12 +122,14 @@ describe("auditTaskSources", () => {
     ]);
   });
 
-  it("flags missing codex-cli run event and progress evidence by default", async () => {
+  it("flags missing codex-cli run event, progress, prompt release, and workspace evidence by default", async () => {
     const client = clientWithRows([
       row({
         latest_run_id: "run-1",
         latest_run_event_count: "0",
         progress_item_count: "0",
+        prompt_release_count: "0",
+        workspace_count: "0",
         conversation_url: null,
         trace_url: null,
       }),
@@ -132,6 +142,8 @@ describe("auditTaskSources", () => {
     expect(result.violations.map((violation) => violation.type)).toEqual([
       "missing_run_event_evidence",
       "missing_progress_evidence",
+      "missing_prompt_release_evidence",
+      "missing_workspace_evidence",
     ]);
   });
 
@@ -141,6 +153,8 @@ describe("auditTaskSources", () => {
         latest_run_id: "run-1",
         latest_run_event_count: "4",
         progress_item_count: "2",
+        prompt_release_count: "0",
+        workspace_count: "0",
         conversation_url: null,
         trace_url: null,
       }),
@@ -195,6 +209,8 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
     latest_run_status: "succeeded",
     latest_run_event_count: "3",
     progress_item_count: "1",
+    prompt_release_count: "1",
+    workspace_count: "1",
     conversation_url: "https://openhands.local/conversation/run-1",
     trace_url: "https://langfuse.local/project/p/traces/t",
     updated_at: new Date("2026-06-19T12:00:00.000Z"),

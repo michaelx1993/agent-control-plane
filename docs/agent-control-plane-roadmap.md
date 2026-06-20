@@ -934,7 +934,7 @@ Done              -> Terminal
 - `docs/agent-control-plane-status.md` 记录当前已完成能力、未真实验收项和下一批推荐任务，作为继续开发时的第一入口。
 - `pnpm linear:migrate` 覆盖 Linear export -> Plane work item 最小迁移：保留原 identifier、Linear URL、原状态、description；默认跳过 `Done` / `Canceled` / `Duplicate` 终态，支持 dry-run 和显式 apply。
 - `pnpm linear:migrate-smoke` 已覆盖迁移脚本的本地 mock Plane 合约：dry-run 不创建 work item，apply 创建非终态 issue，终态 issue 默认跳过，state/label/priority 映射、缺失 label 计数和原 Linear URL/identifier provenance 都会被验证。
-- `pnpm task-source:local-smoke` 已覆盖任务来源审计的本地临时 DB 合约：默认 `codex-cli` profile 要求 Plane URL、repo routing、Control Plane run、Codex run events 和 Progress / Workpad evidence 都存在；OpenHands conversation evidence 和 Langfuse trace evidence 只属于 legacy/optional profile，且 seed 自带自动任务会被隔离，避免污染样本。
+- `pnpm task-source:local-smoke` 已覆盖任务来源审计的本地临时 DB 合约：默认 `codex-cli` profile 要求 Plane URL、repo routing、Control Plane run、Codex run events、Progress / Workpad、prompt release 和 workspace evidence 都存在；OpenHands conversation evidence 和 Langfuse trace evidence 只属于 legacy/optional profile，且 seed 自带自动任务会被隔离，避免污染样本。
 - OpenHands Cloud adapter 本地摘要已补齐 file operation 分类：文件 read/write/edit/patch/path/diff 类事件写为 `openhands.file_operation`，浏览器或其它非文件工具仍保持 `openhands.tool_call`；该增量已通过 worker test/typecheck、prettier、`git diff --check` 和 `pnpm check`。
 - Operator password 登录、signed session cookie、`/session` 管理页。
 - DB-backed operator user、`/users` 用户管理页、owner/admin 用户创建/更新。

@@ -362,6 +362,8 @@ if [[ "$*" == *"task-source:smoke"* ]]; then
   echo "run_evidence_count=2"
   echo "run_event_count=2"
   echo "progress_item_count=2"
+  echo "prompt_release_count=2"
+  echo "workspace_count=2"
   echo "conversation_evidence_count=0"
   echo "trace_evidence_count=0"
   echo "violations=0"
@@ -393,7 +395,7 @@ env -i \
   ACP_CUTOVER_PLANE_WRITEBACK_SMOKE_PASSED="true" \
   ACP_CUTOVER_PLANE_WRITEBACK_EVIDENCE="work_item_id=issue-1;state=Human Review;verified=true" \
   ACP_CUTOVER_TASK_SOURCE_SMOKE_PASSED="true" \
-  ACP_CUTOVER_TASK_SOURCE_EVIDENCE="checked=2;plane_urls=2;linear_urls=0;routed=2;runs=2;run_events=2;progress_items=2" \
+  ACP_CUTOVER_TASK_SOURCE_EVIDENCE="checked=2;plane_urls=2;linear_urls=0;routed=2;runs=2;run_events=2;progress_items=2;prompt_releases=2;workspaces=2" \
   ACP_CUTOVER_LEGACY_POLLER_READONLY="true" \
   ACP_CUTOVER_LEGACY_POLLER_EVIDENCE="disabled since 2026-06-19" \
   ACP_CUTOVER_LINEAR_ARCHIVE_CONFIRMED="true" \
@@ -422,8 +424,8 @@ function assert(condition, message) {
 assert(report.readiness === "passed", "task-source smoke cutover report readiness must be passed");
 assert(
   report.evidence?.taskSource ===
-    "checked=2;plane_urls=2;linear_urls=0;routed=2;runs=2;run_events=2;progress_items=2;conversations=0;traces=0",
-  "task-source smoke evidence must include run_events and progress_items",
+    "checked=2;plane_urls=2;linear_urls=0;routed=2;runs=2;run_events=2;progress_items=2;prompt_releases=2;workspaces=2;conversations=0;traces=0",
+  "task-source smoke evidence must include run_events, progress_items, prompt_releases, and workspaces",
 );
 assert(report.config?.completionExecutionProfile === "codex-cli", "codex profile must be recorded");
 NODE
@@ -448,7 +450,7 @@ env -i \
   ACP_CUTOVER_PLANE_WRITEBACK_SMOKE_PASSED="true" \
   ACP_CUTOVER_PLANE_WRITEBACK_EVIDENCE="work_item_id=issue-1;state=Human Review;verified=true" \
   ACP_CUTOVER_TASK_SOURCE_SMOKE_PASSED="true" \
-  ACP_CUTOVER_TASK_SOURCE_EVIDENCE="checked=2;plane_urls=2;linear_urls=0;routed=2;runs=2;run_events=2;progress_items=2" \
+  ACP_CUTOVER_TASK_SOURCE_EVIDENCE="checked=2;plane_urls=2;linear_urls=0;routed=2;runs=2;run_events=2;progress_items=2;prompt_releases=2;workspaces=2" \
   ACP_CUTOVER_LEGACY_POLLER_READONLY="true" \
   ACP_CUTOVER_LEGACY_POLLER_EVIDENCE="disabled since 2026-06-19" \
   ACP_CUTOVER_LINEAR_ARCHIVE_CONFIRMED="true" \
