@@ -16,9 +16,7 @@ services:
       retries: 20
 
   migrate:
-    image: ${ACP_IMAGE:-agent-control-plane:local}
-    build:
-      context: .
+    image: ${ACP_IMAGE:-michaelxxx/agent-control-plane:0.0.1}
     environment:
       DATABASE_URL: postgresql://agent:agent@postgres:5432/agent_control_plane
     depends_on:
@@ -28,9 +26,7 @@ services:
     restart: "no"
 
   web:
-    image: ${ACP_IMAGE:-agent-control-plane:local}
-    build:
-      context: .
+    image: ${ACP_IMAGE:-michaelxxx/agent-control-plane:0.0.1}
     environment:
       DATABASE_URL: postgresql://agent:agent@postgres:5432/agent_control_plane
       PLANE_WEBHOOK_SECRET: ${PLANE_WEBHOOK_SECRET:-}
@@ -76,9 +72,7 @@ services:
 
   worker:
     profiles: ["worker"]
-    image: ${ACP_IMAGE:-agent-control-plane:local}
-    build:
-      context: .
+    image: ${ACP_IMAGE:-michaelxxx/agent-control-plane:0.0.1}
     environment:
       DATABASE_URL: postgresql://agent:agent@postgres:5432/agent_control_plane
       WORKER_RUN_LOOP: "true"
