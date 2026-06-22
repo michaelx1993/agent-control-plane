@@ -5,6 +5,7 @@ import {
   parseRepositorySlugFromLabels,
   renderPrompt,
   roleForState,
+  runDispatchCycle,
   workerApiOpenApiDocument,
   workerApiPaths,
 } from "../src/index.js";
@@ -139,6 +140,62 @@ describe("dispatch decisions", () => {
       dispatchable: false,
       reasons: ["task estimated cost exceeds per-run budget"],
     });
+  });
+
+  it("claims dispatchable tasks and treats earlier claims as active for later candidates", () => {
+    const now = new Date("2026-06-19T00:00:00Z");
+
+    const result = runDispatchCycle({
+      tasks: [
+        {
+          id: "task-5",
+          identifier: "TOK-5",
+          title: "Build feature",
+          state: "Development",
+          labels: ["repo:crs-src"],
+        },
+        {
+          id: "task-6",
+          identifier: "TOK-6",
+          title: "Build another feature",
+          state: "Development",
+          labels: ["repo:crs-src"],
+        },
+      ],
+      repositories,
+      activeRuns: [],
+      workerId: "worker-1",
+      leaseTtlMs: 30_000,
+      concurrencyPolicy: {
+        maxActiveRunsPerRepository: 1,
+        maxActiveRunsPerRole: 2,
+        maxActiveRunsPerAgent: 3,
+      },
+      budgetPolicy: {
+        maxEstimatedCostUsdPerRun: 10,
+      },
+      now,
+    });
+
+    expect(result.claimed).toEqual([
+      {
+        taskId: "task-5",
+        identifier: "TOK-5",
+        repositoryId: "repo-1",
+        role: "development",
+        leaseOwner: "worker-1",
+        leaseExpiresAt: new Date("2026-06-19T00:00:30.000Z"),
+        maxActiveRunsPerRepository: 1,
+        maxActiveRunsPerRole: 2,
+        maxActiveRunsPerAgent: 3,
+        maxEstimatedCostUsdPerRun: 10,
+      },
+    ]);
+    expect(result.candidates).toHaveLength(2);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]?.decision.reasons).toEqual([
+      "repository crs-src has reached active run concurrency limit",
+    ]);
   });
 });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   authorizeOperatorApiRequest,
   canAccessOperatorPath,
@@ -15,9 +15,65 @@ import {
   canManageMonitoringSettings,
   canManageProjectSettings,
   canRequestPromptBinding,
+  getConfiguredOperatorContext,
+  isOperatorLoginConfigured,
+  monitoringSettingsPermissionMessage,
   type OperatorContext,
+  projectSettingsPermissionMessage,
+  promptBindingPermissionMessage,
+  verifyOperatorPassword,
 } from "../src/operator";
 import { authorizeWorkerApiRequest, isWorkerApiPath } from "../src/worker-auth";
+
+const operatorEnvKeys = [
+  "ACP_OPERATOR_USER_ID",
+  "ACP_OPERATOR_NAME",
+  "ACP_OPERATOR_ROLES",
+  "ACP_OPERATOR_LOGIN_PASSWORD",
+] as const;
+
+afterEach(() => {
+  for (const key of operatorEnvKeys) {
+    delete process.env[key];
+  }
+});
+
+describe("configured operator context", () => {
+  it("uses configured identity and trims role values", () => {
+    process.env.ACP_OPERATOR_USER_ID = " operator-id ";
+    process.env.ACP_OPERATOR_NAME = "  Operator Name ";
+    process.env.ACP_OPERATOR_ROLES = " owner, prompt_editor, , viewer ";
+
+    expect(getConfiguredOperatorContext()).toEqual({
+      userId: "operator-id",
+      name: "Operator Name",
+      roles: ["owner", "prompt_editor", "viewer"],
+    });
+  });
+
+  it("falls back to a local operator with no roles", () => {
+    expect(getConfiguredOperatorContext()).toEqual({
+      name: "local-operator",
+      roles: [],
+    });
+  });
+});
+
+describe("operator login password", () => {
+  it("stays disabled when no password is configured", () => {
+    expect(isOperatorLoginConfigured()).toBe(false);
+    expect(verifyOperatorPassword("anything")).toBe(false);
+  });
+
+  it("verifies configured passwords without accepting wrong length or wrong value", () => {
+    process.env.ACP_OPERATOR_LOGIN_PASSWORD = " swordfish ";
+
+    expect(isOperatorLoginConfigured()).toBe(true);
+    expect(verifyOperatorPassword("swordfish")).toBe(true);
+    expect(verifyOperatorPassword("swordfisx")).toBe(false);
+    expect(verifyOperatorPassword("swordfish-extra")).toBe(false);
+  });
+});
 
 describe("operator prompt binding permissions", () => {
   it("allows prompt editors to request binding approval", () => {
@@ -49,6 +105,15 @@ describe("operator prompt binding permissions", () => {
     expect(canRequestPromptBinding(operator)).toBe(false);
     expect(canApprovePromptBinding(operator)).toBe(false);
   });
+
+  it("returns action-specific permission messages", () => {
+    expect(promptBindingPermissionMessage("request")).toBe(
+      "Prompt binding request requires one of: owner, admin, prompt_admin, prompt_editor.",
+    );
+    expect(promptBindingPermissionMessage("approve")).toBe(
+      "Prompt binding approval requires one of: owner, admin, prompt_admin.",
+    );
+  });
 });
 
 describe("operator monitoring settings permissions", () => {
@@ -61,6 +126,12 @@ describe("operator monitoring settings permissions", () => {
     expect(canManageMonitoringSettings({ name: "editor", roles: ["prompt_editor"] })).toBe(false);
     expect(canManageMonitoringSettings({ name: "viewer", roles: ["viewer"] })).toBe(false);
   });
+
+  it("describes monitoring settings permissions", () => {
+    expect(monitoringSettingsPermissionMessage()).toBe(
+      "Monitoring threshold updates require one of: owner, admin.",
+    );
+  });
 });
 
 describe("operator project settings permissions", () => {
@@ -69,6 +140,12 @@ describe("operator project settings permissions", () => {
     expect(canManageProjectSettings({ name: "admin", roles: ["admin"] })).toBe(true);
     expect(canManageProjectSettings({ name: "prompt-admin", roles: ["prompt_admin"] })).toBe(false);
     expect(canManageProjectSettings({ name: "viewer", roles: ["viewer"] })).toBe(false);
+  });
+
+  it("describes project settings permissions", () => {
+    expect(projectSettingsPermissionMessage()).toBe(
+      "Project settings updates require one of: owner, admin.",
+    );
   });
 });
 
