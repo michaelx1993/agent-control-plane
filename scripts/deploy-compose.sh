@@ -7,7 +7,7 @@ cd "$ROOT_DIR"
 # shellcheck source=scripts/lib/secret-env.sh
 source "$ROOT_DIR/scripts/lib/secret-env.sh"
 
-ACP_IMAGE="${ACP_IMAGE:-agent-control-plane:latest}"
+ACP_IMAGE="${ACP_IMAGE:-michaelxxx/agent-control-plane:0.0.1}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-agent-control-plane}"
 ENABLE_WORKER="${ENABLE_WORKER:-true}"
 SKIP_PULL="${SKIP_PULL:-false}"

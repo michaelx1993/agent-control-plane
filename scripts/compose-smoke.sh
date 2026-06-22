@@ -28,4 +28,14 @@ if ! grep -q "DATABASE_URL" <<<"$config_output"; then
   exit 1
 fi
 
+if grep -q "^[[:space:]]*build:" <<<"$config_output"; then
+  echo "compose_smoke=failed reason=unexpected_build_context" >&2
+  exit 1
+fi
+
+if ! grep -q "michaelxxx/agent-control-plane:0.0.1" <<<"$config_output"; then
+  echo "compose_smoke=failed reason=missing_default_ci_image" >&2
+  exit 1
+fi
+
 echo "compose_smoke=passed"
