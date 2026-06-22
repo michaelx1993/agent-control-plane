@@ -9,6 +9,7 @@
     "dev": "next dev --hostname 127.0.0.1 --port 3112",
     "lint": "pnpm typecheck",
     "test": "vitest run",
+    "coverage": "vitest run --coverage",
     "test:human-gate-writeback": "vitest run test/task-human-gate-writeback.test.ts",
     "test:worker-contract": "pnpm --filter @agent-control-plane/core build && vitest run test/worker-api.test.ts",
     "typecheck": "pnpm --filter @agent-control-plane/core build && pnpm --filter @agent-control-plane/db build && pnpm --filter @agent-control-plane/plane build && tsc -p tsconfig.json --noEmit"

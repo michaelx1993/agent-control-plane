@@ -13,6 +13,7 @@
     "operator:query-smoke": "tsx src/operator-query-smoke.ts",
     "seed": "prisma db execute --file prisma/seed.sql",
     "test": "vitest run",
+    "coverage": "vitest run --coverage",
     "typecheck": "pnpm --filter @agent-control-plane/core build && tsc -p tsconfig.json --noEmit",
     "validate": "prisma validate"
   },

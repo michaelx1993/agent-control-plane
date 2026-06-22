@@ -10,6 +10,7 @@
     "check": "pnpm typecheck && pnpm test",
     "lint": "pnpm typecheck",
     "test": "vitest run",
+    "coverage": "vitest run --coverage",
     "typecheck": "pnpm --filter @agent-control-plane/core build && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
