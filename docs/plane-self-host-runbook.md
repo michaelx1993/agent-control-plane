@@ -18,12 +18,15 @@
 
 ## 当前结论
 
-截至 2026-06-19：
+截至 2026-06-22：
 
 - GitHub fork 已存在：`https://github.com/michaelx1993/plane`
-- 本机 Plane self-host 已启动：`http://127.0.0.1:3200`
+- 本机 Plane self-host 已启动：`http://127.0.0.1:3200`；MBP 部署入口使用公网 IP。
 - Plane release：`v1.3.1`
-- 生产化 TODO：确认并持续同步 `https://github.com/michaelx1993/plane` 自有 fork，固定 upstream/version，建立自有镜像或 Compose 发布流程；Plane 是三仓库目标中的任务平台仓库。
+- 生产化发布已切到 `michaelx1993/plane` 自有 fork，通过 GitHub hosted CI 发布 DockerHub 镜像：`michaelxxx/plane-frontend:0.0.1`、`michaelxxx/plane-backend:0.0.1`、`michaelxxx/plane-admin:0.0.1`、`michaelxxx/plane-space:0.0.1`、`michaelxxx/plane-live:0.0.1`、`michaelxxx/plane-proxy:0.0.1`。
+- MBP 运行态应用层不再使用 `makeplane/*` 官方应用镜像；PostgreSQL、Valkey、RabbitMQ、MinIO 作为基础设施继续使用社区镜像。
+- PR #5 `Add bilingual top navigation language switcher` 已合入 `preview`：右上角提供 English / 简体中文切换入口，并移除右上角 GitHub 跳转链接。
+- 当前双语能力是导航入口和 Plane 既有 i18n 语言切换集成，不代表所有业务文案已经完整人工汉化；后续新增中文词条应继续走 `packages/i18n` 同步检查。
 - P0.5 API smoke test 已通过。
 - P0.5 webhook smoke test 已通过。
 - Plane v1.3.1 Community self-host 未暴露官方文档里的 work item custom property API。
