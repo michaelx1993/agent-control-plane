@@ -17,25 +17,25 @@
 
 应用层镜像：
 
-| 组件 | 镜像 | 来源要求 |
-| --- | --- | --- |
-| Agent Control Plane Web/API | `michaelxxx/agent-control-plane:0.0.1` | `michaelx1993/agent-control-plane` 源码构建 |
-| Plane frontend | `michaelxxx/plane-frontend:0.0.1` | `michaelx1993/plane` 源码构建 |
-| Plane backend / api / worker / beat-worker | `michaelxxx/plane-backend:0.0.1` | `michaelx1993/plane` 源码构建 |
-| Plane admin | `michaelxxx/plane-admin:0.0.1` | `michaelx1993/plane` 源码构建 |
-| Plane space | `michaelxxx/plane-space:0.0.1` | `michaelx1993/plane` 源码构建 |
-| Plane live | `michaelxxx/plane-live:0.0.1` | `michaelx1993/plane` 源码构建 |
-| Plane proxy | `michaelxxx/plane-proxy:0.0.1` | `michaelx1993/plane` 源码构建 |
+| 组件                                       | 镜像                                   | 来源要求                                    |
+| ------------------------------------------ | -------------------------------------- | ------------------------------------------- |
+| Agent Control Plane Web/API                | `michaelxxx/agent-control-plane:0.0.1` | `michaelx1993/agent-control-plane` 源码构建 |
+| Plane frontend                             | `michaelxxx/plane-frontend:0.0.1`      | `michaelx1993/plane` 源码构建               |
+| Plane backend / api / worker / beat-worker | `michaelxxx/plane-backend:0.0.1`       | `michaelx1993/plane` 源码构建               |
+| Plane admin                                | `michaelxxx/plane-admin:0.0.1`         | `michaelx1993/plane` 源码构建               |
+| Plane space                                | `michaelxxx/plane-space:0.0.1`         | `michaelx1993/plane` 源码构建               |
+| Plane live                                 | `michaelxxx/plane-live:0.0.1`          | `michaelx1993/plane` 源码构建               |
+| Plane proxy                                | `michaelxxx/plane-proxy:0.0.1`         | `michaelx1993/plane` 源码构建               |
 
 允许的社区基础设施镜像：
 
-| 组件 | 当前镜像 | 说明 |
-| --- | --- | --- |
-| Control Plane PostgreSQL | `postgres:18-alpine` | 基础设施数据库 |
-| Plane PostgreSQL | `postgres:15.7-alpine` | 基础设施数据库 |
-| Plane cache | `valkey/valkey:7.2.11-alpine` | Redis-compatible cache，作为 Redis 的开源平替 |
-| Plane MQ | `rabbitmq:3.13.6-management-alpine` | 基础设施队列 |
-| Plane object storage | `minio/minio:latest` | 基础设施对象存储 |
+| 组件                     | 当前镜像                            | 说明                                          |
+| ------------------------ | ----------------------------------- | --------------------------------------------- |
+| Control Plane PostgreSQL | `postgres:18-alpine`                | 基础设施数据库                                |
+| Plane PostgreSQL         | `postgres:15.7-alpine`              | 基础设施数据库                                |
+| Plane cache              | `valkey/valkey:7.2.11-alpine`       | Redis-compatible cache，作为 Redis 的开源平替 |
+| Plane MQ                 | `rabbitmq:3.13.6-management-alpine` | 基础设施队列                                  |
+| Plane object storage     | `minio/minio:latest`                | 基础设施对象存储                              |
 
 部署目录：
 
