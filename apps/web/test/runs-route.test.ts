@@ -43,6 +43,10 @@ describe("runs route", () => {
         state: "Development",
         labels: ["agent"],
         repositoryKey: "crs-src",
+        agentKey: "codex-default",
+        workerKey: "mac-studio-worker-1",
+        promptVersionIds: ["prompt-version-1"],
+        availableSecretKeys: ["GITHUB_TOKEN"],
       }),
     );
     const payload = await response.json();
@@ -69,6 +73,10 @@ describe("runs route", () => {
         identifier: "CODEX-1",
         state: "Development",
         repositoryKey: "crs-src",
+        agentKey: "codex-default",
+        workerKey: "mac-studio-worker-1",
+        promptVersionIds: ["prompt-version-1"],
+        availableSecretKeys: ["GITHUB_TOKEN"],
       }),
     );
   });

@@ -59,6 +59,7 @@ export function runDispatchCycle(input: DispatchCycleInput): DispatchCycleResult
       now,
       input.concurrencyPolicy,
       input.budgetPolicy,
+      input.workerId,
     );
     const candidate = { task, decision };
     candidates.push(candidate);

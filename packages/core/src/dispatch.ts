@@ -16,12 +16,18 @@ export function decideDispatch(
   now = new Date(),
   concurrencyPolicy: DispatchConcurrencyPolicy = {},
   budgetPolicy: DispatchBudgetPolicy = {},
+  workerId?: string,
 ): DispatchDecision {
   const reasons: string[] = [];
   const role = roleForState(task.state);
+  const requiredWorkerId = workerAffinityForTask(task);
 
   if (!isAutomaticState(task.state)) {
     reasons.push(`state ${task.state} is not automatic`);
+  }
+
+  if (requiredWorkerId && requiredWorkerId !== workerId) {
+    reasons.push(`task requires worker ${requiredWorkerId}`);
   }
 
   const repository = resolveRepositoryForTask(task, repositories);
@@ -70,6 +76,20 @@ export function decideDispatch(
     role,
     reasons,
   };
+}
+
+function workerAffinityForTask(task: TaskSnapshot): string | undefined {
+  for (const label of task.labels ?? []) {
+    const name = typeof label === "string" ? label : label.name;
+    if (!name.startsWith("worker:")) {
+      continue;
+    }
+    const workerId = name.slice("worker:".length).trim();
+    if (workerId) {
+      return workerId;
+    }
+  }
+  return undefined;
 }
 
 function exceedsRunBudget(task: TaskSnapshot, policy: DispatchBudgetPolicy): boolean {

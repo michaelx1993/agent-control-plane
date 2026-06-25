@@ -1081,6 +1081,16 @@ Phase 1 规则：
 - Development node 成功后必须创建或更新 Change Request。
 - Run 创建时必须冻结 prompt preview、worker、branch、pipeline gate modes 和 available secret keys。
 
+Phase 1 implementation note：Plane run intent 先把运行选择投递给 Agent Control Plane，ACP 用 task labels 承载可调度线索：
+
+- `repo:<repository-key>`：仓库路由。
+- `agent:<agent-key>`：用户选择的 User Agent 审计线索。
+- `worker:<worker-key>`：Worker affinity，dispatch 只允许同名 worker claim。
+- `prompt-version:<version-id>`：本次 prompt preview 涉及的版本线索。
+- `secret-key:<key>`：可用 secret key 名称，不包含 secret value。
+
+这些 labels 是 Phase 1 的兼容层；后续可以迁移为 Run Snapshot / Pipeline Assignment 的一等字段。
+
 ## API 边界
 
 Plane 产品层是编辑边界。Plane UI 调用 Plane extension API 来维护 User Agent、Prompt、Project Workspace、Repository、Role、Team 和 Playbook 的可编辑配置；Plane 再把运行所需的 versioned projection 同步给 Agent Control Plane。

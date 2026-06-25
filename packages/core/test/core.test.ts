@@ -197,6 +197,47 @@ describe("dispatch decisions", () => {
       "repository crs-src has reached active run concurrency limit",
     ]);
   });
+
+  it("only lets the selected worker claim worker-affined tasks", () => {
+    const now = new Date("2026-06-19T00:00:00Z");
+    const task = {
+      id: "task-7",
+      identifier: "TOK-7",
+      title: "Build on Mac Studio",
+      state: "Development" as const,
+      labels: ["repo:crs-src", "worker:mac-studio-worker-1"],
+    };
+
+    const otherWorkerResult = runDispatchCycle({
+      tasks: [task],
+      repositories,
+      activeRuns: [],
+      workerId: "mbp-worker-1",
+      leaseTtlMs: 30_000,
+      now,
+    });
+
+    expect(otherWorkerResult.claimed).toEqual([]);
+    expect(otherWorkerResult.skipped[0]?.decision.reasons).toEqual([
+      "task requires worker mac-studio-worker-1",
+    ]);
+
+    const selectedWorkerResult = runDispatchCycle({
+      tasks: [task],
+      repositories,
+      activeRuns: [],
+      workerId: "mac-studio-worker-1",
+      leaseTtlMs: 30_000,
+      now,
+    });
+
+    expect(selectedWorkerResult.claimed).toEqual([
+      expect.objectContaining({
+        taskId: "task-7",
+        leaseOwner: "mac-studio-worker-1",
+      }),
+    ]);
+  });
 });
 
 describe("prompt rendering", () => {
