@@ -6,6 +6,8 @@ cd "$ROOT_DIR"
 
 # shellcheck source=scripts/lib/secret-env.sh
 source "$ROOT_DIR/scripts/lib/secret-env.sh"
+# shellcheck source=scripts/lib/readiness.sh
+source "$ROOT_DIR/scripts/lib/readiness.sh"
 
 ACP_IMAGE="${ACP_IMAGE:-michaelxxx/agent-control-plane:0.0.1}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-agent-control-plane}"
@@ -98,7 +100,7 @@ if [[ "$ENABLE_WORKER" == "true" ]]; then
 fi
 
 echo "==> checking readiness"
-curl -fsS "${READINESS_URL:-http://127.0.0.1:3112/api/readiness}" >/dev/null
+wait_for_readiness
 
 cat <<EOF
 deployed_image=${ACP_IMAGE}

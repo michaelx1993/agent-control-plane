@@ -31,6 +31,7 @@
     "db:restore": "bash scripts/db-restore.sh",
     "db:seed": "pnpm --filter @agent-control-plane/db seed",
     "db:validate": "pnpm --filter @agent-control-plane/db validate",
+    "deploy:readiness-smoke": "bash scripts/smoke-deploy-readiness-retry.sh",
     "deploy:compose": "bash scripts/deploy-compose.sh",
     "dev": "pnpm --filter @agent-control-plane/web dev",
     "format": "prettier --check .",

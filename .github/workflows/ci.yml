@@ -59,6 +59,9 @@ jobs:
       - name: Plane agent config sync self-test
         run: pnpm plane:agent-config-sync-self-test
 
+      - name: Deploy readiness retry smoke
+        run: pnpm deploy:readiness-smoke
+
       - name: Compose smoke
         run: pnpm compose:smoke
 

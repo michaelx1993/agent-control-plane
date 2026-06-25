@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# shellcheck source=scripts/lib/readiness.sh
+source "$ROOT_DIR/scripts/lib/readiness.sh"
+
 if [[ -z "${ROLLBACK_IMAGE:-}" ]]; then
   echo "ROLLBACK_IMAGE is required, for example: ROLLBACK_IMAGE=agent-control-plane:<previous-sha>" >&2
   exit 2
@@ -43,7 +46,7 @@ if [[ "$ENABLE_WORKER" == "true" ]]; then
 fi
 
 echo "==> checking readiness"
-curl -fsS "${READINESS_URL:-http://127.0.0.1:3112/api/readiness}" >/dev/null
+wait_for_readiness
 
 cat <<EOF
 rollback_image=${ACP_IMAGE}
