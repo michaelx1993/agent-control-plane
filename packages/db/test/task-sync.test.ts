@@ -4,6 +4,7 @@ import {
   resolveRepositoryIdForLabels,
   syncExternalTasks,
   updatePlaneProjectSyncCursor,
+  upsertPlaneRunIntentTask,
 } from "../src/task-sync";
 import type { DatabaseClient } from "../src/client";
 
@@ -74,6 +75,64 @@ describe("syncExternalTasks", () => {
       JSON.stringify(["repo:crs-src", "cost:1.25"]),
       null,
       null,
+    ]);
+  });
+});
+
+describe("upsertPlaneRunIntentTask", () => {
+  it("routes a Plane run intent through the selected repository key", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ id: "project-1" }] })
+      .mockResolvedValueOnce({
+        rows: [{ id: "repo-1", slug: "crs-src", status: "active" }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "task-1",
+            project_id: "project-1",
+            external_task_id: "plane-issue-1",
+            identifier: "CODEX-1",
+            repository_id: "repo-1",
+            repository_slug: "crs-src",
+          },
+        ],
+      });
+    const client = { query } as unknown as DatabaseClient;
+
+    await expect(
+      upsertPlaneRunIntentTask(client, {
+        planeProjectId: "plane-project-1",
+        externalTaskId: "plane-issue-1",
+        identifier: "CODEX-1",
+        title: "Build from Plane",
+        state: "Development",
+        labels: ["agent"],
+        repositoryKey: "crs-src",
+      }),
+    ).resolves.toEqual({
+      taskId: "task-1",
+      projectId: "project-1",
+      externalTaskId: "plane-issue-1",
+      identifier: "CODEX-1",
+      repositoryId: "repo-1",
+      repositorySlug: "crs-src",
+      routed: true,
+    });
+
+    expect(query).toHaveBeenLastCalledWith(expect.stringContaining("on conflict"), [
+      "project-1",
+      "repo-1",
+      "plane-issue-1",
+      "CODEX-1",
+      "Build from Plane",
+      "Development",
+      null,
+      null,
+      JSON.stringify(["agent", "repo:crs-src"]),
+      null,
+      expect.any(String),
     ]);
   });
 });

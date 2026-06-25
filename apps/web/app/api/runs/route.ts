@@ -1,4 +1,10 @@
-import { listOperatorRuns, withDatabasePool } from "@agent-control-plane/db";
+import {
+  listOperatorRuns,
+  upsertPlaneRunIntentTask,
+  withDatabasePool,
+  withTransaction,
+} from "@agent-control-plane/db";
+import { isWorkflowState } from "@agent-control-plane/core";
 import { NextResponse } from "next/server";
 
 const roles = [
@@ -34,15 +40,117 @@ export async function GET(request: Request) {
   });
 }
 
+export async function POST(request: Request) {
+  const payload = await parseJsonObject(request);
+  const source = normalizeText(payload.source);
+  if (source !== "plane") {
+    return NextResponse.json({ error: "source must be plane." }, { status: 400 });
+  }
+
+  const planeProjectId = requiredText(payload.planeProjectId);
+  const externalTaskId = requiredText(payload.externalTaskId);
+  const identifier = requiredText(payload.identifier);
+  const title = requiredText(payload.title);
+  const state = normalizeWorkflowState(payload.state);
+  const projectSlug = normalizeText(payload.projectSlug);
+  const labels = normalizeStringArray(payload.labels);
+  const priority = normalizePriority(payload.priority);
+  const url = normalizeText(payload.url);
+  const repositoryKey = normalizeText(payload.repositoryKey);
+  const repositoryUrl = normalizeText(payload.repositoryUrl);
+
+  if (!planeProjectId || !externalTaskId || !identifier || !title || !state) {
+    return NextResponse.json(
+      {
+        error:
+          "planeProjectId, externalTaskId, identifier, title, and supported state are required.",
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const task = await withDatabasePool((pool) =>
+      withTransaction(pool, (transaction) =>
+        upsertPlaneRunIntentTask(transaction, {
+          planeProjectId,
+          externalTaskId,
+          identifier,
+          title,
+          state,
+          ...(projectSlug ? { projectSlug } : {}),
+          ...(labels.length ? { labels } : {}),
+          ...(priority !== undefined ? { priority } : {}),
+          ...(url ? { url } : {}),
+          ...(repositoryKey ? { repositoryKey } : {}),
+          ...(repositoryUrl ? { repositoryUrl } : {}),
+        }),
+      ),
+    );
+
+    return NextResponse.json({
+      ok: true,
+      queued: true,
+      task,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to queue Plane run intent.";
+    const status = message.startsWith("Project not found") ? 404 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
+}
+
 function normalizeRole(value: string | null) {
   return value && roles.includes(value as (typeof roles)[number])
     ? (value as (typeof roles)[number])
     : undefined;
 }
 
-function normalizeText(value: string | null): string | undefined {
-  const normalized = value?.trim();
+function normalizeText(value: unknown): string | undefined {
+  const normalized = typeof value === "string" ? value.trim() : undefined;
   return normalized ? normalized : undefined;
+}
+
+function requiredText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function normalizeWorkflowState(value: unknown) {
+  const normalized = requiredText(value);
+  return normalized && isWorkflowState(normalized) ? normalized : undefined;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is string => typeof item === "string" && !!item.trim())
+    .map((item) => item.trim());
+}
+
+function normalizePriority(value: unknown): number | null | undefined {
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  return Math.trunc(value);
+}
+
+async function parseJsonObject(request: Request): Promise<Record<string, unknown>> {
+  try {
+    const payload = await request.json();
+    return payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
 }
 
 function normalizeStatus(value: string | null) {
