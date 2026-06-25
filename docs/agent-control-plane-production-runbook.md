@@ -19,7 +19,7 @@
 
 | 组件                                       | 镜像                                    | 来源要求                                    |
 | ------------------------------------------ | --------------------------------------- | ------------------------------------------- |
-| Agent Control Plane Web/API                | `michaelxxx/agent-control-plane:0.0.11` | `michaelx1993/agent-control-plane` 源码构建 |
+| Agent Control Plane Web/API                | `michaelxxx/agent-control-plane:0.0.12` | `michaelx1993/agent-control-plane` 源码构建 |
 | Plane frontend                             | `michaelxxx/plane-frontend:0.0.8`       | `michaelx1993/plane` 源码构建               |
 | Plane backend / api / worker / beat-worker | `michaelxxx/plane-backend:0.0.8`        | `michaelx1993/plane` 源码构建               |
 | Plane admin                                | `michaelxxx/plane-admin:0.0.8`          | `michaelx1993/plane` 源码构建               |
@@ -66,7 +66,7 @@ docker compose \
 - Plane / Agent Control Plane 应用层不得出现 `makeplane/*`、本地 `build:` 或未命名本地镜像。
 - PostgreSQL、Valkey、RabbitMQ、MinIO 可以继续使用社区镜像。
 - 公网入口使用公网 IP；Plane CORS 只保留公网访问来源，避免登录后回跳局域网 IP。
-- 2026-06-25 最新验收：Plane `http://127.0.0.1:3200/` 与 `http://80.251.222.30:3200/` 返回 200；ACP `http://80.251.222.30:3112/api/readiness` 返回 ready；`pnpm plane:agent-config-sync` 返回 `passed`；`pnpm smoke:production` 返回 `smoke=passed`；生产 Run Detail 页面已验证展示 Runtime Snapshot / Prompt stack / Secret keys / Assembled prompt preview；Mac Studio worker LaunchAgent running 且最近 stderr 未增长。
+- 2026-06-25 最新验收：Plane `http://127.0.0.1:3200/` 与 `http://80.251.222.30:3200/` 返回 200；ACP `http://80.251.222.30:3112/api/readiness` 返回 ready；`pnpm plane:agent-config-sync` 返回 `passed`；`pnpm smoke:production` 返回 `smoke=passed`；生产 Run Detail 页面已验证展示 Runtime Snapshot / Prompt stack / Secret keys / Assembled prompt preview；生产 Task Detail 已验证展示 Run Preview / Prompt stack / Secret keys / Assembled prompt preview，`GET /api/tasks/[taskId]/run-preview` 返回 200；Mac Studio worker LaunchAgent running 且最近 stderr 未增长。
 
 本文区分三件事：
 
