@@ -185,6 +185,7 @@
 - `pnpm worker:workspace-smoke` 已验证本地 worker run 在 `git-worktree` 策略下会创建 per-run worktree、写入 `workspace.ready`，并把 workspace path/strategy 注入 mock adapter。
 - `pnpm workspace:cleanup` 支持 dry-run/apply；`pnpm workspace:cleanup-smoke` 已验证 dry-run 不删除、apply 删除 workspace、标记 cleaned 并写入 `workspace.cleaned` 事件。
 - apply 模式下，`git-worktree` cleanup 优先执行 `git worktree remove --force` 和 `git worktree prune`，失败时 fallback 到目录删除。
+- Project Meta Git 代码链路已补齐：Worker 在成功 run 后会在 `WORKER_WORKSPACE_ROOT/_project-meta/<project>` 初始化本地 git repo，重写 `status.md`、追加 `progress.md`、写入 `runs/<run_id>.md` 和 `artifacts/index.md`，并把 commit evidence 通过 Worker API artifacts 回传；ACP artifacts route 会把 `projectMetaGit` evidence 记录到 `acp_project_meta_repos` 和 `acp_project_memory_commits`。该增量已有本地 Worker/ACP 单元测试覆盖，仍需发布部署后用真实 Plane-routed run 验收。
 
 ## 未完成或未真实验收
 
@@ -195,6 +196,7 @@
 - 尚未在真实 Plane project 上复测人工 gate 状态/comment writeback；本地 API 级 contract 已由 `pnpm plane:human-gate-writeback-smoke` 覆盖。
 - 尚未在真实 Plane project 上验证 `PLANE_SYNC_SERVER_DELTA=true` 是否能稳定减少 work item list 返回量；本地契约已覆盖“任务 delta + 全量 comment 扫描”，防止旧 work item 的新 comment 因 issue `updated_at` 未变化而漏读。
 - 已完成 `0012_project_projection_status` 的真实部署迁移；完整 cutover 演练仍未完成。
+- Project Meta Git 本地写入和 ACP memory commit 记录已有代码实现，但尚未发布部署到 MBP/Mac Studio，也尚未用真实 Plane-routed run 验证生产路径。
 - 尚未用真实 secret provider command 跑通 provider smoke。
 - 尚未用真实供应商账号/API 拉取 audit events 并跑通 provider audit smoke。
 - 多 repo 公平队列已有本地 smoke 验证：`pnpm worker:fairness-smoke` 会在临时库插入两个 repo 的任务，确认 `repo_fair` 策略按 repo 轮转并让 dispatch claim 顺序跟随轮转；尚未用生产数据调优多 worker、公平队列权重和成本门禁阈值。

@@ -6,6 +6,7 @@ export * from "./feedback.js";
 export * from "./monitoring-alert-notifications.js";
 export * from "./monitoring-settings.js";
 export * from "./plane-agent-runtime.js";
+export * from "./project-meta.js";
 export * from "./prompts.js";
 export * from "./runs.js";
 export * from "./settings.js";

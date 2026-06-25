@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   insertRunEvents,
+  recordProjectMetaGitArtifact,
   upsertConversationRef,
   withDatabasePool,
   withTransaction,
@@ -68,6 +69,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ru
           });
         }
 
+        const projectMetaGit = extractProjectMetaGitArtifact(payload);
+        if (projectMetaGit) {
+          await recordProjectMetaGitArtifact(client, {
+            runId,
+            ...projectMetaGit,
+          });
+        }
+
         return {
           status: 200,
           body: { ok: true, events },
@@ -117,10 +126,61 @@ function extractConversationRef(payload: Record<string, unknown>):
   };
 }
 
+function extractProjectMetaGitArtifact(payload: Record<string, unknown>):
+  | {
+      planeProjectWorkspaceId: string;
+      localPath: string;
+      remoteUrl?: string;
+      commitSha?: string;
+      filesChanged: string[];
+      operation: string;
+      summary?: string;
+    }
+  | undefined {
+  const projectMetaGit = payload.projectMetaGit;
+  if (!projectMetaGit || typeof projectMetaGit !== "object" || Array.isArray(projectMetaGit)) {
+    return undefined;
+  }
+
+  const record = projectMetaGit as Record<string, unknown>;
+  const planeProjectWorkspaceId = stringValue(record.planeProjectWorkspaceId);
+  const localPath = stringValue(record.localPath);
+  const filesChanged = stringArrayValue(record.filesChanged);
+  if (!planeProjectWorkspaceId || !localPath || filesChanged.length === 0) {
+    return undefined;
+  }
+
+  const remoteUrl = stringValue(record.remoteUrl);
+  const commitSha = stringValue(record.commitSha);
+  const operation = stringValue(record.operation) ?? "run_summary";
+  const summary = stringValue(record.summary);
+
+  return {
+    planeProjectWorkspaceId,
+    localPath,
+    ...(remoteUrl ? { remoteUrl } : {}),
+    ...(commitSha ? { commitSha } : {}),
+    filesChanged,
+    operation,
+    ...(summary ? { summary } : {}),
+  };
+}
+
 function stringValue(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function stringArrayValue(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    const text = stringValue(item);
+    return text ? [text] : [];
+  });
 }
