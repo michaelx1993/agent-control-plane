@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AgentRole } from "@agent-control-plane/core";
 import type { DatabaseClient } from "./client.js";
+import type { PlaneRuntimeSnapshotPayload } from "./plane-agent-runtime.js";
 
 export type RunStatus = "queued" | "claimed" | "running" | "succeeded" | "failed" | "stalled";
 
@@ -135,6 +136,13 @@ export interface RunTraceRecord {
   createdAt: Date;
 }
 
+export interface RunPlaneRuntimeSnapshotRecord {
+  id: string;
+  snapshotHash: string;
+  payload: PlaneRuntimeSnapshotPayload;
+  createdAt: Date;
+}
+
 export interface RunDetailRecord extends OperatorRunRecord {
   projectSlug: string;
   projectName: string;
@@ -158,6 +166,7 @@ export interface RunDetailRecord extends OperatorRunRecord {
     contentHash: string;
     createdAt: Date;
   };
+  planeRuntimeSnapshot?: RunPlaneRuntimeSnapshotRecord;
   conversation?: {
     provider: string;
     conversationId: string;
@@ -242,6 +251,10 @@ interface RunDetailRow extends OperatorRunRow {
   prompt_release_id: string | null;
   prompt_release_hash: string | null;
   prompt_release_created_at: Date | null;
+  plane_runtime_snapshot_id: string | null;
+  plane_runtime_snapshot_hash: string | null;
+  plane_runtime_snapshot_payload: PlaneRuntimeSnapshotPayload | null;
+  plane_runtime_snapshot_created_at: Date | null;
   conversation_provider: string | null;
   conversation_id: string | null;
   event_log_uri: string | null;
@@ -721,6 +734,10 @@ export async function getRunDetail(
         prompt_releases.id as prompt_release_id,
         prompt_releases.content_hash as prompt_release_hash,
         prompt_releases.created_at as prompt_release_created_at,
+        acp_run_snapshots.id as plane_runtime_snapshot_id,
+        acp_run_snapshots.snapshot_hash as plane_runtime_snapshot_hash,
+        acp_run_snapshots.payload as plane_runtime_snapshot_payload,
+        acp_run_snapshots.created_at as plane_runtime_snapshot_created_at,
         conversation_refs.provider as conversation_provider,
         conversation_refs.conversation_id,
         conversation_refs.event_log_uri,
@@ -733,6 +750,7 @@ export async function getRunDetail(
       join roles on roles.id = runs.role_id
       join agent_definitions on agent_definitions.id = runs.agent_definition_id
       left join prompt_releases on prompt_releases.id = runs.prompt_release_id
+      left join acp_run_snapshots on acp_run_snapshots.run_id = runs.id
       left join conversation_refs on conversation_refs.run_id = runs.id
       left join workspaces on workspaces.run_id = runs.id
       where runs.id = $1
@@ -790,6 +808,20 @@ export async function getRunDetail(
       id: row.prompt_release_id,
       contentHash: row.prompt_release_hash,
       createdAt: row.prompt_release_created_at,
+    };
+  }
+
+  if (
+    row.plane_runtime_snapshot_id &&
+    row.plane_runtime_snapshot_hash &&
+    row.plane_runtime_snapshot_payload &&
+    row.plane_runtime_snapshot_created_at
+  ) {
+    detail.planeRuntimeSnapshot = {
+      id: row.plane_runtime_snapshot_id,
+      snapshotHash: row.plane_runtime_snapshot_hash,
+      payload: row.plane_runtime_snapshot_payload,
+      createdAt: row.plane_runtime_snapshot_created_at,
     };
   }
 

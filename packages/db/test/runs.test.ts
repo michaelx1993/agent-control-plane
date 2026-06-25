@@ -512,6 +512,28 @@ describe("getRunDetail", () => {
               prompt_release_id: "release-1",
               prompt_release_hash: "abc123",
               prompt_release_created_at: createdAt,
+              plane_runtime_snapshot_id: "snapshot-1",
+              plane_runtime_snapshot_hash: "snapshot-hash",
+              plane_runtime_snapshot_payload: {
+                schemaVersion: "plane-runtime-snapshot.v1",
+                run: { id: "run-1" },
+                task: { identifier: "TOKEN-1" },
+                project: { slug: "token" },
+                repository: { slug: "crs-src" },
+                role: { key: "development" },
+                agent: { name: "Development Agent" },
+                worker: { workerId: "mac-studio-worker-1" },
+                prompts: [
+                  {
+                    binding: { scope: "agent", kind: "system" },
+                    prompt: { name: "Builder" },
+                    version: { version: 3, body: "Build safely" },
+                  },
+                ],
+                assembledPrompt: "Build safely",
+                availableSecretKeys: ["GITHUB_TOKEN"],
+              },
+              plane_runtime_snapshot_created_at: createdAt,
               conversation_provider: "openhands",
               conversation_id: "conv-1",
               event_log_uri: "file:///tmp/events.jsonl",
@@ -568,6 +590,14 @@ describe("getRunDetail", () => {
       promptRelease: {
         id: "release-1",
         contentHash: "abc123",
+      },
+      planeRuntimeSnapshot: {
+        id: "snapshot-1",
+        snapshotHash: "snapshot-hash",
+        payload: {
+          assembledPrompt: "Build safely",
+          availableSecretKeys: ["GITHUB_TOKEN"],
+        },
       },
       conversation: {
         provider: "openhands",

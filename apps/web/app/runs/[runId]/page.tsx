@@ -125,6 +125,61 @@ export default async function RunDetailPage({ params }: PageProps) {
             )}
           </article>
 
+          <article className="panel wide">
+            <h2>Runtime Snapshot</h2>
+            {run.planeRuntimeSnapshot ? (
+              <>
+                <div className="kv">
+                  <span>Snapshot</span>
+                  <strong>{shortId(run.planeRuntimeSnapshot.id)}</strong>
+                  <span>Hash</span>
+                  <strong>{run.planeRuntimeSnapshot.snapshotHash.slice(0, 16)}</strong>
+                  <span>Schema</span>
+                  <strong>{run.planeRuntimeSnapshot.payload.schemaVersion}</strong>
+                  <span>Created</span>
+                  <strong>{formatDate(run.planeRuntimeSnapshot.createdAt)}</strong>
+                </div>
+                <div className="snapshot-grid">
+                  <section>
+                    <h3>Prompt stack</h3>
+                    {run.planeRuntimeSnapshot.payload.prompts.length > 0 ? (
+                      <ol className="stack-list">
+                        {run.planeRuntimeSnapshot.payload.prompts.map((prompt, index) => (
+                          <li key={`${index}-${formatPromptVersion(prompt.version)}`}>
+                            <strong>{formatPromptTitle(prompt.prompt)}</strong>
+                            <span>{formatPromptMeta(prompt.binding, prompt.version)}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="subtle">未命中 Plane prompt binding。</p>
+                    )}
+                  </section>
+                  <section>
+                    <h3>Secret keys</h3>
+                    {run.planeRuntimeSnapshot.payload.availableSecretKeys.length > 0 ? (
+                      <div className="chip-list">
+                        {run.planeRuntimeSnapshot.payload.availableSecretKeys.map((secretKey) => (
+                          <span className="chip" key={secretKey}>
+                            {secretKey}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="subtle">无可用 secret key。</p>
+                    )}
+                  </section>
+                </div>
+                <h3>Assembled prompt preview</h3>
+                <pre className="inline-code prompt-preview">
+                  {formatPromptPreview(run.planeRuntimeSnapshot.payload.assembledPrompt)}
+                </pre>
+              </>
+            ) : (
+              <p className="subtle">尚未冻结 Plane runtime snapshot。</p>
+            )}
+          </article>
+
           <article className="panel">
             <h2>Conversation</h2>
             {run.conversation ? (
@@ -242,6 +297,51 @@ function formatOptionalDate(value?: Date): string {
 
 function formatPayload(value: unknown): string {
   return JSON.stringify(value, null, 2);
+}
+
+function formatPromptPreview(value: string): string {
+  const limit = 12000;
+  if (value.length <= limit) {
+    return value || "无 assembled prompt。";
+  }
+
+  return `${value.slice(0, limit)}\n\n...[truncated ${value.length - limit} chars]`;
+}
+
+function formatPromptTitle(record: Record<string, unknown>): string {
+  return firstString(record, ["name", "title", "key", "id"]) ?? "Prompt";
+}
+
+function formatPromptVersion(record: Record<string, unknown>): string {
+  return firstString(record, ["version", "versionId", "id", "contentHash"]) ?? "unknown";
+}
+
+function formatPromptMeta(
+  binding: Record<string, unknown>,
+  version: Record<string, unknown>,
+): string {
+  const parts = [
+    firstString(binding, ["scope"]),
+    firstString(binding, ["kind"]),
+    firstString(binding, ["targetType"]),
+    `version ${formatPromptVersion(version)}`,
+  ].filter(Boolean);
+
+  return parts.join(" · ");
+}
+
+function firstString(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+    if (typeof value === "number" || typeof value === "bigint") {
+      return String(value);
+    }
+  }
+
+  return undefined;
 }
 
 function isHttpUrl(value?: string): value is string {
