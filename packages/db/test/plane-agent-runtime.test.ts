@@ -6,6 +6,7 @@ import {
   getPlaneAgentConfigOutboxCursor,
   hashJson,
   latestPlaneOutboxCursor,
+  previewPlaneRuntimeForTask,
   recordRunSnapshot,
   updatePlaneAgentConfigOutboxCursor,
 } from "../src/plane-agent-runtime";
@@ -582,6 +583,167 @@ describe("createPlaneRuntimeSnapshotForRun", () => {
       "PLANE_SECRET",
     ]);
     expect(JSON.stringify(snapshot.payload)).not.toContain("redacted-in-test");
+  });
+});
+
+describe("previewPlaneRuntimeForTask", () => {
+  it("builds a non-persistent Plane runtime preview for an automatic task", async () => {
+    const createdAt = new Date("2026-06-25T00:00:00.000Z");
+    const client = {
+      query: vi.fn(async (query: string, params?: unknown[]) => {
+        if (query.includes("select state")) {
+          expect(params).toEqual(["task-1"]);
+          return { rows: [{ state: "Development" }] };
+        }
+
+        if (query.includes("'preview:' || tasks.id::text")) {
+          expect(params).toEqual(["task-1", "development", "worker-override"]);
+          return {
+            rows: [
+              {
+                run_id: "preview:task-1",
+                run_status: "preview",
+                run_attempt: 3,
+                lease_owner: "worker-override",
+                lease_expires_at: null,
+                run_created_at: createdAt,
+                task_id: "task-1",
+                external_task_id: "plane-task-1",
+                identifier: "ACP-2",
+                title: "Preview run",
+                task_state: "Development",
+                task_url: "https://plane.example/workspace/ACP-2",
+                labels: ["repo:plane"],
+                project_id: "project-local-1",
+                project_slug: "agent-platform",
+                project_name: "Agent Platform",
+                project_external_project_id: "plane-project-1",
+                team_key: "workspace1",
+                team_external_team_id: "plane-workspace-1",
+                repository_id: "repo-local-1",
+                repository_slug: "plane",
+                repository_git_url: "git@github.com:michaelx1993/plane.git",
+                repository_default_branch: "main",
+                repository_local_path: "/Users/a/plane",
+                role_id: "role-local-1",
+                role_key: "development",
+                role_name: "Development",
+                agent_definition_id: "agent-local-1",
+                agent_name: "Codex Developer",
+                agent_runtime: "codex",
+                agent_model: "gpt-5",
+                agent_reasoning_effort: "high",
+                agent_tool_profile: "full",
+                agent_max_turns: 80,
+                agent_timeout_seconds: 7200,
+                plane_project_workspace_id: "project-workspace-1",
+                plane_workspace_id: "plane-workspace-1",
+                plane_project_id: "plane-project-1",
+                project_default_worker_id: "worker-card-1",
+                project_meta_git_policy: { statusPath: "status.md" },
+                plane_repository_id: "plane-repo-1",
+                repository_key: "plane",
+                repository_provider: "github",
+                repository_url: "git@github.com:michaelx1993/plane.git",
+                repository_metadata: { owner: "michaelx1993" },
+                plane_role_id: "plane-role-1",
+                role_plane_prompt_id: "prompt-role",
+                role_metadata: {},
+                plane_user_agent_id: "plane-agent-1",
+                user_agent_owner_user_id: "user-1",
+                user_agent_default_model: "gpt-5",
+                user_agent_tool_profile: { tools: ["shell"] },
+                user_agent_config_snapshot: { secretKeys: ["GITHUB_TOKEN"] },
+              },
+            ],
+          };
+        }
+
+        if (query.includes("from acp_worker_card_projections")) {
+          expect(params).toEqual(["plane-workspace-1", "worker-override", "worker-card-1"]);
+          return {
+            rows: [
+              {
+                plane_worker_card_id: "worker-card-override",
+                worker_id: "worker-override",
+                name: "Mac Studio",
+                hostname: "mac-studio.local",
+                os: "macOS",
+                labels: ["local"],
+                workspace_root: "/Users/a/aiworkspace",
+                status: "online",
+                last_seen_at: createdAt,
+                updated_at: createdAt,
+              },
+            ],
+          };
+        }
+
+        if (query.includes("from acp_prompt_binding_projections")) {
+          return {
+            rows: [
+              {
+                plane_binding_id: "binding-agent",
+                target_type: "user_agent",
+                target_id: "plane-agent-1",
+                version_policy: "latest",
+                pinned_version_id: null,
+                scope: "agent",
+                order_index: 0,
+                required: true,
+                binding_projection_version: "3",
+                plane_prompt_id: "prompt-agent",
+                prompt_name: "Agent Base",
+                prompt_scope: "agent",
+                prompt_kind: "instruction",
+                latest_version_id: "version-agent-2",
+                prompt_status: "active",
+                plane_prompt_version_id: "version-agent-2",
+                version: 2,
+                body: "Agent prompt",
+                variables: [],
+                content_hash: "agent-hash",
+                version_created_at: createdAt,
+              },
+            ],
+          };
+        }
+
+        if (query.includes("from acp_user_secret_key_projections")) {
+          expect(params).toEqual(["plane-workspace-1", "user-1"]);
+          return { rows: [{ key: "PLANE_SECRET" }] };
+        }
+
+        throw new Error(`Unexpected query: ${query}`);
+      }),
+    } as unknown as DatabaseClient;
+
+    const preview = await previewPlaneRuntimeForTask(client, {
+      taskId: "task-1",
+      workerId: "worker-override",
+    });
+
+    expect(preview?.payload.run).toMatchObject({
+      id: "preview:task-1",
+      status: "preview",
+      attempt: 3,
+      leaseOwner: "worker-override",
+    });
+    expect(preview?.payload.role).toMatchObject({ key: "development" });
+    expect(preview?.payload.worker).toMatchObject({ workerId: "worker-override" });
+    expect(preview?.payload.assembledPrompt).toBe("Agent prompt");
+    expect(preview?.payload.availableSecretKeys).toEqual(["GITHUB_TOKEN", "PLANE_SECRET"]);
+    expect(preview?.snapshotHash).toBe(hashJson(preview?.payload));
+    expect(client.query).toHaveBeenCalledTimes(5);
+  });
+
+  it("does not preview terminal or manual-gate tasks", async () => {
+    const client = {
+      query: vi.fn().mockResolvedValueOnce({ rows: [{ state: "Human Review" }] }),
+    } as unknown as DatabaseClient;
+
+    await expect(previewPlaneRuntimeForTask(client, { taskId: "task-1" })).resolves.toBeUndefined();
+    expect(client.query).toHaveBeenCalledTimes(1);
   });
 });
 

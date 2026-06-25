@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isAutomaticState, isWorkflowState, roleForState } from "@agent-control-plane/core";
 import type { DatabaseClient } from "./client.js";
 
 export type PlaneProjectionEntityType =
@@ -59,6 +60,12 @@ export interface PlaneRuntimeSnapshotInput {
 
 export interface PlaneRuntimeSnapshotRecord extends RunSnapshotRecord {
   payload: PlaneRuntimeSnapshotPayload;
+}
+
+export interface PlaneRuntimePreviewRecord {
+  snapshotHash: string;
+  payload: PlaneRuntimeSnapshotPayload;
+  createdAt: Date;
 }
 
 export interface PlaneRuntimeSnapshotPayload {
@@ -263,6 +270,42 @@ export async function createPlaneRuntimeSnapshotForRun(
   return {
     ...snapshot,
     payload,
+  };
+}
+
+export async function previewPlaneRuntimeForTask(
+  client: DatabaseClient,
+  input: {
+    taskId: string;
+    workerId?: string;
+  },
+): Promise<PlaneRuntimePreviewRecord | undefined> {
+  const context = await fetchPlaneRuntimePreviewContext(client, input);
+  if (!context) {
+    return undefined;
+  }
+
+  const [worker, prompts, availableSecretKeys] = await Promise.all([
+    fetchPlaneRuntimeWorkerCard(client, {
+      planeWorkspaceId: context.plane_workspace_id ?? context.team_external_team_id,
+      leaseOwner: input.workerId ?? context.project_default_worker_id,
+      defaultWorkerId: context.project_default_worker_id,
+    }),
+    fetchPlaneRuntimePromptStack(client, context),
+    fetchPlaneRuntimeAvailableSecretKeys(client, context),
+  ]);
+  const payload = buildPlaneRuntimeSnapshotPayload(
+    context,
+    worker,
+    prompts,
+    { runId: context.run_id },
+    availableSecretKeys,
+  );
+
+  return {
+    snapshotHash: hashJson(payload),
+    payload,
+    createdAt: context.run_created_at,
   };
 }
 
@@ -1125,6 +1168,156 @@ async function fetchPlaneRuntimeRunContext(
     throw new Error(`Run not found for Plane runtime snapshot: ${runId}`);
   }
   return row;
+}
+
+async function fetchPlaneRuntimePreviewContext(
+  client: DatabaseClient,
+  input: {
+    taskId: string;
+    workerId?: string;
+  },
+): Promise<PlaneRuntimeRunContextRow | undefined> {
+  const taskStateResult = await client.query<{ state: string }>(
+    `
+      select state
+      from tasks
+      where id = $1
+      limit 1
+    `,
+    [input.taskId],
+  );
+  const state = taskStateResult.rows[0]?.state;
+  if (!state || !isWorkflowState(state) || !isAutomaticState(state)) {
+    return undefined;
+  }
+  const roleKey = roleForState(state);
+
+  const result = await client.query<PlaneRuntimeRunContextRow>(
+    `
+      select
+        'preview:' || tasks.id::text as run_id,
+        'preview' as run_status,
+        coalesce(previous_runs.next_attempt, 1) as run_attempt,
+        $3::text as lease_owner,
+        null::timestamptz as lease_expires_at,
+        now() as run_created_at,
+        tasks.id as task_id,
+        tasks.external_task_id,
+        tasks.identifier,
+        tasks.title,
+        tasks.state as task_state,
+        tasks.url as task_url,
+        tasks.labels,
+        projects.id as project_id,
+        projects.slug as project_slug,
+        projects.name as project_name,
+        projects.external_project_id as project_external_project_id,
+        teams.key as team_key,
+        teams.external_team_id as team_external_team_id,
+        repositories.id as repository_id,
+        repositories.slug as repository_slug,
+        repositories.git_url as repository_git_url,
+        repositories.default_branch as repository_default_branch,
+        repositories.local_path as repository_local_path,
+        roles.id as role_id,
+        roles.key as role_key,
+        roles.name as role_name,
+        agent_definitions.id as agent_definition_id,
+        agent_definitions.name as agent_name,
+        agent_definitions.runtime as agent_runtime,
+        agent_definitions.model as agent_model,
+        agent_definitions.reasoning_effort as agent_reasoning_effort,
+        agent_definitions.tool_profile as agent_tool_profile,
+        agent_definitions.max_turns as agent_max_turns,
+        agent_definitions.timeout_seconds as agent_timeout_seconds,
+        project_projection.plane_project_workspace_id,
+        project_projection.plane_workspace_id,
+        project_projection.plane_project_id,
+        project_projection.default_worker_id as project_default_worker_id,
+        project_projection.meta_git_policy as project_meta_git_policy,
+        repository_projection.plane_repository_id,
+        repository_projection.key as repository_key,
+        repository_projection.provider as repository_provider,
+        repository_projection.url as repository_url,
+        repository_projection.metadata as repository_metadata,
+        role_projection.plane_role_id,
+        role_projection.plane_prompt_id as role_plane_prompt_id,
+        role_projection.metadata as role_metadata,
+        user_agent_projection.plane_user_agent_id,
+        user_agent_projection.owner_user_id as user_agent_owner_user_id,
+        user_agent_projection.default_model as user_agent_default_model,
+        user_agent_projection.tool_profile as user_agent_tool_profile,
+        user_agent_projection.config_snapshot as user_agent_config_snapshot
+      from tasks
+      join projects on projects.id = tasks.project_id
+      join teams on teams.id = projects.team_id
+      join repositories on repositories.id = tasks.repository_id
+      join roles on roles.key = $2
+      join agent_definitions on agent_definitions.role_id = roles.id
+        and agent_definitions.status = 'active'
+      left join lateral (
+        select coalesce(max(runs.attempt), 0) + 1 as next_attempt
+        from runs
+        where runs.task_id = tasks.id
+      ) previous_runs on true
+      left join lateral (
+        select count(*)::integer as active_agent_runs
+        from runs active_agent
+        where active_agent.agent_definition_id = agent_definitions.id
+          and active_agent.status in ('queued', 'claimed', 'running')
+          and (
+            active_agent.lease_expires_at is null
+            or active_agent.lease_expires_at > now()
+          )
+      ) agent_load on true
+      left join acp_project_projections project_projection
+        on project_projection.status = 'active'
+        and (
+          project_projection.plane_project_id = projects.external_project_id
+          or project_projection.slug = projects.slug
+        )
+      left join acp_repository_projections repository_projection
+        on repository_projection.status = 'active'
+        and (
+          repository_projection.plane_repository_id = repositories.slug
+          or repository_projection.url = repositories.git_url
+          or (
+            repository_projection.key = repositories.slug
+            and (
+              project_projection.plane_workspace_id is null
+              or repository_projection.plane_workspace_id = project_projection.plane_workspace_id
+            )
+          )
+        )
+      left join acp_role_projections role_projection
+        on role_projection.status = 'active'
+        and role_projection.key = roles.key
+        and (
+          project_projection.plane_workspace_id is null
+          or role_projection.plane_workspace_id = project_projection.plane_workspace_id
+        )
+      left join acp_user_agent_projections user_agent_projection
+        on user_agent_projection.status = 'active'
+        and (
+          user_agent_projection.plane_user_agent_id = agent_definitions.id::text
+          or user_agent_projection.name = agent_definitions.name
+          or user_agent_projection.config_snapshot->>'key' = agent_definitions.name
+        )
+      where tasks.id = $1
+        and tasks.repository_id is not null
+        and tasks.state::text not in ('Done', 'Canceled', 'Duplicate')
+      order by
+        coalesce(agent_load.active_agent_runs, 0) asc,
+        case when project_projection.plane_project_id = projects.external_project_id then 0 else 1 end,
+        case when repository_projection.url = repositories.git_url then 0 else 1 end,
+        case when user_agent_projection.name = agent_definitions.name then 0 else 1 end,
+        agent_definitions.created_at asc
+      limit 1
+    `,
+    [input.taskId, roleKey, input.workerId ?? null],
+  );
+
+  return result.rows[0];
 }
 
 async function fetchPlaneRuntimeWorkerCard(

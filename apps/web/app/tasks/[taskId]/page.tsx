@@ -1,6 +1,7 @@
 import { isWorkflowState } from "@agent-control-plane/core";
 import {
   getTaskDetail,
+  previewPlaneRuntimeForTask,
   requestTaskRework,
   transitionTaskState,
   withDatabasePool,
@@ -18,7 +19,17 @@ interface PageProps {
 
 export default async function TaskDetailPage({ params }: PageProps) {
   const { taskId } = await params;
-  const task = await withDatabasePool((pool) => getTaskDetail(pool, taskId));
+  const { task, runPreview } = await withDatabasePool(async (pool) => {
+    const task = await getTaskDetail(pool, taskId);
+    if (!task) {
+      return { task, runPreview: undefined };
+    }
+
+    return {
+      task,
+      runPreview: await previewPlaneRuntimeForTask(pool, { taskId }),
+    };
+  });
 
   if (!task) {
     notFound();
@@ -120,6 +131,71 @@ export default async function TaskDetailPage({ params }: PageProps) {
               <span>Retry</span>
               <strong>{formatRetry(task.latestRun)}</strong>
             </div>
+          </article>
+
+          <article className="panel wide">
+            <h2>Run Preview</h2>
+            {runPreview ? (
+              <>
+                <div className="kv">
+                  <span>Role</span>
+                  <strong>
+                    {firstString(runPreview.payload.role, ["key", "name"]) ?? task.role}
+                  </strong>
+                  <span>Agent</span>
+                  <strong>
+                    {firstString(runPreview.payload.agent, ["name", "model"]) ?? "无"}
+                  </strong>
+                  <span>Worker</span>
+                  <strong>
+                    {firstString(runPreview.payload.worker, ["workerId", "name"]) ?? "无"}
+                  </strong>
+                  <span>Hash</span>
+                  <strong>{runPreview.snapshotHash.slice(0, 16)}</strong>
+                  <span>Created</span>
+                  <strong>{formatDate(runPreview.createdAt)}</strong>
+                </div>
+                <div className="snapshot-grid">
+                  <section>
+                    <h3>Prompt stack</h3>
+                    {runPreview.payload.prompts.length > 0 ? (
+                      <ol className="stack-list">
+                        {runPreview.payload.prompts.map((prompt, index) => (
+                          <li key={`${index}-${formatPromptVersion(prompt.version)}`}>
+                            <strong>{formatPromptTitle(prompt.prompt)}</strong>
+                            <span>{formatPromptMeta(prompt.binding, prompt.version)}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="subtle">未命中 Plane prompt binding。</p>
+                    )}
+                  </section>
+                  <section>
+                    <h3>Secret keys</h3>
+                    {runPreview.payload.availableSecretKeys.length > 0 ? (
+                      <div className="chip-list">
+                        {runPreview.payload.availableSecretKeys.map((secretKey) => (
+                          <span className="chip" key={secretKey}>
+                            {secretKey}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="subtle">无可用 secret key。</p>
+                    )}
+                  </section>
+                </div>
+                <h3>Assembled prompt preview</h3>
+                <pre className="inline-code prompt-preview">
+                  {formatPromptPreview(runPreview.payload.assembledPrompt)}
+                </pre>
+              </>
+            ) : (
+              <p className="subtle">
+                当前任务不可预览 agent run。需要自动执行状态、已注册 repository 和 active agent。
+              </p>
+            )}
           </article>
 
           <article className="panel">
@@ -236,6 +312,51 @@ function formatDate(value: Date): string {
 
 function formatOptionalDate(value?: Date): string {
   return value ? formatDate(value) : "无";
+}
+
+function formatPromptPreview(value: string): string {
+  const limit = 12000;
+  if (value.length <= limit) {
+    return value || "无 assembled prompt。";
+  }
+
+  return `${value.slice(0, limit)}\n\n...[truncated ${value.length - limit} chars]`;
+}
+
+function formatPromptTitle(record: Record<string, unknown>): string {
+  return firstString(record, ["name", "title", "key", "id"]) ?? "Prompt";
+}
+
+function formatPromptVersion(record: Record<string, unknown>): string {
+  return firstString(record, ["version", "versionId", "id", "contentHash"]) ?? "unknown";
+}
+
+function formatPromptMeta(
+  binding: Record<string, unknown>,
+  version: Record<string, unknown>,
+): string {
+  const parts = [
+    firstString(binding, ["scope"]),
+    firstString(binding, ["kind"]),
+    firstString(binding, ["targetType"]),
+    `version ${formatPromptVersion(version)}`,
+  ].filter(Boolean);
+
+  return parts.join(" · ");
+}
+
+function firstString(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+    if (typeof value === "number" || typeof value === "bigint") {
+      return String(value);
+    }
+  }
+
+  return undefined;
 }
 
 function formatRunHeadline(
