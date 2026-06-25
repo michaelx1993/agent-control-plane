@@ -29,6 +29,30 @@ export interface SyncExternalTasksResult {
   unrouted: number;
 }
 
+export interface PlaneRunIntentTaskInput {
+  planeProjectId: string;
+  projectSlug?: string;
+  externalTaskId: string;
+  identifier: string;
+  title: string;
+  state: WorkflowState;
+  labels?: readonly string[];
+  priority?: number | null;
+  url?: string;
+  repositoryKey?: string;
+  repositoryUrl?: string;
+}
+
+export interface PlaneRunIntentTaskRecord {
+  taskId: string;
+  projectId: string;
+  externalTaskId: string;
+  identifier: string;
+  repositoryId?: string;
+  repositorySlug?: string;
+  routed: boolean;
+}
+
 export interface PlaneProjectSyncCursor {
   projectSlug: string;
   syncCursor?: string;
@@ -42,6 +66,15 @@ interface RepositoryRow {
   id: string;
   slug: string;
   status: "active" | "archived";
+}
+
+interface RunIntentTaskRow {
+  id: string;
+  project_id: string;
+  external_task_id: string;
+  identifier: string;
+  repository_id: string | null;
+  repository_slug: string | null;
 }
 
 export async function syncExternalTasks(
@@ -70,6 +103,97 @@ export async function syncExternalTasks(
     upserted: input.tasks.length,
     routed,
     unrouted,
+  };
+}
+
+export async function upsertPlaneRunIntentTask(
+  client: DatabaseClient,
+  input: PlaneRunIntentTaskInput,
+): Promise<PlaneRunIntentTaskRecord> {
+  const projectId = await findProjectIdByExternalIdOrSlug(
+    client,
+    input.planeProjectId,
+    input.projectSlug,
+  );
+  const repositories = await fetchProjectRepositories(client, projectId);
+  const labels = withRepositoryLabel(input.labels ?? [], input.repositoryKey);
+  const repositoryId =
+    resolveRepositoryIdForLabels(labels, repositories) ??
+    (await findRepositoryIdByUrl(client, projectId, input.repositoryUrl));
+
+  const result = await client.query<RunIntentTaskRow>(
+    `
+      insert into tasks (
+        id,
+        project_id,
+        repository_id,
+        external_task_id,
+        identifier,
+        title,
+        state,
+        priority,
+        estimated_cost_usd,
+        labels,
+        url,
+        last_synced_at,
+        sync_cursor,
+        updated_at
+      )
+      values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, now(), $11, now())
+      on conflict (project_id, external_task_id)
+      do update set
+        repository_id = coalesce(excluded.repository_id, tasks.repository_id),
+        identifier = excluded.identifier,
+        title = excluded.title,
+        state = excluded.state,
+        priority = excluded.priority,
+        estimated_cost_usd = excluded.estimated_cost_usd,
+        labels = excluded.labels,
+        url = excluded.url,
+        last_synced_at = now(),
+        sync_cursor = excluded.sync_cursor,
+        updated_at = now()
+      returning
+        tasks.id,
+        tasks.project_id,
+        tasks.external_task_id,
+        tasks.identifier,
+        tasks.repository_id,
+        (
+          select slug
+          from repositories
+          where repositories.id = tasks.repository_id
+          limit 1
+        ) as repository_slug
+    `,
+    [
+      projectId,
+      repositoryId ?? null,
+      input.externalTaskId,
+      input.identifier,
+      input.title,
+      input.state,
+      input.priority ?? null,
+      parseEstimatedCostFromLabels(labels) ?? null,
+      JSON.stringify(labels),
+      input.url ?? null,
+      new Date().toISOString(),
+    ],
+  );
+
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error("Plane run intent task upsert did not return a task.");
+  }
+
+  return {
+    taskId: row.id,
+    projectId: row.project_id,
+    externalTaskId: row.external_task_id,
+    identifier: row.identifier,
+    routed: !!row.repository_id,
+    ...(row.repository_id ? { repositoryId: row.repository_id } : {}),
+    ...(row.repository_slug ? { repositorySlug: row.repository_slug } : {}),
   };
 }
 
@@ -141,6 +265,32 @@ async function findProjectId(client: DatabaseClient, projectSlug: string): Promi
   return project.id;
 }
 
+async function findProjectIdByExternalIdOrSlug(
+  client: DatabaseClient,
+  planeProjectId: string,
+  projectSlug?: string,
+): Promise<string> {
+  const result = await client.query<ProjectRow>(
+    `
+      select id
+      from projects
+      where external_project_id = $1
+        or ($2::text is not null and slug = $2)
+      order by
+        case when external_project_id = $1 then 0 else 1 end
+      limit 1
+    `,
+    [planeProjectId, projectSlug ?? null],
+  );
+
+  const project = result.rows[0];
+  if (!project) {
+    throw new Error(`Project not found for Plane project: ${planeProjectId}`);
+  }
+
+  return project.id;
+}
+
 async function fetchProjectRepositories(
   client: DatabaseClient,
   projectId: string,
@@ -160,6 +310,43 @@ async function fetchProjectRepositories(
     slug: row.slug,
     status: row.status,
   }));
+}
+
+async function findRepositoryIdByUrl(
+  client: DatabaseClient,
+  projectId: string,
+  repositoryUrl?: string,
+): Promise<string | undefined> {
+  if (!repositoryUrl?.trim()) {
+    return undefined;
+  }
+
+  const result = await client.query<{ id: string }>(
+    `
+      select id
+      from repositories
+      where project_id = $1
+        and git_url = $2
+        and status = 'active'
+      limit 1
+    `,
+    [projectId, repositoryUrl.trim()],
+  );
+
+  return result.rows[0]?.id;
+}
+
+function withRepositoryLabel(labels: readonly string[], repositoryKey?: string): string[] {
+  const normalized = labels.map((label) => label.trim()).filter(Boolean);
+  const key = repositoryKey?.trim();
+  if (!key) {
+    return normalized;
+  }
+
+  const repoLabel = `repo:${key}`;
+  return normalized.some((label) => label.toLowerCase() === repoLabel.toLowerCase())
+    ? normalized
+    : [...normalized, repoLabel];
 }
 
 async function upsertTask(
