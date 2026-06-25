@@ -220,7 +220,7 @@ P3 当前说明：workspace 策略由 `prepareWorkspaceForRun`、`WORKER_WORKSPA
 - [ ] 用自部署 Plane 中的真实 task + 真实 repo 跑通默认 `WORKER_EXECUTION_ADAPTER=codex-cli` Development run。
 - [ ] 按需用 `WORKER_EXECUTION_ADAPTER=codex-app-server` 复测 Symphony-style thread/turn 长会话。
 - [ ] 验证 Control Plane run detail 中存在 Codex run events、prompt release、workspace、Progress / Workpad 和 summary。
-- [ ] 验收 Project Meta Git 生产路径，确认真实 Plane-routed run 会写入本地 Meta Git commit，并在 ACP 记录 memory commit evidence。
+- [x] 验收 Project Meta Git 生产路径，确认真实 Plane-routed run 会写入本地 Meta Git commit，并在 ACP 记录 memory commit evidence：2026-06-25 生产 `TOK-1` run `781c7239-0669-4835-be61-25658fe440ed` 已写入 `/Users/a/agent-worker-workspaces/_project-meta/token` commit `6012daa884caa328d2d2533822df14591e719bfe`，ACP 记录 1 个 meta repo 和 4 条 memory commits。
 - [ ] 在真实 Plane project 上复测人工 gate transition、rework 和 feedback comment writeback。
 - [ ] 执行 `pnpm task-source:smoke`，证明新任务只从 Plane/Control Plane 派发。
 - [ ] 执行真实 secret provider smoke 和 provider audit smoke。
