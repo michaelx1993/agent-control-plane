@@ -13,19 +13,19 @@
 
 ## MBP 当前部署基线
 
-截至 2026-06-22，MBP 上的应用层部署目标是只运行我们自己源码经 GitHub hosted CI 构建并推送到 DockerHub 的镜像。社区基础设施镜像允许继续使用，不纳入自研源码镜像范围。
+截至 2026-06-25，公网生产入口实际由当前 Mac Studio 承载；历史口径里的 “MBP 部署” 指这套本机 self-host 部署目录和公网 IP。应用层部署目标是只运行我们自己源码经 GitHub hosted CI 构建并推送到 DockerHub 的镜像。社区基础设施镜像允许继续使用，不纳入自研源码镜像范围。
 
 应用层镜像：
 
-| 组件                                       | 镜像                                   | 来源要求                                    |
-| ------------------------------------------ | -------------------------------------- | ------------------------------------------- |
-| Agent Control Plane Web/API                | `michaelxxx/agent-control-plane:0.0.1` | `michaelx1993/agent-control-plane` 源码构建 |
-| Plane frontend                             | `michaelxxx/plane-frontend:0.0.1`      | `michaelx1993/plane` 源码构建               |
-| Plane backend / api / worker / beat-worker | `michaelxxx/plane-backend:0.0.1`       | `michaelx1993/plane` 源码构建               |
-| Plane admin                                | `michaelxxx/plane-admin:0.0.1`         | `michaelx1993/plane` 源码构建               |
-| Plane space                                | `michaelxxx/plane-space:0.0.1`         | `michaelx1993/plane` 源码构建               |
-| Plane live                                 | `michaelxxx/plane-live:0.0.1`          | `michaelx1993/plane` 源码构建               |
-| Plane proxy                                | `michaelxxx/plane-proxy:0.0.1`         | `michaelx1993/plane` 源码构建               |
+| 组件                                       | 镜像                                    | 来源要求                                    |
+| ------------------------------------------ | --------------------------------------- | ------------------------------------------- |
+| Agent Control Plane Web/API                | `michaelxxx/agent-control-plane:0.0.10` | `michaelx1993/agent-control-plane` 源码构建 |
+| Plane frontend                             | `michaelxxx/plane-frontend:0.0.8`       | `michaelx1993/plane` 源码构建               |
+| Plane backend / api / worker / beat-worker | `michaelxxx/plane-backend:0.0.8`        | `michaelx1993/plane` 源码构建               |
+| Plane admin                                | `michaelxxx/plane-admin:0.0.8`          | `michaelx1993/plane` 源码构建               |
+| Plane space                                | `michaelxxx/plane-space:0.0.8`          | `michaelx1993/plane` 源码构建               |
+| Plane live                                 | `michaelxxx/plane-live:0.0.8`           | `michaelx1993/plane` 源码构建               |
+| Plane proxy                                | `michaelxxx/plane-proxy:0.0.8`          | `michaelx1993/plane` 源码构建               |
 
 允许的社区基础设施镜像：
 
@@ -66,6 +66,7 @@ docker compose \
 - Plane / Agent Control Plane 应用层不得出现 `makeplane/*`、本地 `build:` 或未命名本地镜像。
 - PostgreSQL、Valkey、RabbitMQ、MinIO 可以继续使用社区镜像。
 - 公网入口使用公网 IP；Plane CORS 只保留公网访问来源，避免登录后回跳局域网 IP。
+- 2026-06-25 最新验收：Plane `http://127.0.0.1:3200/` 与 `http://80.251.222.30:3200/` 返回 200；ACP `http://80.251.222.30:3112/api/readiness` 返回 ready；`pnpm plane:agent-config-sync` 返回 `passed`；Mac Studio worker LaunchAgent running 且最近 stderr 未增长。
 
 本文区分三件事：
 
