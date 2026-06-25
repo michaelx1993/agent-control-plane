@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   claimRuns: vi.fn(),
+  createPlaneRuntimeSnapshotForRun: vi.fn(),
   createPromptReleaseForRun: vi.fn(),
   fetchDispatchInputSnapshot: vi.fn(),
   findLatestConversationRefForTask: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock("@agent-control-plane/db", () => db);
 describe("claimWorkerRuns", () => {
   beforeEach(() => {
     db.claimRuns.mockReset();
+    db.createPlaneRuntimeSnapshotForRun.mockReset();
     db.createPromptReleaseForRun.mockReset();
     db.fetchDispatchInputSnapshot.mockReset();
     db.findLatestConversationRefForTask.mockReset();
@@ -34,6 +36,14 @@ describe("claimWorkerRuns", () => {
       id: "prompt-release-1",
       contentHash: "hash",
       renderedContent: "rendered prompt",
+    });
+    db.createPlaneRuntimeSnapshotForRun.mockResolvedValue({
+      id: "snapshot-1",
+      snapshotHash: "snapshot-hash",
+      payload: {
+        schemaVersion: "plane-runtime-snapshot.v1",
+        assembledPrompt: "rendered prompt",
+      },
     });
     db.findLatestConversationRefForTask.mockResolvedValue(undefined);
   });
@@ -115,6 +125,25 @@ describe("claimWorkerRuns", () => {
     ]);
     expect(result.claimed).toHaveLength(1);
     expect(result.claimed[0]?.run.identifier).toBe("TOKEN-2");
+    expect(db.createPlaneRuntimeSnapshotForRun).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        runId: "run-1",
+        promptRelease: {
+          id: "prompt-release-1",
+          contentHash: "hash",
+          renderedContent: "rendered prompt",
+        },
+      }),
+    );
+    expect(result.claimed[0]?.planeRuntimeSnapshot).toEqual({
+      id: "snapshot-1",
+      snapshotHash: "snapshot-hash",
+      payload: {
+        schemaVersion: "plane-runtime-snapshot.v1",
+        assembledPrompt: "rendered prompt",
+      },
+    });
     expect(result.skipped).toEqual([
       {
         taskId: "task-unrouted",

@@ -586,6 +586,13 @@ payload 至少包含：
 - project meta context summary
 - role / agent config snapshot
 
+当前 Phase 1 实现使用 `schemaVersion=plane-runtime-snapshot.v1`：
+
+- Worker claim 成功后，Control Plane 在同一事务中基于 `runs` 和 `acp_*_projections` 生成 snapshot。
+- prompt stack 从 `acp_prompt_binding_projections` 解析，顺序为 Agent -> Project -> Repository -> Role -> Playbook/Task/System；`latest` 绑定解析到当时 latest prompt version，`pinned` 绑定解析到固定 version。
+- snapshot 会返回给 Worker API claim response 的 `planeRuntimeSnapshot` 字段；旧 `promptRelease` 字段继续保留，兼容旧 worker。
+- `availableSecretKeys` 只包含 key 名；`agent.configSnapshot` 中的 secret-like object value 会被 redacted，不把 secret value 写入 snapshot 或 claim response。
+
 约束：
 
 - `run_id` unique
@@ -921,6 +928,8 @@ Status: Implemented in ACP runtime foundation.
 - Plane outbox polling sync: `packages/plane/src/sync.ts`
 - CLI: `scripts/plane-agent-config-sync.mjs`
 - CLI self-test: `scripts/plane-agent-config-sync-self-test.mjs`
+- Worker claim runtime snapshot: `apps/web/src/worker-claim.ts`
+- Worker API contract: `packages/core/src/worker-api-contract.ts`
 
 已实现范围：
 
@@ -950,6 +959,7 @@ Status: Implemented in ACP runtime foundation.
 - `pnpm plane:agent-config-sync` 通过 Plane `agent_config_outbox` polling 增量同步。
 - 当前兼容 Plane extension API entity types：`agent_user_agent`、`agent_prompt`、`agent_prompt_version`、`agent_prompt_binding`、`agent_role`、`agent_worker_card`、`agent_project_workspace`、`agent_repository`。
 - Payload 按 Plane serializer 的 snake_case 字段解析；历史设计中的 `user_agent`、`prompt`、`prompt_version`、`prompt_binding`、`worker_card`、`project_workspace` alias 仍由 CLI normalizer 兼容。
+- Worker API claim response 新增 `planeRuntimeSnapshot.id`、`planeRuntimeSnapshot.snapshotHash`、`planeRuntimeSnapshot.payload`，用于 Worker 后续从 frozen runtime context 启动 Codex。
 
 未实现范围仍按迁移顺序推进：
 

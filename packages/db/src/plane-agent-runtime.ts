@@ -30,7 +30,7 @@ export interface ProjectionApplyResult {
 
 export interface RunSnapshotInput {
   runId: string;
-  payload: Record<string, unknown>;
+  payload: unknown;
 }
 
 export interface RunSnapshotRecord {
@@ -39,6 +39,56 @@ export interface RunSnapshotRecord {
   snapshotHash: string;
   payload: unknown;
   createdAt: Date;
+}
+
+export interface PlaneRuntimeSnapshotInput {
+  runId: string;
+  promptRelease?: {
+    id: string;
+    contentHash: string;
+    renderedContent: string;
+  };
+  previousConversation?: {
+    provider: string;
+    conversationId: string;
+    eventLogUri?: string;
+    uiUrl?: string;
+  };
+}
+
+export interface PlaneRuntimeSnapshotRecord extends RunSnapshotRecord {
+  payload: PlaneRuntimeSnapshotPayload;
+}
+
+export interface PlaneRuntimeSnapshotPayload {
+  schemaVersion: "plane-runtime-snapshot.v1";
+  run: Record<string, unknown>;
+  task: Record<string, unknown>;
+  project: Record<string, unknown>;
+  repository: Record<string, unknown>;
+  role: Record<string, unknown>;
+  agent: Record<string, unknown>;
+  worker: Record<string, unknown>;
+  prompts: PlaneRuntimePromptSnapshot[];
+  assembledPrompt: string;
+  availableSecretKeys: string[];
+  legacyPromptRelease?: {
+    id: string;
+    contentHash: string;
+    renderedContent: string;
+  };
+  previousConversation?: {
+    provider: string;
+    conversationId: string;
+    eventLogUri?: string;
+    uiUrl?: string;
+  };
+}
+
+export interface PlaneRuntimePromptSnapshot {
+  binding: Record<string, unknown>;
+  prompt: Record<string, unknown>;
+  version: Record<string, unknown>;
 }
 
 export interface RuntimePipelineNodeInput {
@@ -186,6 +236,26 @@ export async function recordRunSnapshot(
   }
 
   return mapSnapshotRow(row);
+}
+
+export async function createPlaneRuntimeSnapshotForRun(
+  client: DatabaseClient,
+  input: PlaneRuntimeSnapshotInput,
+): Promise<PlaneRuntimeSnapshotRecord> {
+  const context = await fetchPlaneRuntimeRunContext(client, input.runId);
+  const worker = await fetchPlaneRuntimeWorkerCard(client, {
+    planeWorkspaceId: context.plane_workspace_id,
+    leaseOwner: context.lease_owner,
+    defaultWorkerId: context.project_default_worker_id,
+  });
+  const prompts = await fetchPlaneRuntimePromptStack(client, context);
+  const payload = buildPlaneRuntimeSnapshotPayload(context, worker, prompts, input);
+  const snapshot = await recordRunSnapshot(client, { runId: input.runId, payload });
+
+  return {
+    ...snapshot,
+    payload,
+  };
 }
 
 export async function createRunPipeline(
@@ -787,6 +857,497 @@ async function upsertRepositoryProjection(
   );
 }
 
+interface PlaneRuntimeRunContextRow {
+  run_id: string;
+  run_status: string;
+  run_attempt: number;
+  lease_owner: string | null;
+  lease_expires_at: Date | null;
+  run_created_at: Date;
+  task_id: string;
+  external_task_id: string;
+  identifier: string;
+  title: string;
+  task_state: string;
+  task_url: string | null;
+  labels: unknown;
+  project_id: string;
+  project_slug: string;
+  project_name: string;
+  project_external_project_id: string;
+  team_key: string;
+  team_external_team_id: string;
+  repository_id: string;
+  repository_slug: string;
+  repository_git_url: string;
+  repository_default_branch: string;
+  repository_local_path: string | null;
+  role_id: string;
+  role_key: string;
+  role_name: string;
+  agent_definition_id: string;
+  agent_name: string;
+  agent_runtime: string;
+  agent_model: string;
+  agent_reasoning_effort: string;
+  agent_tool_profile: string;
+  agent_max_turns: number;
+  agent_timeout_seconds: number;
+  plane_project_workspace_id: string | null;
+  plane_workspace_id: string | null;
+  plane_project_id: string | null;
+  project_default_worker_id: string | null;
+  project_meta_git_policy: unknown;
+  plane_repository_id: string | null;
+  repository_key: string | null;
+  repository_provider: string | null;
+  repository_url: string | null;
+  repository_metadata: unknown;
+  plane_role_id: string | null;
+  role_plane_prompt_id: string | null;
+  role_metadata: unknown;
+  plane_user_agent_id: string | null;
+  user_agent_default_model: string | null;
+  user_agent_tool_profile: unknown;
+  user_agent_config_snapshot: unknown;
+}
+
+interface PlaneRuntimeWorkerCardRow {
+  plane_worker_card_id: string;
+  worker_id: string;
+  name: string;
+  hostname: string | null;
+  os: string | null;
+  labels: unknown;
+  workspace_root: string | null;
+  status: string;
+  last_seen_at: Date | null;
+  updated_at: Date;
+}
+
+interface PlaneRuntimePromptRow {
+  plane_binding_id: string;
+  target_type: string;
+  target_id: string;
+  version_policy: string;
+  pinned_version_id: string | null;
+  scope: string;
+  order_index: number;
+  required: boolean;
+  binding_projection_version: string;
+  plane_prompt_id: string;
+  prompt_name: string;
+  prompt_scope: string;
+  prompt_kind: string;
+  latest_version_id: string | null;
+  prompt_status: string;
+  plane_prompt_version_id: string | null;
+  version: number | null;
+  body: string | null;
+  variables: unknown;
+  content_hash: string | null;
+  version_created_at: Date | null;
+}
+
+async function fetchPlaneRuntimeRunContext(
+  client: DatabaseClient,
+  runId: string,
+): Promise<PlaneRuntimeRunContextRow> {
+  const result = await client.query<PlaneRuntimeRunContextRow>(
+    `
+      select
+        runs.id as run_id,
+        runs.status as run_status,
+        runs.attempt as run_attempt,
+        runs.lease_owner,
+        runs.lease_expires_at,
+        runs.created_at as run_created_at,
+        tasks.id as task_id,
+        tasks.external_task_id,
+        tasks.identifier,
+        tasks.title,
+        tasks.state as task_state,
+        tasks.url as task_url,
+        tasks.labels,
+        projects.id as project_id,
+        projects.slug as project_slug,
+        projects.name as project_name,
+        projects.external_project_id as project_external_project_id,
+        teams.key as team_key,
+        teams.external_team_id as team_external_team_id,
+        repositories.id as repository_id,
+        repositories.slug as repository_slug,
+        repositories.git_url as repository_git_url,
+        repositories.default_branch as repository_default_branch,
+        repositories.local_path as repository_local_path,
+        roles.id as role_id,
+        roles.key as role_key,
+        roles.name as role_name,
+        agent_definitions.id as agent_definition_id,
+        agent_definitions.name as agent_name,
+        agent_definitions.runtime as agent_runtime,
+        agent_definitions.model as agent_model,
+        agent_definitions.reasoning_effort as agent_reasoning_effort,
+        agent_definitions.tool_profile as agent_tool_profile,
+        agent_definitions.max_turns as agent_max_turns,
+        agent_definitions.timeout_seconds as agent_timeout_seconds,
+        project_projection.plane_project_workspace_id,
+        project_projection.plane_workspace_id,
+        project_projection.plane_project_id,
+        project_projection.default_worker_id as project_default_worker_id,
+        project_projection.meta_git_policy as project_meta_git_policy,
+        repository_projection.plane_repository_id,
+        repository_projection.key as repository_key,
+        repository_projection.provider as repository_provider,
+        repository_projection.url as repository_url,
+        repository_projection.metadata as repository_metadata,
+        role_projection.plane_role_id,
+        role_projection.plane_prompt_id as role_plane_prompt_id,
+        role_projection.metadata as role_metadata,
+        user_agent_projection.plane_user_agent_id,
+        user_agent_projection.default_model as user_agent_default_model,
+        user_agent_projection.tool_profile as user_agent_tool_profile,
+        user_agent_projection.config_snapshot as user_agent_config_snapshot
+      from runs
+      join tasks on tasks.id = runs.task_id
+      join projects on projects.id = tasks.project_id
+      join teams on teams.id = projects.team_id
+      join repositories on repositories.id = runs.repository_id
+      join roles on roles.id = runs.role_id
+      join agent_definitions on agent_definitions.id = runs.agent_definition_id
+      left join acp_project_projections project_projection
+        on project_projection.status = 'active'
+        and (
+          project_projection.plane_project_id = projects.external_project_id
+          or project_projection.slug = projects.slug
+        )
+      left join acp_repository_projections repository_projection
+        on repository_projection.status = 'active'
+        and (
+          repository_projection.plane_repository_id = repositories.slug
+          or repository_projection.url = repositories.git_url
+          or (
+            repository_projection.key = repositories.slug
+            and (
+              project_projection.plane_workspace_id is null
+              or repository_projection.plane_workspace_id = project_projection.plane_workspace_id
+            )
+          )
+        )
+      left join acp_role_projections role_projection
+        on role_projection.status = 'active'
+        and role_projection.key = roles.key
+        and (
+          project_projection.plane_workspace_id is null
+          or role_projection.plane_workspace_id = project_projection.plane_workspace_id
+        )
+      left join acp_user_agent_projections user_agent_projection
+        on user_agent_projection.status = 'active'
+        and (
+          user_agent_projection.plane_user_agent_id = agent_definitions.id::text
+          or user_agent_projection.name = agent_definitions.name
+          or user_agent_projection.config_snapshot->>'key' = agent_definitions.name
+        )
+      where runs.id = $1
+      order by
+        case when project_projection.plane_project_id = projects.external_project_id then 0 else 1 end,
+        case when repository_projection.url = repositories.git_url then 0 else 1 end,
+        case when user_agent_projection.name = agent_definitions.name then 0 else 1 end
+      limit 1
+    `,
+    [runId],
+  );
+
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error(`Run not found for Plane runtime snapshot: ${runId}`);
+  }
+  return row;
+}
+
+async function fetchPlaneRuntimeWorkerCard(
+  client: DatabaseClient,
+  input: {
+    planeWorkspaceId: string | null;
+    leaseOwner: string | null;
+    defaultWorkerId: string | null;
+  },
+): Promise<PlaneRuntimeWorkerCardRow | undefined> {
+  if (!input.leaseOwner && !input.defaultWorkerId) {
+    return undefined;
+  }
+
+  const result = await client.query<PlaneRuntimeWorkerCardRow>(
+    `
+      select
+        plane_worker_card_id,
+        worker_id,
+        name,
+        hostname,
+        os,
+        labels,
+        workspace_root,
+        status,
+        last_seen_at,
+        updated_at
+      from acp_worker_card_projections
+      where status <> 'archived'
+        and (
+          ($1::text is not null and plane_workspace_id = $1 and worker_id = $2)
+          or ($1::text is not null and plane_workspace_id = $1 and plane_worker_card_id = $3)
+          or worker_id = $2
+        )
+      order by
+        case when worker_id = $2 then 0 else 1 end,
+        case when status = 'online' then 0 when status = 'active' then 1 else 2 end,
+        updated_at desc
+      limit 1
+    `,
+    [input.planeWorkspaceId, input.leaseOwner, input.defaultWorkerId],
+  );
+
+  return result.rows[0];
+}
+
+async function fetchPlaneRuntimePromptStack(
+  client: DatabaseClient,
+  context: PlaneRuntimeRunContextRow,
+): Promise<PlaneRuntimePromptSnapshot[]> {
+  const planeWorkspaceId = context.plane_workspace_id ?? context.team_external_team_id;
+  const agentTargetIds = compactStrings([
+    context.plane_user_agent_id,
+    context.agent_definition_id,
+    context.agent_name,
+  ]);
+  const projectTargetIds = compactStrings([
+    context.plane_project_workspace_id,
+    context.plane_project_id,
+    context.project_external_project_id,
+    context.project_id,
+    context.project_slug,
+  ]);
+  const repositoryTargetIds = compactStrings([
+    context.plane_repository_id,
+    context.repository_key,
+    context.repository_id,
+    context.repository_slug,
+  ]);
+  const roleTargetIds = compactStrings([context.plane_role_id, context.role_id, context.role_key]);
+
+  const result = await client.query<PlaneRuntimePromptRow>(
+    `
+      select
+        binding.plane_binding_id,
+        binding.target_type,
+        binding.target_id,
+        binding.version_policy,
+        binding.pinned_version_id,
+        binding.scope,
+        binding.order_index,
+        binding.required,
+        binding.projection_version::text as binding_projection_version,
+        prompt.plane_prompt_id,
+        prompt.name as prompt_name,
+        prompt.scope as prompt_scope,
+        prompt.kind as prompt_kind,
+        prompt.latest_version_id,
+        prompt.status as prompt_status,
+        version.plane_prompt_version_id,
+        version.version,
+        version.body,
+        version.variables,
+        version.content_hash,
+        version.created_at as version_created_at
+      from acp_prompt_binding_projections binding
+      join acp_prompt_projections prompt
+        on prompt.plane_prompt_id = binding.plane_prompt_id
+        and prompt.status = 'active'
+      left join lateral (
+        select version_projection.*
+        from acp_prompt_version_projections version_projection
+        where version_projection.plane_prompt_id = binding.plane_prompt_id
+          and (
+            (binding.version_policy = 'pinned'
+              and version_projection.plane_prompt_version_id = binding.pinned_version_id)
+            or binding.version_policy = 'latest'
+          )
+        order by
+          case
+            when binding.version_policy = 'latest'
+              and prompt.latest_version_id is not null
+              and version_projection.plane_prompt_version_id = prompt.latest_version_id
+              then 0
+            when binding.version_policy = 'pinned'
+              and version_projection.plane_prompt_version_id = binding.pinned_version_id
+              then 0
+            else 1
+          end,
+          version_projection.version desc
+        limit 1
+      ) version on true
+      where binding.status = 'active'
+        and (
+          (binding.target_type in ('agent', 'user_agent') and binding.target_id = any($2::text[]))
+          or (binding.target_type = 'project' and binding.target_id = any($3::text[]))
+          or (binding.target_type in ('repo', 'repository') and binding.target_id = any($4::text[]))
+          or (binding.target_type = 'role' and binding.target_id = any($5::text[]))
+          or (binding.target_type in ('task', 'system', 'playbook') and binding.target_id in ($1, 'global', 'system'))
+        )
+      order by
+        case
+          when binding.scope in ('agent', 'user_agent') then 10
+          when binding.scope = 'project' then 20
+          when binding.scope in ('repo', 'repository') then 25
+          when binding.scope = 'role' then 30
+          when binding.scope in ('playbook', 'task', 'system') then 40
+          else 90
+        end,
+        binding.order_index asc,
+        prompt.name asc
+    `,
+    [planeWorkspaceId, agentTargetIds, projectTargetIds, repositoryTargetIds, roleTargetIds],
+  );
+
+  return result.rows.map(mapPlaneRuntimePromptRow);
+}
+
+function mapPlaneRuntimePromptRow(row: PlaneRuntimePromptRow): PlaneRuntimePromptSnapshot {
+  return {
+    binding: compactRecord({
+      id: row.plane_binding_id,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      scope: row.scope,
+      versionPolicy: row.version_policy,
+      pinnedVersionId: row.pinned_version_id,
+      orderIndex: row.order_index,
+      required: row.required,
+      projectionVersion: row.binding_projection_version,
+    }),
+    prompt: compactRecord({
+      id: row.plane_prompt_id,
+      name: row.prompt_name,
+      scope: row.prompt_scope,
+      kind: row.prompt_kind,
+      latestVersionId: row.latest_version_id,
+      status: row.prompt_status,
+    }),
+    version: compactRecord({
+      id: row.plane_prompt_version_id,
+      version: row.version,
+      body: row.body,
+      variables: row.variables ?? {},
+      contentHash: row.content_hash,
+      createdAt: isoDate(row.version_created_at),
+    }),
+  };
+}
+
+function buildPlaneRuntimeSnapshotPayload(
+  context: PlaneRuntimeRunContextRow,
+  worker: PlaneRuntimeWorkerCardRow | undefined,
+  prompts: PlaneRuntimePromptSnapshot[],
+  input: PlaneRuntimeSnapshotInput,
+): PlaneRuntimeSnapshotPayload {
+  const assembledPrompt = prompts
+    .map((prompt) => stringFromUnknown(prompt.version.body))
+    .filter((body) => body.length > 0)
+    .join("\n\n---\n\n");
+
+  const payload: PlaneRuntimeSnapshotPayload = {
+    schemaVersion: "plane-runtime-snapshot.v1",
+    run: compactRecord({
+      id: context.run_id,
+      status: context.run_status,
+      attempt: context.run_attempt,
+      leaseOwner: context.lease_owner,
+      leaseExpiresAt: isoDate(context.lease_expires_at),
+      createdAt: isoDate(context.run_created_at),
+    }),
+    task: compactRecord({
+      id: context.task_id,
+      externalTaskId: context.external_task_id,
+      identifier: context.identifier,
+      title: context.title,
+      state: context.task_state,
+      url: context.task_url,
+      labels: context.labels ?? [],
+    }),
+    project: compactRecord({
+      id: context.project_id,
+      slug: context.project_slug,
+      name: context.project_name,
+      externalProjectId: context.project_external_project_id,
+      planeProjectWorkspaceId: context.plane_project_workspace_id,
+      planeWorkspaceId: context.plane_workspace_id ?? context.team_external_team_id,
+      planeProjectId: context.plane_project_id,
+      defaultWorkerId: context.project_default_worker_id,
+      metaGitPolicy: context.project_meta_git_policy ?? {},
+    }),
+    repository: compactRecord({
+      id: context.repository_id,
+      slug: context.repository_slug,
+      gitUrl: context.repository_git_url,
+      defaultBranch: context.repository_default_branch,
+      localPath: context.repository_local_path,
+      planeRepositoryId: context.plane_repository_id,
+      key: context.repository_key,
+      provider: context.repository_provider,
+      url: context.repository_url,
+      metadata: context.repository_metadata ?? {},
+    }),
+    role: compactRecord({
+      id: context.role_id,
+      key: context.role_key,
+      name: context.role_name,
+      planeRoleId: context.plane_role_id,
+      planePromptId: context.role_plane_prompt_id,
+      metadata: context.role_metadata ?? {},
+    }),
+    agent: compactRecord({
+      id: context.agent_definition_id,
+      name: context.agent_name,
+      runtime: context.agent_runtime,
+      model: context.agent_model,
+      reasoningEffort: context.agent_reasoning_effort,
+      toolProfile: context.agent_tool_profile,
+      maxTurns: context.agent_max_turns,
+      timeoutSeconds: context.agent_timeout_seconds,
+      planeUserAgentId: context.plane_user_agent_id,
+      defaultModel: context.user_agent_default_model,
+      planeToolProfile: context.user_agent_tool_profile ?? {},
+      configSnapshot: redactSecretConfigSnapshot(context.user_agent_config_snapshot),
+    }),
+    worker: compactRecord({
+      requestedWorkerId: context.lease_owner,
+      defaultWorkerId: context.project_default_worker_id,
+      planeWorkerCardId: worker?.plane_worker_card_id,
+      workerId: worker?.worker_id,
+      name: worker?.name,
+      hostname: worker?.hostname,
+      os: worker?.os,
+      labels: worker?.labels ?? [],
+      workspaceRoot: worker?.workspace_root,
+      status: worker?.status,
+      lastSeenAt: isoDate(worker?.last_seen_at),
+      updatedAt: isoDate(worker?.updated_at),
+    }),
+    prompts,
+    assembledPrompt,
+    availableSecretKeys: extractAvailableSecretKeys(context.user_agent_config_snapshot),
+  };
+
+  if (input.promptRelease) {
+    payload.legacyPromptRelease = input.promptRelease;
+  }
+
+  if (input.previousConversation) {
+    payload.previousConversation = input.previousConversation;
+  }
+
+  return payload;
+}
+
 function mapSnapshotRow(row: SnapshotRow): RunSnapshotRecord {
   return {
     id: row.id,
@@ -811,6 +1372,92 @@ function stableStringify(value: unknown): string {
     .sort()
     .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`);
   return `{${entries.join(",")}}`;
+}
+
+function compactRecord(values: Record<string, unknown>): Record<string, unknown> {
+  const record: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined && value !== null) {
+      record[key] = value;
+    }
+  }
+  return record;
+}
+
+function compactStrings(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value && value.trim())))];
+}
+
+function isoDate(value: Date | null | undefined): string | undefined {
+  return value ? value.toISOString() : undefined;
+}
+
+function stringFromUnknown(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function extractAvailableSecretKeys(value: unknown): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+
+  const record = value as Record<string, unknown>;
+  const candidates = [
+    record.secretKeys,
+    record.secret_keys,
+    record.availableSecretKeys,
+    record.available_secret_keys,
+  ];
+  const keys = new Set<string>();
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      for (const item of candidate) {
+        if (typeof item === "string" && item.trim()) {
+          keys.add(item.trim());
+        }
+      }
+    }
+  }
+
+  const objectCandidates = [record.secrets, record.secretRefs, record.secret_refs];
+  for (const candidate of objectCandidates) {
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+      for (const key of Object.keys(candidate)) {
+        if (key.trim()) {
+          keys.add(key.trim());
+        }
+      }
+    }
+  }
+
+  return [...keys].sort();
+}
+
+function redactSecretConfigSnapshot(value: unknown): unknown {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => redactSecretConfigSnapshot(item));
+  }
+
+  const output: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (/^(secrets?|secretRefs?|secret_refs)$/i.test(key)) {
+      if (child && typeof child === "object" && !Array.isArray(child)) {
+        output[key] = Object.fromEntries(Object.keys(child).map((secretKey) => [secretKey, true]));
+      } else {
+        output[key] = child;
+      }
+      continue;
+    }
+
+    output[key] = child && typeof child === "object" ? redactSecretConfigSnapshot(child) : child;
+  }
+
+  return output;
 }
 
 function planeAgentConfigOutboxCursorKey(planeWorkspaceId: string): string {

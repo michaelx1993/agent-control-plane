@@ -1,6 +1,7 @@
 import { runDispatchCycle } from "@agent-control-plane/core";
 import {
   claimRuns,
+  createPlaneRuntimeSnapshotForRun,
   createPromptReleaseForRun,
   fetchDispatchInputSnapshot,
   findLatestConversationRefForTask,
@@ -10,6 +11,7 @@ import {
   withTransaction,
 } from "@agent-control-plane/db";
 import type { RunClaimRecord } from "@agent-control-plane/db";
+import type { PlaneRuntimeSnapshotRecord } from "@agent-control-plane/db";
 
 export interface WorkerClaimInput {
   workerId: string;
@@ -36,6 +38,11 @@ export interface WorkerClaimedRun {
     conversationId: string;
     eventLogUri?: string;
     uiUrl?: string;
+  };
+  planeRuntimeSnapshot: {
+    id: string;
+    snapshotHash: string;
+    payload: PlaneRuntimeSnapshotRecord["payload"];
   };
 }
 
@@ -112,12 +119,37 @@ export async function claimWorkerRuns(input: WorkerClaimInput): Promise<WorkerCl
           beforeRunId: run.runId,
           ...(input.executionAdapter ? { provider: input.executionAdapter } : {}),
         });
+        const planeRuntimeSnapshot = await createPlaneRuntimeSnapshotForRun(client, {
+          runId: run.runId,
+          promptRelease: {
+            id: promptRelease.id,
+            contentHash: promptRelease.contentHash,
+            renderedContent: promptRelease.renderedContent,
+          },
+          ...(previousConversation
+            ? {
+                previousConversation: {
+                  provider: previousConversation.provider,
+                  conversationId: previousConversation.conversationId,
+                  ...(previousConversation.eventLogUri
+                    ? { eventLogUri: previousConversation.eventLogUri }
+                    : {}),
+                  ...(previousConversation.uiUrl ? { uiUrl: previousConversation.uiUrl } : {}),
+                },
+              }
+            : {}),
+        });
         hydrated.push({
           run,
           promptRelease: {
             id: promptRelease.id,
             contentHash: promptRelease.contentHash,
             renderedContent: promptRelease.renderedContent,
+          },
+          planeRuntimeSnapshot: {
+            id: planeRuntimeSnapshot.id,
+            snapshotHash: planeRuntimeSnapshot.snapshotHash,
+            payload: planeRuntimeSnapshot.payload,
           },
           ...(previousConversation
             ? {
