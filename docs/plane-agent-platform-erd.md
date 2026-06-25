@@ -901,11 +901,53 @@ Command Center 需要的核心查询：
 
 - `acp_run_pipeline_nodes(run_pipeline_id, status)`
 - `acp_node_executions(run_id, started_at desc)`
-- `acp_prerequisite_checks(run_id, checked_at desc)`
+- `acp_prerequisite_checks(run_pipeline_node_id, status)`
 - `acp_scm_change_requests(run_id)`
 - `acp_release_artifacts(run_id, created_at desc)`
 - `acp_deployment_records(run_id, created_at desc)`
 - `acp_project_memory_commits(project_meta_repo_id, created_at desc)`
+
+## ACP Phase 1 实现映射
+
+Status: Implemented in ACP runtime foundation.
+
+落地文件：
+
+- DB migration: `packages/db/prisma/migrations/0010_plane_agent_runtime_foundation/migration.sql`
+- Prisma models: `packages/db/prisma/schema.prisma`
+- Runtime helpers: `packages/db/src/plane-agent-runtime.ts`
+- Plane outbox client: `packages/plane/src/client.ts`
+- Plane outbox polling sync: `packages/plane/src/sync.ts`
+- CLI: `scripts/plane-agent-config-sync.mjs`
+- CLI self-test: `scripts/plane-agent-config-sync-self-test.mjs`
+
+已实现范围：
+
+- `acp_config_projection_events`
+- `acp_project_projections`
+- `acp_user_agent_projections`
+- `acp_prompt_projections`
+- `acp_prompt_version_projections`
+- `acp_prompt_binding_projections`
+- `acp_worker_card_projections`
+- `acp_run_snapshots`
+- `acp_run_pipelines`
+- `acp_run_pipeline_nodes`
+- `acp_run_pipeline_transitions`
+- `acp_node_executions`
+- `acp_prerequisite_checks`
+- `acp_scm_change_requests`
+- `acp_release_artifacts`
+- `acp_deployment_records`
+- `acp_project_meta_repos`
+- `acp_project_memory_commits`
+
+未实现范围仍按迁移顺序推进：
+
+- Plane repo 内 `agent_*` extension source tables、CRUD UI、`agent_config_outbox` API。
+- Run 创建链路自动解析 Plane projections 并调用 snapshot / pipeline helper。
+- Worker claim 按 Worker Card projection 定向执行。
+- Project Meta Git 真实文件写入和 git commit。
 
 ## 迁移顺序
 

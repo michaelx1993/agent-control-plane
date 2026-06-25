@@ -41,6 +41,8 @@
     "linear:migrate": "node scripts/linear-migrate.mjs",
     "linear:migrate-smoke": "bash scripts/smoke-linear-migration.sh",
     "operator:query-smoke": "bash scripts/smoke-operator-queries.sh",
+    "plane:agent-config-sync": "node scripts/plane-agent-config-sync.mjs",
+    "plane:agent-config-sync-self-test": "node scripts/plane-agent-config-sync-self-test.mjs",
     "openhands:payload-contract": "node scripts/openhands-payload-contract.mjs",
     "openhands:smoke": "bash scripts/smoke-openhands.sh",
     "plane:human-gate-writeback-smoke": "pnpm --filter @agent-control-plane/web test:human-gate-writeback",

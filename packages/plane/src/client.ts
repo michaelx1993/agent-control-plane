@@ -50,8 +50,24 @@ export interface PlaneWorkItemComment {
   updated_at?: string | null;
 }
 
+export interface PlaneAgentConfigOutboxEvent {
+  id: number | string;
+  workspace_id?: string;
+  entity_type: string;
+  entity_id: string;
+  operation?: string;
+  projection_version: number | string;
+  payload: Record<string, unknown>;
+  created_at?: string;
+}
+
 export interface PlaneListWorkItemsOptions {
   updatedAfter?: string;
+}
+
+export interface PlaneListAgentConfigOutboxOptions {
+  afterId?: number | string;
+  limit?: number;
 }
 
 export interface CreatePlaneWorkItemInput {
@@ -120,6 +136,25 @@ export class PlaneClient {
   ): Promise<PlaneWorkItemComment[]> {
     return this.getCollection<PlaneWorkItemComment>(
       `/api/v1/workspaces/${workspaceSlug}/projects/${projectId}/work-items/${workItemId}/comments/`,
+    );
+  }
+
+  async listAgentConfigOutbox(
+    workspaceSlug: string,
+    options: PlaneListAgentConfigOutboxOptions = {},
+  ): Promise<PlaneAgentConfigOutboxEvent[]> {
+    const searchParams = new URLSearchParams();
+    if (options.afterId !== undefined) {
+      searchParams.set("after_id", String(options.afterId));
+    }
+    if (options.limit !== undefined) {
+      searchParams.set("limit", String(options.limit));
+    }
+    const encodedSearchParams = searchParams.toString();
+    const query = encodedSearchParams ? `?${encodedSearchParams}` : "";
+
+    return this.getCollection<PlaneAgentConfigOutboxEvent>(
+      `/api/v1/workspaces/${workspaceSlug}/agent-config-outbox/${query}`,
     );
   }
 

@@ -56,6 +56,9 @@ jobs:
       - name: Check
         run: pnpm check
 
+      - name: Plane agent config sync self-test
+        run: pnpm plane:agent-config-sync-self-test
+
       - name: Compose smoke
         run: pnpm compose:smoke
 

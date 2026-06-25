@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlaneApiError } from "../src/client";
-import { fetchPlaneTaskAndCommentSyncRecords } from "../src/sync";
+import {
+  fetchPlaneAgentConfigOutboxEvents,
+  fetchPlaneTaskAndCommentSyncRecords,
+} from "../src/sync";
 
 const config = {
   baseUrl: "https://plane.test",
@@ -15,6 +18,49 @@ afterEach(() => {
 });
 
 describe("Plane polling sync", () => {
+  it("fetches agent config outbox events for ACP projection sync", async () => {
+    const listOptions: unknown[] = [];
+
+    await expect(
+      fetchPlaneAgentConfigOutboxEvents(
+        config,
+        {
+          async listAgentConfigOutbox(_workspaceSlug, options) {
+            listOptions.push(options);
+            return [
+              {
+                id: 101,
+                entity_type: "prompt",
+                entity_id: "prompt-1",
+                projection_version: 3,
+                payload: {
+                  name: "Project Context",
+                  scope: "project",
+                  kind: "context",
+                },
+              },
+            ];
+          },
+        },
+        { afterId: 100, limit: 10 },
+      ),
+    ).resolves.toEqual([
+      {
+        id: 101,
+        entity_type: "prompt",
+        entity_id: "prompt-1",
+        projection_version: 3,
+        payload: {
+          name: "Project Context",
+          scope: "project",
+          kind: "context",
+        },
+      },
+    ]);
+
+    expect(listOptions).toEqual([{ afterId: 100, limit: 10 }]);
+  });
+
   it("fetches work items and comment feedback records", async () => {
     const records = await fetchPlaneTaskAndCommentSyncRecords(config, {
       async listProjectLabels() {
