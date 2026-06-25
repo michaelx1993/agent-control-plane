@@ -282,6 +282,47 @@ describe("applyPlaneProjectionEvent", () => {
       expect.arrayContaining(["repo-1", "workspace-1", "project-1", "plane", "github"]),
     );
   });
+
+  it("upserts user secret key projections without storing secret values", async () => {
+    const queryMock = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ id: "event-1" }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const client = {
+      query: queryMock,
+    } as unknown as DatabaseClient;
+
+    await expect(
+      applyPlaneProjectionEvent(client, {
+        planeWorkspaceId: "workspace-1",
+        planeOutboxId: 106,
+        entityType: "agent_user_secret_key",
+        entityId: "secret-key-1",
+        operation: "create",
+        projectionVersion: 1,
+        payload: {
+          owner: "user-1",
+          key: "GITHUB_TOKEN",
+          description: "GitHub API token",
+          provider: "env",
+          provider_ref: "GITHUB_TOKEN",
+          value: "secret-value",
+          is_active: true,
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "applied",
+      entityType: "agent_user_secret_key",
+      entityId: "secret-key-1",
+    });
+
+    expect(client.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("insert into acp_user_secret_key_projections"),
+      expect.arrayContaining(["secret-key-1", "workspace-1", "user-1", "GITHUB_TOKEN"]),
+    );
+    expect(JSON.stringify(queryMock.mock.calls)).not.toContain("secret-value");
+  });
 });
 
 describe("recordRunSnapshot", () => {
@@ -401,6 +442,7 @@ describe("createPlaneRuntimeSnapshotForRun", () => {
                 role_plane_prompt_id: "prompt-role",
                 role_metadata: { gate: "agent-review" },
                 plane_user_agent_id: "plane-agent-1",
+                user_agent_owner_user_id: "user-1",
                 user_agent_default_model: "gpt-5",
                 user_agent_tool_profile: { tools: ["shell"] },
                 user_agent_config_snapshot: {
@@ -484,6 +526,13 @@ describe("createPlaneRuntimeSnapshotForRun", () => {
           };
         }
 
+        if (query.includes("from acp_user_secret_key_projections")) {
+          expect(params).toEqual(["plane-workspace-1", "user-1"]);
+          return {
+            rows: [{ key: "PLANE_SECRET" }, { key: "GITHUB_TOKEN" }],
+          };
+        }
+
         if (query.includes("insert into acp_run_snapshots")) {
           const payload = JSON.parse(String(params?.[2]));
           return {
@@ -527,7 +576,11 @@ describe("createPlaneRuntimeSnapshotForRun", () => {
       "project",
     ]);
     expect(snapshot.payload.assembledPrompt).toBe("Agent prompt\n\n---\n\nProject prompt");
-    expect(snapshot.payload.availableSecretKeys).toEqual(["DOCKERHUB_TOKEN", "GITHUB_TOKEN"]);
+    expect(snapshot.payload.availableSecretKeys).toEqual([
+      "DOCKERHUB_TOKEN",
+      "GITHUB_TOKEN",
+      "PLANE_SECRET",
+    ]);
     expect(JSON.stringify(snapshot.payload)).not.toContain("redacted-in-test");
   });
 });

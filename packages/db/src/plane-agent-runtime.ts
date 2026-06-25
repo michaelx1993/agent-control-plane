@@ -9,7 +9,8 @@ export type PlaneProjectionEntityType =
   | "agent_prompt_binding"
   | "agent_worker_card"
   | "agent_role"
-  | "agent_repository";
+  | "agent_repository"
+  | "agent_user_secret_key";
 
 export interface PlaneProjectionEventInput {
   planeWorkspaceId: string;
@@ -249,7 +250,14 @@ export async function createPlaneRuntimeSnapshotForRun(
     defaultWorkerId: context.project_default_worker_id,
   });
   const prompts = await fetchPlaneRuntimePromptStack(client, context);
-  const payload = buildPlaneRuntimeSnapshotPayload(context, worker, prompts, input);
+  const availableSecretKeys = await fetchPlaneRuntimeAvailableSecretKeys(client, context);
+  const payload = buildPlaneRuntimeSnapshotPayload(
+    context,
+    worker,
+    prompts,
+    input,
+    availableSecretKeys,
+  );
   const snapshot = await recordRunSnapshot(client, { runId: input.runId, payload });
 
   return {
@@ -472,6 +480,9 @@ async function upsertProjectionPayload(
       break;
     case "agent_repository":
       await upsertRepositoryProjection(client, input);
+      break;
+    case "agent_user_secret_key":
+      await upsertUserSecretKeyProjection(client, input);
       break;
   }
 }
@@ -860,6 +871,52 @@ async function upsertRepositoryProjection(
   );
 }
 
+async function upsertUserSecretKeyProjection(
+  client: DatabaseClient,
+  input: PlaneProjectionEventInput,
+): Promise<void> {
+  const payload = input.payload;
+  await client.query(
+    `
+      insert into acp_user_secret_key_projections (
+        plane_secret_key_id,
+        plane_workspace_id,
+        owner_user_id,
+        key,
+        description,
+        provider,
+        provider_ref,
+        status,
+        projection_version,
+        updated_at
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+      on conflict (plane_secret_key_id) do update set
+        plane_workspace_id = excluded.plane_workspace_id,
+        owner_user_id = excluded.owner_user_id,
+        key = excluded.key,
+        description = excluded.description,
+        provider = excluded.provider,
+        provider_ref = excluded.provider_ref,
+        status = excluded.status,
+        projection_version = excluded.projection_version,
+        updated_at = now()
+      where acp_user_secret_key_projections.projection_version <= excluded.projection_version
+    `,
+    [
+      input.entityId,
+      input.planeWorkspaceId,
+      optionalStringFrom(payload, ["ownerUserId", "owner"]) ?? "",
+      requiredString(payload, "key"),
+      optionalStringFrom(payload, ["description"]) ?? "",
+      optionalStringFrom(payload, ["provider"]) ?? "env",
+      optionalStringFrom(payload, ["providerRef", "provider_ref"]) ?? "",
+      projectionStatus(input, payload),
+      input.projectionVersion,
+    ],
+  );
+}
+
 interface PlaneRuntimeRunContextRow {
   run_id: string;
   run_status: string;
@@ -910,6 +967,7 @@ interface PlaneRuntimeRunContextRow {
   role_plane_prompt_id: string | null;
   role_metadata: unknown;
   plane_user_agent_id: string | null;
+  user_agent_owner_user_id: string | null;
   user_agent_default_model: string | null;
   user_agent_tool_profile: unknown;
   user_agent_config_snapshot: unknown;
@@ -1008,6 +1066,7 @@ async function fetchPlaneRuntimeRunContext(
         role_projection.plane_prompt_id as role_plane_prompt_id,
         role_projection.metadata as role_metadata,
         user_agent_projection.plane_user_agent_id,
+        user_agent_projection.owner_user_id as user_agent_owner_user_id,
         user_agent_projection.default_model as user_agent_default_model,
         user_agent_projection.tool_profile as user_agent_tool_profile,
         user_agent_projection.config_snapshot as user_agent_config_snapshot
@@ -1214,6 +1273,34 @@ async function fetchPlaneRuntimePromptStack(
   return result.rows.map(mapPlaneRuntimePromptRow);
 }
 
+async function fetchPlaneRuntimeAvailableSecretKeys(
+  client: DatabaseClient,
+  context: PlaneRuntimeRunContextRow,
+): Promise<string[]> {
+  const planeWorkspaceId = context.plane_workspace_id ?? context.team_external_team_id;
+  const ownerUserId = context.user_agent_owner_user_id ?? "";
+  const projectedSecretKeys = await client.query<{ key: string }>(
+    `
+      select key
+      from acp_user_secret_key_projections
+      where status = 'active'
+        and plane_workspace_id = $1
+        and (
+          owner_user_id = $2
+          or owner_user_id = ''
+          or owner_user_id is null
+        )
+      order by key asc
+    `,
+    [planeWorkspaceId, ownerUserId],
+  );
+
+  return compactStrings([
+    ...extractAvailableSecretKeys(context.user_agent_config_snapshot),
+    ...projectedSecretKeys.rows.map((row) => row.key),
+  ]).sort();
+}
+
 function mapPlaneRuntimePromptRow(row: PlaneRuntimePromptRow): PlaneRuntimePromptSnapshot {
   return {
     binding: compactRecord({
@@ -1251,6 +1338,7 @@ function buildPlaneRuntimeSnapshotPayload(
   worker: PlaneRuntimeWorkerCardRow | undefined,
   prompts: PlaneRuntimePromptSnapshot[],
   input: PlaneRuntimeSnapshotInput,
+  availableSecretKeys: string[],
 ): PlaneRuntimeSnapshotPayload {
   const assembledPrompt = prompts
     .map((prompt) => stringFromUnknown(prompt.version.body))
@@ -1337,7 +1425,7 @@ function buildPlaneRuntimeSnapshotPayload(
     }),
     prompts,
     assembledPrompt,
-    availableSecretKeys: extractAvailableSecretKeys(context.user_agent_config_snapshot),
+    availableSecretKeys,
   };
 
   if (input.promptRelease) {

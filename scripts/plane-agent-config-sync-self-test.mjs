@@ -61,6 +61,21 @@ assert.deepEqual(
   "agent_repository",
 );
 
+assert.deepEqual(
+  normalizePlaneOutboxEvent("workspace-default", {
+    id: 103,
+    entity_type: "agent_user_secret_key",
+    entity_id: "secret-key-1",
+    projection_version: 1,
+    payload: {
+      owner: "user-1",
+      key: "GITHUB_TOKEN",
+      provider: "env",
+    },
+  }).entityType,
+  "agent_user_secret_key",
+);
+
 assert.throws(
   () =>
     normalizePlaneOutboxEvent("workspace-default", {
