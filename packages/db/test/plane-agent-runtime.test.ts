@@ -153,7 +153,7 @@ describe("applyPlaneProjectionEvent", () => {
     );
   });
 
-  it("upserts role projections from Plane serializer payloads", async () => {
+  it("upserts active project workspace projections for runtime snapshot joins", async () => {
     const client = {
       query: vi
         .fn()
@@ -165,6 +165,57 @@ describe("applyPlaneProjectionEvent", () => {
       applyPlaneProjectionEvent(client, {
         planeWorkspaceId: "workspace-1",
         planeOutboxId: 103,
+        entityType: "agent_project_workspace",
+        entityId: "project-workspace-1",
+        operation: "update",
+        projectionVersion: 2,
+        payload: {
+          project: "plane-project-1",
+          key: "agent-platform",
+          worker_card: "mac-studio-worker-1",
+          meta_git: { mode: "local" },
+          is_active: true,
+          updated_at: "2026-06-25T00:00:00.000Z",
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "applied",
+      entityType: "agent_project_workspace",
+      entityId: "project-workspace-1",
+    });
+
+    expect(client.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("insert into acp_project_projections"),
+      expect.arrayContaining([
+        "project-workspace-1",
+        "workspace-1",
+        "plane-project-1",
+        "agent-platform",
+        "mac-studio-worker-1",
+        2,
+        "active",
+      ]),
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("status = excluded.status"),
+      expect.any(Array),
+    );
+  });
+
+  it("upserts role projections from Plane serializer payloads", async () => {
+    const client = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ id: "event-1" }] })
+        .mockResolvedValueOnce({ rows: [] }),
+    } as unknown as DatabaseClient;
+
+    await expect(
+      applyPlaneProjectionEvent(client, {
+        planeWorkspaceId: "workspace-1",
+        planeOutboxId: 104,
         entityType: "agent_role",
         entityId: "role-1",
         projectionVersion: 1,
@@ -201,7 +252,7 @@ describe("applyPlaneProjectionEvent", () => {
     await expect(
       applyPlaneProjectionEvent(client, {
         planeWorkspaceId: "workspace-1",
-        planeOutboxId: 104,
+        planeOutboxId: 105,
         entityType: "agent_repository",
         entityId: "repo-1",
         operation: "update",
