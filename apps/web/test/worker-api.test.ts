@@ -10,6 +10,7 @@ const db = vi.hoisted(() => ({
   heartbeatRun: vi.fn(),
   insertWorkerApiAuditEvent: vi.fn(),
   insertRunEvents: vi.fn(),
+  recordProjectMetaGitArtifact: vi.fn(),
   recordWorkspaceReady: vi.fn(),
   recordTaskProgress: vi.fn(),
   upsertConversationRef: vi.fn(),
@@ -58,6 +59,7 @@ describe("Worker API routes", () => {
     db.heartbeatRun.mockReset();
     db.insertWorkerApiAuditEvent.mockReset();
     db.insertRunEvents.mockReset();
+    db.recordProjectMetaGitArtifact.mockReset();
     db.recordWorkspaceReady.mockReset();
     db.recordTaskProgress.mockReset();
     db.upsertConversationRef.mockReset();
@@ -415,6 +417,66 @@ describe("Worker API routes", () => {
       },
     ]);
     expect(db.upsertConversationRef).not.toHaveBeenCalled();
+    expect(db.recordProjectMetaGitArtifact).not.toHaveBeenCalled();
+  });
+
+  it("records project meta git evidence from worker artifacts", async () => {
+    db.verifyRunLease.mockResolvedValue({
+      runId: "run-1",
+      taskId: "task-1",
+      status: "running",
+      leaseOwner: "worker-1",
+    });
+    db.insertRunEvents.mockResolvedValue([
+      {
+        id: "event-1",
+        eventType: "worker.artifacts",
+        message: "Worker reported artifacts.",
+        payload: {
+          projectMetaGit: {
+            planeProjectWorkspaceId: "plane-project-workspace-1",
+            localPath: "/var/agent-meta/token",
+            commitSha: "abc123",
+            filesChanged: ["status.md", "progress.md", "runs/run-1.md"],
+            summary: "Development run succeeded.",
+          },
+        },
+        createdAt: new Date("2026-06-20T10:00:00Z"),
+      },
+    ]);
+    db.recordProjectMetaGitArtifact.mockResolvedValue({
+      projectMetaRepoId: "project-meta-repo-1",
+      planeProjectWorkspaceId: "plane-project-workspace-1",
+      localPath: "/var/agent-meta/token",
+      commitSha: "abc123",
+      filesChanged: ["status.md", "progress.md", "runs/run-1.md"],
+      memoryCommitIds: ["memory-commit-1"],
+    });
+
+    const route = await import("../app/api/worker/v1/runs/[runId]/artifacts/route");
+    const response = await route.POST(
+      jsonRequest({
+        projectMetaGit: {
+          planeProjectWorkspaceId: "plane-project-workspace-1",
+          localPath: "/var/agent-meta/token",
+          commitSha: "abc123",
+          filesChanged: ["status.md", "progress.md", "runs/run-1.md"],
+          summary: "Development run succeeded.",
+        },
+      }),
+      routeContext,
+    );
+
+    expect(response.status).toBe(200);
+    expect(db.recordProjectMetaGitArtifact).toHaveBeenCalledWith(expect.any(Object), {
+      runId: "run-1",
+      planeProjectWorkspaceId: "plane-project-workspace-1",
+      localPath: "/var/agent-meta/token",
+      commitSha: "abc123",
+      filesChanged: ["status.md", "progress.md", "runs/run-1.md"],
+      operation: "run_summary",
+      summary: "Development run succeeded.",
+    });
   });
 
   it("records conversation refs from worker artifacts", async () => {

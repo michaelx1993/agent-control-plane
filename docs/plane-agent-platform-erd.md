@@ -966,7 +966,7 @@ Status: Implemented in ACP runtime foundation.
 - Plane repo 内 `agent_*` extension source CRUD UI。
 - Run 创建链路自动解析 Plane projections 并调用 snapshot / pipeline helper。
 - Worker claim 按 Worker Card projection 定向执行。
-- Project Meta Git 真实文件写入和 git commit。
+- Project Meta Git 真实文件写入、git commit 和 ACP memory commit evidence 已有代码实现，等待发布部署和真实 Plane-routed run 验收。
 
 ## 迁移顺序
 
@@ -1011,6 +1011,7 @@ Status: Implemented in ACP runtime foundation.
 - Worker 初始化本地 Meta Git。
 - status rewrite、progress append、run summary、artifact index 写入。
 - ACP 记录 memory commits。
+- 当前代码实现：Worker 写入 `WORKER_WORKSPACE_ROOT/_project-meta/<project>`，并通过 `projectMetaGit` artifacts payload 回传 `planeProjectWorkspaceId`、`localPath`、`commitSha`、`filesChanged`；ACP 记录 `acp_project_meta_repos` 和 `acp_project_memory_commits`。
 - Phase 2 再做 remote auto-create / scheduled sync。
 
 ## 未决技术点
