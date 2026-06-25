@@ -62,7 +62,8 @@ export async function POST(request: Request) {
   if (!planeProjectId || !externalTaskId || !identifier || !title || !state) {
     return NextResponse.json(
       {
-        error: "planeProjectId, externalTaskId, identifier, title, and supported state are required.",
+        error:
+          "planeProjectId, externalTaskId, identifier, title, and supported state are required.",
       },
       { status: 400 },
     );
@@ -124,7 +125,9 @@ function normalizeStringArray(value: unknown): string[] {
     return [];
   }
 
-  return value.filter((item): item is string => typeof item === "string" && !!item.trim()).map((item) => item.trim());
+  return value
+    .filter((item): item is string => typeof item === "string" && !!item.trim())
+    .map((item) => item.trim());
 }
 
 function normalizePriority(value: unknown): number | null | undefined {
