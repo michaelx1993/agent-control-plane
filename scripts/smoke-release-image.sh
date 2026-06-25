@@ -12,6 +12,11 @@ printf '%s\n' "$*" >> "${DOCKER_SMOKE_LOG:?}"
 DOCKER
 chmod +x "$TMP_DIR/docker"
 
+if ! grep -Eq '^COPY[[:space:]]+scripts[[:space:]]+./scripts' "$ROOT_DIR/Dockerfile"; then
+  echo "smoke-release-image: Dockerfile must copy scripts into the runtime image" >&2
+  exit 1
+fi
+
 run_release() {
   local log_file="$1"
   shift
