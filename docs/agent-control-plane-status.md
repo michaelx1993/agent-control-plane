@@ -58,6 +58,7 @@
 - 2026-06-25 Plane Runtime Snapshot 增量：Worker API claim 成功后会继续保留旧 `promptRelease`，并新增 `planeRuntimeSnapshot`。该 snapshot 从 ACP 内的 Plane projection 表冻结 project、repository、role、user agent、worker card、prompt binding、resolved prompt version、assembled prompt、available secret keys、legacy prompt release 和 previous conversation ref；secret 只记录 key 名，snapshot payload 不携带 secret value。该能力已通过 `pnpm --filter @agent-control-plane/db test -- plane-agent-runtime.test.ts`、`pnpm --filter @agent-control-plane/db typecheck`、依赖包 build 后的 `pnpm --filter @agent-control-plane/web test -- worker-claim.test.ts`，并在 2026-06-25 的宿主机 agent-worker run `f8ead3c4-79c2-41bb-b086-dfe18e640601` 中完成真实 Worker API claim / Codex execution / complete 验收。
 - 2026-06-25 agent-worker 拆仓发布与宿主部署：`michaelx1993/agent-worker` 已发布 tag `agent-worker-v0.0.1`，GitHub hosted Release workflow 发布 `ghcr.io/michaelx1993/agent-worker:0.0.1`，manifest 已验证包含 `linux/amd64` 和 `linux/arm64`。Mac Studio 上的 `com.aiworkspace.agent-worker.mac-studio` LaunchAgent 使用 `/Users/a/agent-worker/apps/worker/dist/index.js` 直接运行，连接 `http://80.251.222.30:3112`，`WORKER_EXECUTION_ADAPTER=codex-cli`，`WORKER_WORKSPACE_STRATEGY=git-worktree`，复用宿主 Codex/Git 环境。该部署完成了真实 run `f8ead3c4-79c2-41bb-b086-dfe18e640601`：run 状态 `succeeded`，事件包含 `codex.completed`、`worker.artifacts` 和 `completed`，worker 进程保持 running。
 - 2026-06-25 ACP 生产部署修复：PR #39 修复 `acp_project_projections.status` 缺列导致 Worker claim runtime snapshot 500 的问题，新增 migration `0012_project_projection_status`，并发布/部署 `michaelxxx/agent-control-plane:0.0.8`（revision `0bae7812b0d40919ae1f69a8b824922c1c6de455`）。部署前备份为 `/Users/a/agent-control-plane/backups/agent-control-plane-pre-0.0.8-20260625T125528Z.dump`；部署后 `http://80.251.222.30:3112/api/readiness` 返回 ready，数据库 migration 已包含 `0012_project_projection_status`，Worker API token 已通过 `.env.mbp-control-plane` 注入 Web 容器。
+- 2026-06-25 Project Meta Git 发布部署：ACP PR #41 已合并并发布/部署 `michaelxxx/agent-control-plane:0.0.9`（revision `49c15ff78a4775821b3226a1964421755e26e0b0`），Worker PR #16 已合并并发布 `ghcr.io/michaelx1993/agent-worker:0.0.2`，Mac Studio LaunchAgent 已基于 `michaelx1993/agent-worker` main `6d5dbd4` 重新 `pnpm build` 并重启。ACP 部署后 `http://80.251.222.30:3112/api/readiness` ready，`pnpm smoke:production` 通过，线上 Worker OpenAPI 已包含 `ArtifactsRequest.projectMetaGit`，Worker dist 可加载 `writeProjectMetaGitForRun`。部署后补备份：`/Users/a/agent-control-plane/backups/agent-control-plane-post-0.0.9-20260625T133136Z.dump`。
 
 2026-06-20 已完成一次本地 completion gate 验尸：
 
@@ -185,7 +186,7 @@
 - `pnpm worker:workspace-smoke` 已验证本地 worker run 在 `git-worktree` 策略下会创建 per-run worktree、写入 `workspace.ready`，并把 workspace path/strategy 注入 mock adapter。
 - `pnpm workspace:cleanup` 支持 dry-run/apply；`pnpm workspace:cleanup-smoke` 已验证 dry-run 不删除、apply 删除 workspace、标记 cleaned 并写入 `workspace.cleaned` 事件。
 - apply 模式下，`git-worktree` cleanup 优先执行 `git worktree remove --force` 和 `git worktree prune`，失败时 fallback 到目录删除。
-- Project Meta Git 代码链路已补齐：Worker 在成功 run 后会在 `WORKER_WORKSPACE_ROOT/_project-meta/<project>` 初始化本地 git repo，重写 `status.md`、追加 `progress.md`、写入 `runs/<run_id>.md` 和 `artifacts/index.md`，并把 commit evidence 通过 Worker API artifacts 回传；ACP artifacts route 会把 `projectMetaGit` evidence 记录到 `acp_project_meta_repos` 和 `acp_project_memory_commits`。该增量已有本地 Worker/ACP 单元测试覆盖，仍需发布部署后用真实 Plane-routed run 验收。
+- Project Meta Git 代码链路已补齐并已部署：Worker 在成功 run 后会在 `WORKER_WORKSPACE_ROOT/_project-meta/<project>` 初始化本地 git repo，重写 `status.md`、追加 `progress.md`、写入 `runs/<run_id>.md` 和 `artifacts/index.md`，并把 commit evidence 通过 Worker API artifacts 回传；ACP artifacts route 会把 `projectMetaGit` evidence 记录到 `acp_project_meta_repos` 和 `acp_project_memory_commits`。该增量已有本地 Worker/ACP 单元测试覆盖，生产环境已验证 OpenAPI contract 和 Worker dist，但仍需真实 Plane-routed run 验收 memory commit 端到端。
 
 ## 未完成或未真实验收
 
@@ -196,7 +197,7 @@
 - 尚未在真实 Plane project 上复测人工 gate 状态/comment writeback；本地 API 级 contract 已由 `pnpm plane:human-gate-writeback-smoke` 覆盖。
 - 尚未在真实 Plane project 上验证 `PLANE_SYNC_SERVER_DELTA=true` 是否能稳定减少 work item list 返回量；本地契约已覆盖“任务 delta + 全量 comment 扫描”，防止旧 work item 的新 comment 因 issue `updated_at` 未变化而漏读。
 - 已完成 `0012_project_projection_status` 的真实部署迁移；完整 cutover 演练仍未完成。
-- Project Meta Git 本地写入和 ACP memory commit 记录已有代码实现，但尚未发布部署到 MBP/Mac Studio，也尚未用真实 Plane-routed run 验证生产路径。
+- Project Meta Git 本地写入和 ACP memory commit 记录已发布部署到 MBP/Mac Studio；当前队列为空，尚未用真实 Plane-routed run 验证会产生本地 Meta Git commit 和 `acp_project_memory_commits` 记录。
 - 尚未用真实 secret provider command 跑通 provider smoke。
 - 尚未用真实供应商账号/API 拉取 audit events 并跑通 provider audit smoke。
 - 多 repo 公平队列已有本地 smoke 验证：`pnpm worker:fairness-smoke` 会在临时库插入两个 repo 的任务，确认 `repo_fair` 策略按 repo 轮转并让 dispatch claim 顺序跟随轮转；尚未用生产数据调优多 worker、公平队列权重和成本门禁阈值。
