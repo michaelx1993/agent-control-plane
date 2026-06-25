@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@11.0.8",
   "scripts": {
-    "build": "pnpm -r build",
+    "build": "pnpm --filter @agent-control-plane/core build && pnpm --filter @agent-control-plane/db build && pnpm --filter @agent-control-plane/plane build && pnpm --filter @agent-control-plane/web build",
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "coverage": "pnpm -r coverage",
     "completion:audit": "node scripts/completion-audit.mjs",
