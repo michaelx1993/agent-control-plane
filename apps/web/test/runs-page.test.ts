@@ -4,6 +4,17 @@ import { describe, expect, it } from "vitest";
 const pageSource = readFileSync(new URL("../app/runs/[runId]/page.tsx", import.meta.url), "utf8");
 
 describe("run detail conversation labels", () => {
+  it("renders Plane runtime snapshot prompt preview and secret key metadata", () => {
+    expect(pageSource).toContain("<h2>Runtime Snapshot</h2>");
+    expect(pageSource).toContain("<h3>Prompt stack</h3>");
+    expect(pageSource).toContain("<h3>Secret keys</h3>");
+    expect(pageSource).toContain("<h3>Assembled prompt preview</h3>");
+    expect(pageSource).toContain("run.planeRuntimeSnapshot.payload.availableSecretKeys");
+    expect(pageSource).toContain(
+      "formatPromptPreview(run.planeRuntimeSnapshot.payload.assembledPrompt)",
+    );
+  });
+
   it("uses provider-aware labels for conversation and event log refs", () => {
     expect(pageSource).toContain("<h2>Conversation</h2>");
     expect(pageSource).toContain("formatConversationLinkLabel(run.conversation.provider)");
