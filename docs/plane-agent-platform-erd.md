@@ -914,6 +914,7 @@ Status: Implemented in ACP runtime foundation.
 落地文件：
 
 - DB migration: `packages/db/prisma/migrations/0010_plane_agent_runtime_foundation/migration.sql`
+- DB migration: `packages/db/prisma/migrations/0011_plane_agent_projection_contract/migration.sql`
 - Prisma models: `packages/db/prisma/schema.prisma`
 - Runtime helpers: `packages/db/src/plane-agent-runtime.ts`
 - Plane outbox client: `packages/plane/src/client.ts`
@@ -930,6 +931,8 @@ Status: Implemented in ACP runtime foundation.
 - `acp_prompt_version_projections`
 - `acp_prompt_binding_projections`
 - `acp_worker_card_projections`
+- `acp_role_projections`
+- `acp_repository_projections`
 - `acp_run_snapshots`
 - `acp_run_pipelines`
 - `acp_run_pipeline_nodes`
@@ -942,9 +945,15 @@ Status: Implemented in ACP runtime foundation.
 - `acp_project_meta_repos`
 - `acp_project_memory_commits`
 
+同步契约：
+
+- `pnpm plane:agent-config-sync` 通过 Plane `agent_config_outbox` polling 增量同步。
+- 当前兼容 Plane extension API entity types：`agent_user_agent`、`agent_prompt`、`agent_prompt_version`、`agent_prompt_binding`、`agent_role`、`agent_worker_card`、`agent_project_workspace`、`agent_repository`。
+- Payload 按 Plane serializer 的 snake_case 字段解析；历史设计中的 `user_agent`、`prompt`、`prompt_version`、`prompt_binding`、`worker_card`、`project_workspace` alias 仍由 CLI normalizer 兼容。
+
 未实现范围仍按迁移顺序推进：
 
-- Plane repo 内 `agent_*` extension source tables、CRUD UI、`agent_config_outbox` API。
+- Plane repo 内 `agent_*` extension source CRUD UI。
 - Run 创建链路自动解析 Plane projections 并调用 snapshot / pipeline helper。
 - Worker claim 按 Worker Card projection 定向执行。
 - Project Meta Git 真实文件写入和 git commit。

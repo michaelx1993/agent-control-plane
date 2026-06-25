@@ -525,6 +525,46 @@ model AcpWorkerCardProjection {
   @@map("acp_worker_card_projections")
 }
 
+model AcpRoleProjection {
+  id                String   @id @default(uuid()) @db.Uuid
+  planeRoleId       String   @unique @map("plane_role_id")
+  planeWorkspaceId  String   @map("plane_workspace_id")
+  key               String
+  name              String
+  description       String   @default("")
+  planePromptId     String?  @map("plane_prompt_id")
+  metadata          Json     @default("{}")
+  status            String   @default("active")
+  projectionVersion BigInt   @map("projection_version")
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([planeWorkspaceId, key])
+  @@index([planeWorkspaceId, status])
+  @@map("acp_role_projections")
+}
+
+model AcpRepositoryProjection {
+  id                String   @id @default(uuid()) @db.Uuid
+  planeRepositoryId String   @unique @map("plane_repository_id")
+  planeWorkspaceId  String   @map("plane_workspace_id")
+  planeProjectId    String?  @map("plane_project_id")
+  key               String
+  provider          String   @default("github")
+  name              String
+  url               String
+  defaultBranch     String   @default("default") @map("default_branch")
+  localPath         String?  @map("local_path")
+  metadata          Json     @default("{}")
+  required          Boolean  @default(true)
+  status            String   @default("active")
+  projectionVersion BigInt   @map("projection_version")
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([planeWorkspaceId, key])
+  @@index([planeProjectId, status])
+  @@map("acp_repository_projections")
+}
+
 model AcpRunSnapshot {
   id           String   @id @default(uuid()) @db.Uuid
   runId        String   @unique @map("run_id") @db.Uuid

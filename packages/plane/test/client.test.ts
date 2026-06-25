@@ -39,7 +39,7 @@ describe("PlaneClient", () => {
           results: [
             {
               id: 101,
-              entity_type: "user_agent",
+              entity_type: "agent_user_agent",
               entity_id: "agent-1",
               projection_version: 2,
               payload: { name: "Codex" },
@@ -57,7 +57,7 @@ describe("PlaneClient", () => {
     ).resolves.toEqual([
       {
         id: 101,
-        entity_type: "user_agent",
+        entity_type: "agent_user_agent",
         entity_id: "agent-1",
         projection_version: 2,
         payload: { name: "Codex" },

@@ -20,27 +20,45 @@ assert.deepEqual(
   normalizePlaneOutboxEvent("workspace-default", {
     id: 101,
     workspace_id: "workspace-1",
-    entity_type: "user_agent",
+    entity_type: "agent_user_agent",
     entity_id: "agent-1",
+    operation: "create",
     projection_version: 2,
     payload: {
-      ownerUserId: "user-1",
+      owner: "user-1",
       name: "Codex",
-      defaultModel: "gpt-5-codex",
+      model: "gpt-5-codex",
     },
   }),
   {
     planeWorkspaceId: "workspace-1",
     planeOutboxId: 101,
-    entityType: "user_agent",
+    entityType: "agent_user_agent",
     entityId: "agent-1",
+    operation: "create",
     projectionVersion: 2,
     payload: {
-      ownerUserId: "user-1",
+      owner: "user-1",
       name: "Codex",
-      defaultModel: "gpt-5-codex",
+      model: "gpt-5-codex",
     },
   },
+);
+
+assert.deepEqual(
+  normalizePlaneOutboxEvent("workspace-default", {
+    id: 102,
+    entity_type: "agent_repository",
+    entity_id: "repo-1",
+    projection_version: 1,
+    payload: {
+      key: "plane",
+      provider: "github",
+      name: "plane",
+      url: "git@github.com:michaelx1993/plane.git",
+    },
+  }).entityType,
+  "agent_repository",
 );
 
 assert.throws(

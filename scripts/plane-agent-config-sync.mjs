@@ -75,6 +75,7 @@ export function normalizePlaneOutboxEvent(defaultWorkspaceId, event) {
     planeOutboxId: event.id,
     entityType,
     entityId: requiredString(event, "entity_id"),
+    operation: optionalString(event, "operation"),
     projectionVersion: event.projection_version,
     payload: objectValue(event, "payload"),
   };
@@ -82,13 +83,28 @@ export function normalizePlaneOutboxEvent(defaultWorkspaceId, event) {
 
 function normalizeEntityType(value) {
   switch (value) {
+    case "agent_project_workspace":
     case "project_workspace":
+      return "agent_project_workspace";
+    case "agent_user_agent":
     case "user_agent":
+      return "agent_user_agent";
+    case "agent_prompt":
     case "prompt":
+      return "agent_prompt";
+    case "agent_prompt_version":
     case "prompt_version":
+      return "agent_prompt_version";
+    case "agent_prompt_binding":
     case "prompt_binding":
+      return "agent_prompt_binding";
+    case "agent_worker_card":
     case "worker_card":
-      return value;
+      return "agent_worker_card";
+    case "agent_role":
+      return "agent_role";
+    case "agent_repository":
+      return "agent_repository";
     default:
       throw new Error(`Unsupported Plane agent config outbox entity type: ${value}`);
   }
@@ -109,6 +125,11 @@ function requiredString(record, key) {
     throw new Error(`Plane outbox event requires non-empty string field: ${key}`);
   }
   return value;
+}
+
+function optionalString(record, key) {
+  const value = record[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function objectValue(record, key) {
