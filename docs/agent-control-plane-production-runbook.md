@@ -27,6 +27,8 @@
 | Plane live                                 | `michaelxxx/plane-live:0.0.8`           | `michaelx1993/plane` 源码构建               |
 | Plane proxy                                | `michaelxxx/plane-proxy:0.0.8`          | `michaelx1993/plane` 源码构建               |
 
+Agent Worker 当前在 Mac Studio 上以 LaunchAgent 直接运行，复用宿主 Codex/Git/SSH 环境；发布制品镜像仍由 GitHub hosted CI 构建到 GHCR。当前已发布 `ghcr.io/michaelx1993/agent-worker:0.0.3`，宿主 checkout 为 `michaelx1993/agent-worker` main `049b570dc4401b15527804ed2d580f660d426cd9`。
+
 允许的社区基础设施镜像：
 
 | 组件                     | 当前镜像                            | 说明                                          |
@@ -66,7 +68,7 @@ docker compose \
 - Plane / Agent Control Plane 应用层不得出现 `makeplane/*`、本地 `build:` 或未命名本地镜像。
 - PostgreSQL、Valkey、RabbitMQ、MinIO 可以继续使用社区镜像。
 - 公网入口使用公网 IP；Plane CORS 只保留公网访问来源，避免登录后回跳局域网 IP。
-- 2026-06-25 最新验收：Plane `http://127.0.0.1:3200/` 与 `http://80.251.222.30:3200/` 返回 200；ACP `http://80.251.222.30:3112/api/readiness` 返回 ready；`pnpm plane:agent-config-sync` 返回 `passed`；`pnpm smoke:production` 返回 `smoke=passed`；生产 Run Detail 页面已验证展示 Runtime Snapshot / Prompt stack / Secret keys / Assembled prompt preview；生产 Task Detail 已验证展示 Run Preview / Prompt stack / Secret keys / Assembled prompt preview，`GET /api/tasks/[taskId]/run-preview` 返回 200；Mac Studio worker LaunchAgent running 且最近 stderr 未增长。
+- 2026-06-25 最新验收：Plane `http://127.0.0.1:3200/` 与 `http://80.251.222.30:3200/` 返回 200；ACP `http://80.251.222.30:3112/api/readiness` 返回 ready；`pnpm plane:agent-config-sync` 返回 `passed`；`pnpm smoke:production` 返回 `smoke=passed`；生产 Run Detail 页面已验证展示 Runtime Snapshot / Prompt stack / Secret keys / Assembled prompt preview；生产 Task Detail 已验证展示 Run Preview / Prompt stack / Secret keys / Assembled prompt preview，`GET /api/tasks/[taskId]/run-preview` 返回 200；生产 run `781c7239-0669-4835-be61-25658fe440ed` 已验证 Project Meta Git 写入 `/Users/a/agent-worker-workspaces/_project-meta/token` commit `6012daa884caa328d2d2533822df14591e719bfe`，并在 ACP 记录 memory commit evidence；Mac Studio worker LaunchAgent running 且最近 stderr 未增长。
 
 本文区分三件事：
 
