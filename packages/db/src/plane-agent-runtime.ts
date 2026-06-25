@@ -491,10 +491,11 @@ async function upsertProjectProjection(
         default_worker_id,
         meta_git_policy,
         projection_version,
+        status,
         source_updated_at,
         updated_at
       )
-      values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, now())
+      values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, now())
       on conflict (plane_project_workspace_id) do update set
         plane_workspace_id = excluded.plane_workspace_id,
         plane_project_id = excluded.plane_project_id,
@@ -502,6 +503,7 @@ async function upsertProjectProjection(
         default_worker_id = excluded.default_worker_id,
         meta_git_policy = excluded.meta_git_policy,
         projection_version = excluded.projection_version,
+        status = excluded.status,
         source_updated_at = excluded.source_updated_at,
         updated_at = now()
       where acp_project_projections.projection_version <= excluded.projection_version
@@ -515,6 +517,7 @@ async function upsertProjectProjection(
       optionalStringFrom(payload, ["defaultWorkerId", "worker_card"]),
       JSON.stringify(projectMetaGitPolicy(payload)),
       input.projectionVersion,
+      projectionStatus(input, payload),
       optionalStringFrom(payload, ["sourceUpdatedAt", "updated_at"]),
     ],
   );

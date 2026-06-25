@@ -432,10 +432,12 @@ model AcpProjectProjection {
   defaultWorkerId         String?   @map("default_worker_id")
   metaGitPolicy           Json      @default("{}") @map("meta_git_policy")
   projectionVersion       BigInt    @map("projection_version")
+  status                  String    @default("active")
   sourceUpdatedAt         DateTime? @map("source_updated_at") @db.Timestamptz(6)
   updatedAt               DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@unique([planeWorkspaceId, slug])
+  @@index([planeWorkspaceId, status])
   @@map("acp_project_projections")
 }
 
