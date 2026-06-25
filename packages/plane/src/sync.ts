@@ -2,6 +2,8 @@ import type { PlaneConfig } from "./config.js";
 import {
   PlaneClient,
   PlaneApiError,
+  type PlaneAgentConfigOutboxEvent,
+  type PlaneListAgentConfigOutboxOptions,
   type PlaneListWorkItemsOptions,
   type PlaneWorkItemComment,
 } from "./client.js";
@@ -65,6 +67,13 @@ export interface PlanePollingClient {
   ): Promise<PlaneWorkItemComment[]>;
 }
 
+export interface PlaneAgentConfigOutboxClient {
+  listAgentConfigOutbox(
+    workspaceSlug: string,
+    options?: PlaneListAgentConfigOutboxOptions,
+  ): Promise<PlaneAgentConfigOutboxEvent[]>;
+}
+
 export async function fetchPlaneTaskSyncRecords(
   config: PlaneConfig,
   client: PlanePollingClient = new PlaneClient({ baseUrl: config.baseUrl, apiKey: config.apiKey }),
@@ -118,6 +127,26 @@ export async function fetchPlaneTaskAndCommentSyncRecords(
     comments: comments.filter((comment) => isNewerThanCursor(comment.syncCursor, cursor)),
     warnings,
   };
+}
+
+export async function fetchPlaneAgentConfigOutboxEvents(
+  config: Pick<PlaneConfig, "baseUrl" | "apiKey" | "workspaceSlug">,
+  client: PlaneAgentConfigOutboxClient = new PlaneClient({
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+  }),
+  options: PlaneListAgentConfigOutboxOptions &
+    Pick<PlaneSyncOptions, "retryAttempts" | "retryDelayMs"> = {},
+): Promise<PlaneAgentConfigOutboxEvent[]> {
+  const retryPolicy = normalizeRetryPolicy(options);
+  return await withRetry(
+    () =>
+      client.listAgentConfigOutbox(config.workspaceSlug, {
+        ...(options.afterId !== undefined ? { afterId: options.afterId } : {}),
+        ...(options.limit !== undefined ? { limit: options.limit } : {}),
+      }),
+    retryPolicy,
+  );
 }
 
 interface PlaneWorkItemForSync {

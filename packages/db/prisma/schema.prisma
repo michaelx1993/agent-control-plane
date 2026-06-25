@@ -198,39 +198,39 @@ model PromptReleaseComponent {
 }
 
 model Run {
-  id                String           @id @default(uuid()) @db.Uuid
-  taskId            String           @map("task_id") @db.Uuid
-  task              Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  repositoryId      String           @map("repository_id") @db.Uuid
-  repository        Repository       @relation(fields: [repositoryId], references: [id], onDelete: Restrict)
-  roleId            String           @map("role_id") @db.Uuid
-  role              Role             @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  agentDefinitionId String           @map("agent_definition_id") @db.Uuid
-  agentDefinition   AgentDefinition  @relation(fields: [agentDefinitionId], references: [id], onDelete: Restrict)
-  promptReleaseId   String?          @map("prompt_release_id") @db.Uuid
-  promptRelease     PromptRelease?   @relation(fields: [promptReleaseId], references: [id], onDelete: SetNull)
-  status            String           @default("queued")
-  leaseOwner        String?          @map("lease_owner")
-  leaseExpiresAt    DateTime?        @map("lease_expires_at") @db.Timestamptz(6)
-  heartbeatAt       DateTime?        @map("heartbeat_at") @db.Timestamptz(6)
-  attempt           Int              @default(1)
-  startedAt         DateTime?        @map("started_at") @db.Timestamptz(6)
-  finishedAt        DateTime?        @map("finished_at") @db.Timestamptz(6)
-  resultSummary     String?          @map("result_summary")
-  failureReason     String?          @map("failure_reason")
-  nextState         String?          @map("next_state")
-  tokenInput        BigInt?          @map("token_input")
-  tokenOutput       BigInt?          @map("token_output")
-  tokenTotal        BigInt?          @map("token_total")
-  costUsd           Decimal?         @map("cost_usd") @db.Decimal(12, 6)
+  id                String             @id @default(uuid()) @db.Uuid
+  taskId            String             @map("task_id") @db.Uuid
+  task              Task               @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  repositoryId      String             @map("repository_id") @db.Uuid
+  repository        Repository         @relation(fields: [repositoryId], references: [id], onDelete: Restrict)
+  roleId            String             @map("role_id") @db.Uuid
+  role              Role               @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  agentDefinitionId String             @map("agent_definition_id") @db.Uuid
+  agentDefinition   AgentDefinition    @relation(fields: [agentDefinitionId], references: [id], onDelete: Restrict)
+  promptReleaseId   String?            @map("prompt_release_id") @db.Uuid
+  promptRelease     PromptRelease?     @relation(fields: [promptReleaseId], references: [id], onDelete: SetNull)
+  status            String             @default("queued")
+  leaseOwner        String?            @map("lease_owner")
+  leaseExpiresAt    DateTime?          @map("lease_expires_at") @db.Timestamptz(6)
+  heartbeatAt       DateTime?          @map("heartbeat_at") @db.Timestamptz(6)
+  attempt           Int                @default(1)
+  startedAt         DateTime?          @map("started_at") @db.Timestamptz(6)
+  finishedAt        DateTime?          @map("finished_at") @db.Timestamptz(6)
+  resultSummary     String?            @map("result_summary")
+  failureReason     String?            @map("failure_reason")
+  nextState         String?            @map("next_state")
+  tokenInput        BigInt?            @map("token_input")
+  tokenOutput       BigInt?            @map("token_output")
+  tokenTotal        BigInt?            @map("token_total")
+  costUsd           Decimal?           @map("cost_usd") @db.Decimal(12, 6)
   workspace         Workspace?
   conversationRef   ConversationRef?
   traceRefs         TraceRef[]
   runEvents         RunEvent[]
   workerApiRequests WorkerApiRequest[]
   feedbackItems     FeedbackItem[]
-  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([taskId, createdAt])
   @@index([status, leaseExpiresAt])
@@ -404,4 +404,294 @@ model AuditEvent {
   @@index([entityType, entityId, createdAt])
   @@index([action, createdAt])
   @@map("audit_events")
+}
+
+model AcpConfigProjectionEvent {
+  id                String   @id @default(uuid()) @db.Uuid
+  planeWorkspaceId  String   @map("plane_workspace_id")
+  planeOutboxId     BigInt   @map("plane_outbox_id")
+  entityType        String   @map("entity_type")
+  entityId          String   @map("entity_id")
+  projectionVersion BigInt   @map("projection_version")
+  payloadHash       String   @map("payload_hash")
+  status            String   @default("applied")
+  error             String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([planeWorkspaceId, planeOutboxId])
+  @@index([entityType, entityId, projectionVersion])
+  @@map("acp_config_projection_events")
+}
+
+model AcpProjectProjection {
+  id                      String    @id @default(uuid()) @db.Uuid
+  planeProjectWorkspaceId String    @unique @map("plane_project_workspace_id")
+  planeWorkspaceId        String    @map("plane_workspace_id")
+  planeProjectId          String    @map("plane_project_id")
+  slug                    String
+  defaultWorkerId         String?   @map("default_worker_id")
+  metaGitPolicy           Json      @default("{}") @map("meta_git_policy")
+  projectionVersion       BigInt    @map("projection_version")
+  sourceUpdatedAt         DateTime? @map("source_updated_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([planeWorkspaceId, slug])
+  @@map("acp_project_projections")
+}
+
+model AcpUserAgentProjection {
+  id                String   @id @default(uuid()) @db.Uuid
+  planeUserAgentId  String   @unique @map("plane_user_agent_id")
+  ownerUserId       String   @map("owner_user_id")
+  name              String
+  defaultModel      String   @map("default_model")
+  toolProfile       Json     @default("{}") @map("tool_profile")
+  configSnapshot    Json     @default("{}") @map("config_snapshot")
+  projectionVersion BigInt   @map("projection_version")
+  status            String   @default("active")
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([ownerUserId, status])
+  @@map("acp_user_agent_projections")
+}
+
+model AcpPromptProjection {
+  id                String   @id @default(uuid()) @db.Uuid
+  planePromptId     String   @unique @map("plane_prompt_id")
+  workspaceId       String   @map("workspace_id")
+  name              String
+  scope             String
+  kind              String
+  latestVersionId   String?  @map("latest_version_id")
+  projectionVersion BigInt   @map("projection_version")
+  status            String   @default("active")
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, scope, status])
+  @@map("acp_prompt_projections")
+}
+
+model AcpPromptVersionProjection {
+  id                   String   @id @default(uuid()) @db.Uuid
+  planePromptVersionId String   @unique @map("plane_prompt_version_id")
+  planePromptId        String   @map("plane_prompt_id")
+  version              Int
+  body                 String
+  variables            Json     @default("{}")
+  contentHash          String   @map("content_hash")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([planePromptId, version])
+  @@index([planePromptId, contentHash])
+  @@map("acp_prompt_version_projections")
+}
+
+model AcpPromptBindingProjection {
+  id                String   @id @default(uuid()) @db.Uuid
+  planeBindingId    String   @unique @map("plane_binding_id")
+  targetType        String   @map("target_type")
+  targetId          String   @map("target_id")
+  planePromptId     String   @map("plane_prompt_id")
+  versionPolicy     String   @map("version_policy")
+  pinnedVersionId   String?  @map("pinned_version_id")
+  scope             String
+  orderIndex        Int      @default(0) @map("order_index")
+  required          Boolean  @default(true)
+  status            String   @default("active")
+  projectionVersion BigInt   @map("projection_version")
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([targetType, targetId, scope, status, orderIndex])
+  @@map("acp_prompt_binding_projections")
+}
+
+model AcpWorkerCardProjection {
+  id                String    @id @default(uuid()) @db.Uuid
+  planeWorkerCardId String    @unique @map("plane_worker_card_id")
+  planeWorkspaceId  String    @map("plane_workspace_id")
+  workerId          String    @map("worker_id")
+  name              String
+  hostname          String?
+  os                String?
+  labels            Json      @default("[]")
+  workspaceRoot     String?   @map("workspace_root")
+  lastSeenAt        DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  status            String    @default("offline")
+  projectionVersion BigInt    @map("projection_version")
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([planeWorkspaceId, workerId])
+  @@index([status, lastSeenAt])
+  @@map("acp_worker_card_projections")
+}
+
+model AcpRunSnapshot {
+  id           String   @id @default(uuid()) @db.Uuid
+  runId        String   @unique @map("run_id") @db.Uuid
+  snapshotHash String   @map("snapshot_hash")
+  payload      Json
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([snapshotHash])
+  @@map("acp_run_snapshots")
+}
+
+model AcpRunPipeline {
+  id                     String   @id @default(uuid()) @db.Uuid
+  runId                  String   @unique @map("run_id") @db.Uuid
+  planePlaybookVersionId String?  @map("plane_playbook_version_id")
+  status                 String   @default("active")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("acp_run_pipelines")
+}
+
+model AcpRunPipelineNode {
+  id              String    @id @default(uuid()) @db.Uuid
+  runPipelineId   String    @map("run_pipeline_id") @db.Uuid
+  nodeKey         String    @map("node_key")
+  nodeType        String    @map("node_type")
+  roleKey         String?   @map("role_key")
+  assignedAgentId String?   @map("assigned_agent_id")
+  gateMode        String    @default("manual") @map("gate_mode")
+  status          String    @default("pending")
+  orderIndex      Int       @default(0) @map("order_index")
+  inputSnapshot   Json      @default("{}") @map("input_snapshot")
+  outputSummary   String?   @map("output_summary")
+  startedAt       DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime? @map("finished_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([runPipelineId, nodeKey])
+  @@index([status, gateMode, orderIndex])
+  @@map("acp_run_pipeline_nodes")
+}
+
+model AcpRunPipelineTransition {
+  id            String @id @default(uuid()) @db.Uuid
+  runPipelineId String @map("run_pipeline_id") @db.Uuid
+  fromNodeKey   String @map("from_node_key")
+  toNodeKey     String @map("to_node_key")
+  condition     Json   @default("{}")
+  gateMode      String @default("manual") @map("gate_mode")
+  orderIndex    Int    @default(0) @map("order_index")
+
+  @@unique([runPipelineId, fromNodeKey, toNodeKey, orderIndex], map: "acp_run_pipeline_transitions_unique_route")
+  @@map("acp_run_pipeline_transitions")
+}
+
+model AcpNodeExecution {
+  id                String    @id @default(uuid()) @db.Uuid
+  runPipelineNodeId String    @map("run_pipeline_node_id") @db.Uuid
+  runId             String    @map("run_id") @db.Uuid
+  attempt           Int       @default(1)
+  workerId          String?   @map("worker_id")
+  status            String    @default("queued")
+  startedAt         DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt        DateTime? @map("finished_at") @db.Timestamptz(6)
+  resultSummary     String?   @map("result_summary")
+  failureReason     String?   @map("failure_reason")
+  metrics           Json      @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([runId, createdAt])
+  @@index([status, workerId])
+  @@map("acp_node_executions")
+}
+
+model AcpPrerequisiteCheck {
+  id                String   @id @default(uuid()) @db.Uuid
+  runPipelineNodeId String   @map("run_pipeline_node_id") @db.Uuid
+  checkKey          String   @map("check_key")
+  status            String
+  message           String?
+  payload           Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([runPipelineNodeId, status])
+  @@map("acp_prerequisite_checks")
+}
+
+model AcpScmChangeRequest {
+  id                 String   @id @default(uuid()) @db.Uuid
+  runId              String   @map("run_id") @db.Uuid
+  runPipelineNodeId  String?  @map("run_pipeline_node_id") @db.Uuid
+  provider           String
+  repositoryFullName String   @map("repository_full_name")
+  changeRequestId    String   @map("change_request_id")
+  url                String?
+  sourceBranch       String   @map("source_branch")
+  targetBranch       String   @map("target_branch")
+  status             String   @default("open")
+  reviewStatus       String?  @map("review_status")
+  metadata           Json     @default("{}")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([provider, repositoryFullName, changeRequestId])
+  @@index([runId, createdAt])
+  @@map("acp_scm_change_requests")
+}
+
+model AcpReleaseArtifact {
+  id                String   @id @default(uuid()) @db.Uuid
+  runId             String   @map("run_id") @db.Uuid
+  runPipelineNodeId String?  @map("run_pipeline_node_id") @db.Uuid
+  artifactType      String   @map("artifact_type")
+  name              String
+  version           String?
+  uri               String
+  digest            String?
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([runId, createdAt])
+  @@index([artifactType, name, version])
+  @@map("acp_release_artifacts")
+}
+
+model AcpDeploymentRecord {
+  id                String    @id @default(uuid()) @db.Uuid
+  runId             String    @map("run_id") @db.Uuid
+  runPipelineNodeId String?   @map("run_pipeline_node_id") @db.Uuid
+  environment       String
+  target            String
+  artifactUri       String?   @map("artifact_uri")
+  status            String    @default("pending")
+  startedAt         DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt        DateTime? @map("finished_at") @db.Timestamptz(6)
+  metadata          Json      @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([runId, createdAt])
+  @@index([environment, status])
+  @@map("acp_deployment_records")
+}
+
+model AcpProjectMetaRepo {
+  id                      String    @id @default(uuid()) @db.Uuid
+  planeProjectWorkspaceId String    @unique @map("plane_project_workspace_id")
+  localPath               String    @map("local_path")
+  remoteUrl               String?   @map("remote_url")
+  status                  String    @default("active")
+  lastSyncAt              DateTime? @map("last_sync_at") @db.Timestamptz(6)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("acp_project_meta_repos")
+}
+
+model AcpProjectMemoryCommit {
+  id                String   @id @default(uuid()) @db.Uuid
+  projectMetaRepoId String   @map("project_meta_repo_id") @db.Uuid
+  runId             String?  @map("run_id") @db.Uuid
+  filePath          String   @map("file_path")
+  operation         String
+  commitSha         String?  @map("commit_sha")
+  summary           String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([projectMetaRepoId, filePath, createdAt])
+  @@map("acp_project_memory_commits")
 }

@@ -28,6 +28,47 @@ describe("PlaneClient", () => {
     );
   });
 
+  it("lists agent config outbox events with cursor and limit", async () => {
+    let requestedUrl = "";
+    const client = new PlaneClient({
+      baseUrl: "https://plane.test/",
+      apiKey: "token",
+      fetchFn: async (url) => {
+        requestedUrl = String(url);
+        return Response.json({
+          results: [
+            {
+              id: 101,
+              entity_type: "user_agent",
+              entity_id: "agent-1",
+              projection_version: 2,
+              payload: { name: "Codex" },
+            },
+          ],
+        });
+      },
+    });
+
+    await expect(
+      client.listAgentConfigOutbox("workspace", {
+        afterId: 100,
+        limit: 25,
+      }),
+    ).resolves.toEqual([
+      {
+        id: 101,
+        entity_type: "user_agent",
+        entity_id: "agent-1",
+        projection_version: 2,
+        payload: { name: "Codex" },
+      },
+    ]);
+
+    expect(requestedUrl).toBe(
+      "https://plane.test/api/v1/workspaces/workspace/agent-config-outbox/?after_id=100&limit=25",
+    );
+  });
+
   it("exposes structured metadata on Plane API errors", async () => {
     const client = new PlaneClient({
       baseUrl: "https://plane.test/",
