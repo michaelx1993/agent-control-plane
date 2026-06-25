@@ -58,6 +58,10 @@ export async function POST(request: Request) {
   const url = normalizeText(payload.url);
   const repositoryKey = normalizeText(payload.repositoryKey);
   const repositoryUrl = normalizeText(payload.repositoryUrl);
+  const agentKey = normalizeText(payload.agentKey);
+  const workerKey = normalizeText(payload.workerKey);
+  const promptVersionIds = normalizeStringArray(payload.promptVersionIds);
+  const availableSecretKeys = normalizeStringArray(payload.availableSecretKeys);
 
   if (!planeProjectId || !externalTaskId || !identifier || !title || !state) {
     return NextResponse.json(
@@ -84,6 +88,10 @@ export async function POST(request: Request) {
           ...(url ? { url } : {}),
           ...(repositoryKey ? { repositoryKey } : {}),
           ...(repositoryUrl ? { repositoryUrl } : {}),
+          ...(agentKey ? { agentKey } : {}),
+          ...(workerKey ? { workerKey } : {}),
+          ...(promptVersionIds.length ? { promptVersionIds } : {}),
+          ...(availableSecretKeys.length ? { availableSecretKeys } : {}),
         }),
       ),
     );

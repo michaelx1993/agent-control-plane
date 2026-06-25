@@ -41,6 +41,10 @@ export interface PlaneRunIntentTaskInput {
   url?: string;
   repositoryKey?: string;
   repositoryUrl?: string;
+  agentKey?: string;
+  workerKey?: string;
+  promptVersionIds?: readonly string[];
+  availableSecretKeys?: readonly string[];
 }
 
 export interface PlaneRunIntentTaskRecord {
@@ -116,7 +120,7 @@ export async function upsertPlaneRunIntentTask(
     input.projectSlug,
   );
   const repositories = await fetchProjectRepositories(client, projectId);
-  const labels = withRepositoryLabel(input.labels ?? [], input.repositoryKey);
+  const labels = withPlaneRunIntentLabels(input);
   const repositoryId =
     resolveRepositoryIdForLabels(labels, repositories) ??
     (await findRepositoryIdByUrl(client, projectId, input.repositoryUrl));
@@ -195,6 +199,20 @@ export async function upsertPlaneRunIntentTask(
     ...(row.repository_id ? { repositoryId: row.repository_id } : {}),
     ...(row.repository_slug ? { repositorySlug: row.repository_slug } : {}),
   };
+}
+
+function withPlaneRunIntentLabels(input: PlaneRunIntentTaskInput): string[] {
+  return appendUniqueLabels(input.labels ?? [], [
+    ...(input.repositoryKey ? [`repo:${input.repositoryKey}`] : []),
+    ...(input.agentKey ? [`agent:${input.agentKey}`] : []),
+    ...(input.workerKey ? [`worker:${input.workerKey}`] : []),
+    ...cleanTextList(input.promptVersionIds ?? []).map((id) => `prompt-version:${id}`),
+    ...cleanTextList(input.availableSecretKeys ?? []).map((key) => `secret-key:${key}`),
+  ]);
+}
+
+function cleanTextList(values: readonly string[]): string[] {
+  return values.map((value) => value.trim()).filter(Boolean);
 }
 
 export async function getPlaneProjectSyncCursor(
@@ -336,17 +354,18 @@ async function findRepositoryIdByUrl(
   return result.rows[0]?.id;
 }
 
-function withRepositoryLabel(labels: readonly string[], repositoryKey?: string): string[] {
+function appendUniqueLabels(labels: readonly string[], additions: readonly string[]): string[] {
   const normalized = labels.map((label) => label.trim()).filter(Boolean);
-  const key = repositoryKey?.trim();
-  if (!key) {
-    return normalized;
+  const seen = new Set(normalized.map((label) => label.toLowerCase()));
+  for (const addition of additions) {
+    const label = addition.trim();
+    if (!label || seen.has(label.toLowerCase())) {
+      continue;
+    }
+    normalized.push(label);
+    seen.add(label.toLowerCase());
   }
-
-  const repoLabel = `repo:${key}`;
-  return normalized.some((label) => label.toLowerCase() === repoLabel.toLowerCase())
-    ? normalized
-    : [...normalized, repoLabel];
+  return normalized;
 }
 
 async function upsertTask(
