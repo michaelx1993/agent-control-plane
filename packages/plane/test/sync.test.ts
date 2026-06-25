@@ -30,7 +30,7 @@ describe("Plane polling sync", () => {
             return [
               {
                 id: 101,
-                entity_type: "prompt",
+                entity_type: "agent_prompt",
                 entity_id: "prompt-1",
                 projection_version: 3,
                 payload: {
@@ -47,7 +47,7 @@ describe("Plane polling sync", () => {
     ).resolves.toEqual([
       {
         id: 101,
-        entity_type: "prompt",
+        entity_type: "agent_prompt",
         entity_id: "prompt-1",
         projection_version: 3,
         payload: {

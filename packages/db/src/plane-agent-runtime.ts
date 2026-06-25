@@ -2,18 +2,21 @@ import { createHash } from "node:crypto";
 import type { DatabaseClient } from "./client.js";
 
 export type PlaneProjectionEntityType =
-  | "project_workspace"
-  | "user_agent"
-  | "prompt"
-  | "prompt_version"
-  | "prompt_binding"
-  | "worker_card";
+  | "agent_project_workspace"
+  | "agent_user_agent"
+  | "agent_prompt"
+  | "agent_prompt_version"
+  | "agent_prompt_binding"
+  | "agent_worker_card"
+  | "agent_role"
+  | "agent_repository";
 
 export interface PlaneProjectionEventInput {
   planeWorkspaceId: string;
   planeOutboxId: bigint | number | string;
   entityType: PlaneProjectionEntityType;
   entityId: string;
+  operation?: "create" | "update" | "delete" | string;
   projectionVersion: bigint | number | string;
   payload: Record<string, unknown>;
 }
@@ -376,23 +379,29 @@ async function upsertProjectionPayload(
   input: PlaneProjectionEventInput,
 ): Promise<void> {
   switch (input.entityType) {
-    case "project_workspace":
+    case "agent_project_workspace":
       await upsertProjectProjection(client, input);
       break;
-    case "user_agent":
+    case "agent_user_agent":
       await upsertUserAgentProjection(client, input);
       break;
-    case "prompt":
+    case "agent_prompt":
       await upsertPromptProjection(client, input);
       break;
-    case "prompt_version":
+    case "agent_prompt_version":
       await upsertPromptVersionProjection(client, input);
       break;
-    case "prompt_binding":
+    case "agent_prompt_binding":
       await upsertPromptBindingProjection(client, input);
       break;
-    case "worker_card":
+    case "agent_worker_card":
       await upsertWorkerCardProjection(client, input);
+      break;
+    case "agent_role":
+      await upsertRoleProjection(client, input);
+      break;
+    case "agent_repository":
+      await upsertRepositoryProjection(client, input);
       break;
   }
 }
@@ -430,12 +439,13 @@ async function upsertProjectProjection(
     [
       input.entityId,
       input.planeWorkspaceId,
-      requiredString(payload, "planeProjectId"),
-      requiredString(payload, "slug"),
-      optionalString(payload, "defaultWorkerId"),
-      JSON.stringify(objectValue(payload, "metaGitPolicy")),
+      requiredStringFrom(payload, ["planeProjectId", "project"]),
+      optionalStringFrom(payload, ["slug", "key"]) ??
+        requiredStringFrom(payload, ["planeProjectId", "project"]),
+      optionalStringFrom(payload, ["defaultWorkerId", "worker_card"]),
+      JSON.stringify(projectMetaGitPolicy(payload)),
       input.projectionVersion,
-      optionalString(payload, "sourceUpdatedAt"),
+      optionalStringFrom(payload, ["sourceUpdatedAt", "updated_at"]),
     ],
   );
 }
@@ -472,13 +482,15 @@ async function upsertUserAgentProjection(
     `,
     [
       input.entityId,
-      requiredString(payload, "ownerUserId"),
+      optionalStringFrom(payload, ["ownerUserId", "owner"]) ?? "",
       requiredString(payload, "name"),
-      requiredString(payload, "defaultModel"),
-      JSON.stringify(objectValue(payload, "toolProfile")),
-      JSON.stringify(objectValue(payload, "configSnapshot")),
+      optionalStringFrom(payload, ["defaultModel", "model"]) ??
+        optionalStringFrom(payload, ["runtime"]) ??
+        "codex",
+      JSON.stringify(toolProfileSnapshot(payload)),
+      JSON.stringify(configSnapshot(payload, ["defaults"])),
       input.projectionVersion,
-      optionalString(payload, "status") ?? "active",
+      projectionStatus(input, payload),
     ],
   );
 }
@@ -517,11 +529,11 @@ async function upsertPromptProjection(
       input.entityId,
       input.planeWorkspaceId,
       requiredString(payload, "name"),
-      requiredString(payload, "scope"),
-      requiredString(payload, "kind"),
-      optionalString(payload, "latestVersionId"),
+      requiredStringFrom(payload, ["scope", "prompt_type"]),
+      promptKind(payload),
+      optionalScalarStringFrom(payload, ["latestVersionId", "latest_version"]),
       input.projectionVersion,
-      optionalString(payload, "status") ?? "active",
+      projectionStatus(input, payload),
     ],
   );
 }
@@ -552,12 +564,16 @@ async function upsertPromptVersionProjection(
     `,
     [
       input.entityId,
-      requiredString(payload, "planePromptId"),
+      requiredStringFrom(payload, ["planePromptId", "prompt"]),
       requiredNumber(payload, "version"),
       requiredString(payload, "body"),
-      JSON.stringify(objectValue(payload, "variables")),
-      requiredString(payload, "contentHash"),
-      optionalString(payload, "createdAt"),
+      JSON.stringify(jsonValueFrom(payload, ["variables"], [])),
+      optionalStringFrom(payload, ["contentHash", "content_hash"]) ??
+        hashJson({
+          body: requiredString(payload, "body"),
+          variables: jsonValueFrom(payload, ["variables"], []),
+        }),
+      optionalStringFrom(payload, ["createdAt", "created_at"]),
     ],
   );
 }
@@ -600,15 +616,16 @@ async function upsertPromptBindingProjection(
     `,
     [
       input.entityId,
-      requiredString(payload, "targetType"),
-      requiredString(payload, "targetId"),
-      requiredString(payload, "planePromptId"),
-      requiredString(payload, "versionPolicy"),
-      optionalString(payload, "pinnedVersionId"),
-      requiredString(payload, "scope"),
-      optionalNumber(payload, "orderIndex") ?? 0,
-      optionalBoolean(payload, "required") ?? true,
-      optionalString(payload, "status") ?? "active",
+      optionalStringFrom(payload, ["targetType"]) ?? "user_agent",
+      optionalStringFrom(payload, ["targetId"]) ?? requiredStringFrom(payload, ["agent"]),
+      requiredStringFrom(payload, ["planePromptId", "prompt"]),
+      optionalStringFrom(payload, ["versionPolicy"]) ??
+        (optionalStringFrom(payload, ["prompt_version"]) ? "pinned" : "latest"),
+      optionalStringFrom(payload, ["pinnedVersionId", "prompt_version"]),
+      requiredStringFrom(payload, ["scope", "slot"]),
+      optionalNumberFrom(payload, ["orderIndex", "sort_order"]) ?? 0,
+      optionalBooleanFrom(payload, ["required", "is_required"]) ?? true,
+      projectionStatus(input, payload),
       input.projectionVersion,
     ],
   );
@@ -653,14 +670,118 @@ async function upsertWorkerCardProjection(
     [
       input.entityId,
       input.planeWorkspaceId,
-      requiredString(payload, "workerId"),
+      requiredStringFrom(payload, ["workerId", "key"]),
       requiredString(payload, "name"),
-      optionalString(payload, "hostname"),
-      optionalString(payload, "os"),
-      JSON.stringify(arrayValue(payload, "labels")),
-      optionalString(payload, "workspaceRoot"),
-      optionalString(payload, "lastSeenAt"),
-      optionalString(payload, "status") ?? "offline",
+      optionalStringFrom(payload, ["hostname"]),
+      optionalStringFrom(payload, ["os"]),
+      JSON.stringify(jsonValueFrom(payload, ["labels"], [])),
+      optionalStringFrom(payload, ["workspaceRoot", "worker_endpoint"]),
+      optionalStringFrom(payload, ["lastSeenAt"]),
+      projectionStatus(input, payload, "offline"),
+      input.projectionVersion,
+    ],
+  );
+}
+
+async function upsertRoleProjection(
+  client: DatabaseClient,
+  input: PlaneProjectionEventInput,
+): Promise<void> {
+  const payload = input.payload;
+  await client.query(
+    `
+      insert into acp_role_projections (
+        plane_role_id,
+        plane_workspace_id,
+        key,
+        name,
+        description,
+        plane_prompt_id,
+        metadata,
+        status,
+        projection_version,
+        updated_at
+      )
+      values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, now())
+      on conflict (plane_role_id) do update set
+        plane_workspace_id = excluded.plane_workspace_id,
+        key = excluded.key,
+        name = excluded.name,
+        description = excluded.description,
+        plane_prompt_id = excluded.plane_prompt_id,
+        metadata = excluded.metadata,
+        status = excluded.status,
+        projection_version = excluded.projection_version,
+        updated_at = now()
+      where acp_role_projections.projection_version <= excluded.projection_version
+    `,
+    [
+      input.entityId,
+      input.planeWorkspaceId,
+      requiredString(payload, "key"),
+      requiredString(payload, "name"),
+      optionalStringFrom(payload, ["description"]) ?? "",
+      optionalStringFrom(payload, ["prompt"]),
+      JSON.stringify(jsonValueFrom(payload, ["metadata"], {})),
+      projectionStatus(input, payload),
+      input.projectionVersion,
+    ],
+  );
+}
+
+async function upsertRepositoryProjection(
+  client: DatabaseClient,
+  input: PlaneProjectionEventInput,
+): Promise<void> {
+  const payload = input.payload;
+  await client.query(
+    `
+      insert into acp_repository_projections (
+        plane_repository_id,
+        plane_workspace_id,
+        plane_project_id,
+        key,
+        provider,
+        name,
+        url,
+        default_branch,
+        local_path,
+        metadata,
+        required,
+        status,
+        projection_version,
+        updated_at
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, now())
+      on conflict (plane_repository_id) do update set
+        plane_workspace_id = excluded.plane_workspace_id,
+        plane_project_id = excluded.plane_project_id,
+        key = excluded.key,
+        provider = excluded.provider,
+        name = excluded.name,
+        url = excluded.url,
+        default_branch = excluded.default_branch,
+        local_path = excluded.local_path,
+        metadata = excluded.metadata,
+        required = excluded.required,
+        status = excluded.status,
+        projection_version = excluded.projection_version,
+        updated_at = now()
+      where acp_repository_projections.projection_version <= excluded.projection_version
+    `,
+    [
+      input.entityId,
+      input.planeWorkspaceId,
+      optionalStringFrom(payload, ["project"]),
+      requiredString(payload, "key"),
+      optionalStringFrom(payload, ["provider"]) ?? "github",
+      requiredString(payload, "name"),
+      requiredString(payload, "url"),
+      optionalStringFrom(payload, ["default_branch"]) ?? "default",
+      optionalStringFrom(payload, ["local_path"]),
+      JSON.stringify(jsonValueFrom(payload, ["metadata"], {})),
+      optionalBooleanFrom(payload, ["required", "is_required"]) ?? true,
+      projectionStatus(input, payload),
       input.projectionVersion,
     ],
   );
@@ -731,6 +852,42 @@ function optionalString(payload: Record<string, unknown>, key: string): string |
   return value;
 }
 
+function requiredStringFrom(payload: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = optionalStringFrom(payload, [key]);
+    if (value) {
+      return value;
+    }
+  }
+  throw new Error(`Projection payload requires non-empty string field: ${keys.join("|")}`);
+}
+
+function optionalStringFrom(payload: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function optionalScalarStringFrom(payload: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+    if (typeof value === "bigint") {
+      return String(value);
+    }
+  }
+  return null;
+}
+
 function requiredNumber(payload: Record<string, unknown>, key: string): number {
   const value = payload[key];
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -750,6 +907,16 @@ function optionalNumber(payload: Record<string, unknown>, key: string): number |
   return value;
 }
 
+function optionalNumberFrom(payload: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
 function optionalBoolean(payload: Record<string, unknown>, key: string): boolean | null {
   const value = payload[key];
   if (value == null) {
@@ -759,6 +926,16 @@ function optionalBoolean(payload: Record<string, unknown>, key: string): boolean
     throw new Error(`Projection payload field must be a boolean: ${key}`);
   }
   return value;
+}
+
+function optionalBooleanFrom(payload: Record<string, unknown>, keys: string[]): boolean | null {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "boolean") {
+      return value;
+    }
+  }
+  return null;
 }
 
 function objectValue(payload: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -772,6 +949,20 @@ function objectValue(payload: Record<string, unknown>, key: string): Record<stri
   return value as Record<string, unknown>;
 }
 
+function jsonValueFrom(
+  payload: Record<string, unknown>,
+  keys: string[],
+  fallback: unknown,
+): unknown {
+  for (const key of keys) {
+    const value = payload[key];
+    if (value !== undefined && value !== null) {
+      return value;
+    }
+  }
+  return fallback;
+}
+
 function arrayValue(payload: Record<string, unknown>, key: string): unknown[] {
   const value = payload[key];
   if (value == null) {
@@ -781,6 +972,78 @@ function arrayValue(payload: Record<string, unknown>, key: string): unknown[] {
     throw new Error(`Projection payload field must be an array: ${key}`);
   }
   return value;
+}
+
+function projectionStatus(
+  input: PlaneProjectionEventInput,
+  payload: Record<string, unknown>,
+  inactiveStatus = "disabled",
+): string {
+  if (input.operation === "delete") {
+    return "archived";
+  }
+  const status = optionalStringFrom(payload, ["status"]);
+  if (status) {
+    return status;
+  }
+  const isActive = optionalBooleanFrom(payload, ["is_active"]);
+  if (isActive !== null) {
+    return isActive ? "active" : inactiveStatus;
+  }
+  return "active";
+}
+
+function projectMetaGitPolicy(payload: Record<string, unknown>): Record<string, unknown> {
+  const explicit = jsonValueFrom(payload, ["metaGitPolicy"], null);
+  if (explicit && typeof explicit === "object" && !Array.isArray(explicit)) {
+    return explicit as Record<string, unknown>;
+  }
+  return {
+    localPath: optionalStringFrom(payload, ["local_path"]),
+    statusPath: optionalStringFrom(payload, ["status_path"]) ?? "status.md",
+    progressPath: optionalStringFrom(payload, ["progress_path"]) ?? "progress.md",
+    metaPath: optionalStringFrom(payload, ["meta_path"]) ?? "meta.md",
+    metadata: jsonValueFrom(payload, ["metadata"], {}),
+  };
+}
+
+function toolProfileSnapshot(payload: Record<string, unknown>): unknown {
+  const explicit = jsonValueFrom(payload, ["toolProfile"], undefined);
+  if (explicit !== undefined) {
+    return explicit;
+  }
+  return {
+    tools: jsonValueFrom(payload, ["tools"], []),
+  };
+}
+
+function configSnapshot(payload: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  const explicit = jsonValueFrom(payload, ["configSnapshot"], null);
+  if (explicit && typeof explicit === "object" && !Array.isArray(explicit)) {
+    return explicit as Record<string, unknown>;
+  }
+  return {
+    key: optionalStringFrom(payload, ["key"]),
+    description: optionalStringFrom(payload, ["description"]) ?? "",
+    runtime: optionalStringFrom(payload, ["runtime"]) ?? "codex",
+    defaults: jsonValueFrom(payload, keys, {}),
+    isDefault: optionalBooleanFrom(payload, ["is_default"]) ?? false,
+  };
+}
+
+function promptKind(payload: Record<string, unknown>): string {
+  const direct = optionalStringFrom(payload, ["kind"]);
+  if (direct) {
+    return direct;
+  }
+  const metadata = jsonValueFrom(payload, ["metadata"], {});
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    const metadataKind = (metadata as Record<string, unknown>).kind;
+    if (typeof metadataKind === "string" && metadataKind.length > 0) {
+      return metadataKind;
+    }
+  }
+  return "instruction";
 }
 
 function errorToMessage(error: unknown): string {

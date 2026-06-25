@@ -64,28 +64,31 @@ describe("applyPlaneProjectionEvent", () => {
       applyPlaneProjectionEvent(client, {
         planeWorkspaceId: "workspace-1",
         planeOutboxId: 101,
-        entityType: "user_agent",
+        entityType: "agent_user_agent",
         entityId: "agent-1",
+        operation: "create",
         projectionVersion: 3,
         payload: {
-          ownerUserId: "user-1",
+          owner: "user-1",
+          key: "default-codex",
           name: "Default Codex",
-          defaultModel: "gpt-5-codex",
-          toolProfile: { shell: true },
-          configSnapshot: { maxTurns: 80 },
-          status: "active",
+          runtime: "codex",
+          model: "gpt-5-codex",
+          tools: ["shell"],
+          defaults: { maxTurns: 80 },
+          is_active: true,
         },
       }),
     ).resolves.toMatchObject({
       status: "applied",
-      entityType: "user_agent",
+      entityType: "agent_user_agent",
       entityId: "agent-1",
     });
 
     expect(client.query).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining("insert into acp_config_projection_events"),
-      expect.arrayContaining(["workspace-1", 101, "user_agent", "agent-1", 3]),
+      expect.arrayContaining(["workspace-1", 101, "agent_user_agent", "agent-1", 3]),
     );
     expect(client.query).toHaveBeenNthCalledWith(
       2,
@@ -103,7 +106,7 @@ describe("applyPlaneProjectionEvent", () => {
       applyPlaneProjectionEvent(client, {
         planeWorkspaceId: "workspace-1",
         planeOutboxId: 101,
-        entityType: "prompt",
+        entityType: "agent_prompt",
         entityId: "prompt-1",
         projectionVersion: 1,
         payload: {
@@ -114,7 +117,7 @@ describe("applyPlaneProjectionEvent", () => {
       }),
     ).resolves.toMatchObject({
       status: "skipped",
-      entityType: "prompt",
+      entityType: "agent_prompt",
       entityId: "prompt-1",
     });
 
@@ -133,7 +136,7 @@ describe("applyPlaneProjectionEvent", () => {
       applyPlaneProjectionEvent(client, {
         planeWorkspaceId: "workspace-1",
         planeOutboxId: 102,
-        entityType: "prompt",
+        entityType: "agent_prompt",
         entityId: "prompt-1",
         projectionVersion: 1,
         payload: {
@@ -146,6 +149,85 @@ describe("applyPlaneProjectionEvent", () => {
     expect(client.query).toHaveBeenLastCalledWith(
       expect.stringContaining("update acp_config_projection_events"),
       expect.arrayContaining(["workspace-1", 102, expect.stringContaining("name")]),
+    );
+  });
+
+  it("upserts role projections from Plane serializer payloads", async () => {
+    const client = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ id: "event-1" }] })
+        .mockResolvedValueOnce({ rows: [] }),
+    } as unknown as DatabaseClient;
+
+    await expect(
+      applyPlaneProjectionEvent(client, {
+        planeWorkspaceId: "workspace-1",
+        planeOutboxId: 103,
+        entityType: "agent_role",
+        entityId: "role-1",
+        projectionVersion: 1,
+        payload: {
+          key: "reviewer",
+          name: "Reviewer",
+          description: "Reviews changes",
+          prompt: "prompt-1",
+          metadata: { gate: "agent_review" },
+          is_active: true,
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "applied",
+      entityType: "agent_role",
+      entityId: "role-1",
+    });
+
+    expect(client.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("insert into acp_role_projections"),
+      expect.arrayContaining(["role-1", "workspace-1", "reviewer", "Reviewer"]),
+    );
+  });
+
+  it("upserts repository projections from Plane serializer payloads", async () => {
+    const client = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ id: "event-1" }] })
+        .mockResolvedValueOnce({ rows: [] }),
+    } as unknown as DatabaseClient;
+
+    await expect(
+      applyPlaneProjectionEvent(client, {
+        planeWorkspaceId: "workspace-1",
+        planeOutboxId: 104,
+        entityType: "agent_repository",
+        entityId: "repo-1",
+        operation: "update",
+        projectionVersion: 2,
+        payload: {
+          project: "project-1",
+          key: "plane",
+          provider: "github",
+          name: "Plane fork",
+          url: "git@github.com:michaelx1993/plane.git",
+          default_branch: "preview",
+          local_path: "/Users/a/plane",
+          metadata: { owner: "michaelx1993" },
+          is_required: true,
+          is_active: true,
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "applied",
+      entityType: "agent_repository",
+      entityId: "repo-1",
+    });
+
+    expect(client.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("insert into acp_repository_projections"),
+      expect.arrayContaining(["repo-1", "workspace-1", "project-1", "plane", "github"]),
     );
   });
 });

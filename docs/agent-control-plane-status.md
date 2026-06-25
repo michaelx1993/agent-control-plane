@@ -1,6 +1,6 @@
 # Agent Control Plane 当前状态
 
-更新时间：2026-06-20
+更新时间：2026-06-25
 
 本文只记录当前仓库的实现与验收边界，避免把“代码已落地”和“真实环境已验收”混在一起。详细产品设计看 `agent-control-plane-prd.md`，数据模型看 `agent-control-plane-erd.md`，阶段路线看 `agent-control-plane-roadmap.md`，当前明确待办看 `todo.md`。
 
@@ -54,6 +54,7 @@
 - 本地 `.secrets/completion-final.env` 已刷新为 codex-first 模板；`pnpm completion:doctor` 当前不再把 OpenHands/Langfuse 当作默认缺口，剩余缺口为 Plane/API/operator/secret provider/final evidence 等真实 cutover 变量。2026-06-20 00:03 PDT 记录的 doctor 样本 `completion-doctor-20260620T070307Z-26363` 结果：`ready_count=1`、`missing_count=31`、`manual_missing_variables_count=16`、`manual_placeholder_variables` 包含 Plane/API/operator/secret provider/final evidence 等真实待填项，`manual_not_true_variables=ACP_CUTOVER_LEGACY_POLLER_READONLY,ACP_CUTOVER_LINEAR_ARCHIVE_CONFIRMED`，两个 cutover gate 变量已存在但仍为 `false`，`hint_confirm_cutover_booleans=true`、Plane 本机探针 reachable、Control Plane 本机探针 reachable；生成的 action plan 在 `reports/completion-doctor-20260620T070307Z-26363.action-plan.md`。同轮 `ACP_SECRET_ENV_FILE=.secrets/completion-final.env pnpm external:preflight` 输出 `external_preflight_id=external-preflight-20260620T070419Z-28212`、`ready_count=1`、`missing_count=31`、`external_smoke_preflight=failed`，失败原因仍是最终 env 中真实 Plane/API/operator/secret provider/人工 cutover evidence 尚未替换模板占位。
 - PR #38 已合入 `main`：`runPlaneSync` 现在在 comment polling warning 触发时保留 previous cursor 且不再重复写入同一 cursor；新增 worker-level 单元测试覆盖 clean sync 推进 cursor、warning sync 保留 cursor 两条路径。该增量已通过 `pnpm --filter @agent-control-plane/worker test -- plane-sync`、`pnpm --filter @agent-control-plane/worker typecheck`、`pnpm --silent format` 和 `git diff --check`；同轮 `pnpm completion:doctor` 仍显示剩余缺口只集中在真实 Plane/API/operator/secret provider/final cutover evidence。
 - 同轮验证已通过 `pnpm check`、`pnpm --filter @agent-control-plane/db test -- tasks runs`、`pnpm --filter @agent-control-plane/db typecheck`、相关 Prettier check 和 `git diff --check`。
+- 2026-06-25 Plane Agent Platform projection contract 增量：ACP `plane:agent-config-sync` 已对齐 Plane fork 当前 `agent_config_outbox` 契约，支持 `agent_user_agent`、`agent_prompt`、`agent_prompt_version`、`agent_prompt_binding`、`agent_role`、`agent_worker_card`、`agent_project_workspace`、`agent_repository`；新增 `acp_role_projections` 和 `acp_repository_projections` migration。该增量已通过 `pnpm build && pnpm test`、`pnpm typecheck`、`pnpm db:validate`、`pnpm format`、`git diff --check`、`pnpm release:image-smoke`，并在临时 PostgreSQL 上从零执行全部 migrations 后运行真实 Plane outbox polling，输出 `plane_agent_config_sync=passed`。
 
 2026-06-20 已完成一次本地 completion gate 验尸：
 
