@@ -105,6 +105,10 @@ function normalizeEntityType(value) {
       return "agent_role";
     case "agent_repository":
       return "agent_repository";
+    case "agent_user_secret_key":
+    case "user_secret_key":
+    case "secret_key":
+      return "agent_user_secret_key";
     default:
       throw new Error(`Unsupported Plane agent config outbox entity type: ${value}`);
   }
