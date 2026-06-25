@@ -1356,4 +1356,5 @@ Agent 表达用户常用的工作方式、偏好和默认 Prompt 绑定，它应
 
 - `docs/symphony-orchestration-design.md`: 继续记录 Symphony 执行模型来源。
 - `docs/agent-control-plane-prd.md`: 保持总体产品和系统边界。
+- `docs/plane-agent-platform-erd.md`: 记录 Plane extension tables、ACP projection tables、Run Pipeline、Project Meta Git 和相关 ERD 技术方案。
 - 后续实现时应新增 API contract 和 migration design，分别描述 Control Plane API、DB migration 和 Plane UI 改造范围。

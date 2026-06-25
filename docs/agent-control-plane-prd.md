@@ -29,6 +29,7 @@ Distributed Worker
 - Plane 源码必须 fork 到自有 GitHub 并按自有部署链路发布；当前目标 fork 为 `https://github.com/michaelx1993/plane`，后续 Plane repo 字段、任务页面嵌入 agent 状态等二开都在该 fork 上推进。
 - Plane 是人类任务平台，Control Plane 是 agent 调度平台。
 - Agent 是 User 级资源；可编辑管理入口迁移到 Plane 的用户级 Agent Library 和项目级 Agent Bindings。Agent Control Plane 保存 Plane 同步来的 runtime projection，并承载 prompt release、run snapshot、worker 调度和权限 enforcement；详细设计见 `docs/plane-agent-role-management.md`。
+- Plane Agent Platform 的 ERD 技术方案见 `docs/plane-agent-platform-erd.md`，用于承接 Plane extension tables、ACP projection tables、Run Pipeline、Project Meta Git 和 evidence tables。
 - Phase 1 的代码执行任务必须绑定 Plane project 中已注册的 repository；布置任务时可以显式指定 Repository 和 Playbook node -> User Agent assignments，未显式分配的 node 使用 Project default agent 兜底，repo-less task 留到后续能力扩展。
 - Phase 1 使用 Project default Worker Card 作为默认执行目标，Run 创建时可覆盖；Worker 复用真实宿主机环境，并为 development run 创建 per-run git worktree。
 - Development node 成功后必须创建或更新 SCM Change Request；Agent Code Review 是自动节点，Human Review 是独立 gate；`request_changes` 自动打回 Development rework。
