@@ -57,11 +57,68 @@ describe("fetchTaskSourceAuditRecords", () => {
       },
     ]);
 
-    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("projects.slug = $3"), [
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining("projects.slug = $5"), [
       ["Todo", "Development", "Code Review", "In Merge", "Release Version", "Deployment"],
       10,
+      true,
+      ["Human Review", "Merged", "Released", "Deployed"],
       "token",
     ]);
+  });
+
+  it("can include tasks that already advanced past automatic states when run evidence exists", async () => {
+    const client = {
+      query: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            id: "task-1",
+            identifier: "P1-1",
+            title: "Build",
+            state: "Human Review",
+            url: "https://plane.local/workspace/acme/projects/p1/issues/item-1",
+            project_slug: "p1",
+            repository_id: "repo-1",
+            repository_slug: "plane",
+            latest_run_id: "run-1",
+            latest_run_status: "succeeded",
+            latest_run_event_count: "3",
+            progress_item_count: "2",
+            prompt_release_count: "1",
+            workspace_count: "1",
+            conversation_url: null,
+            trace_url: null,
+            updated_at: new Date("2026-06-25T12:00:00.000Z"),
+          },
+        ],
+      }),
+    } as unknown as DatabaseClient;
+
+    await expect(
+      fetchTaskSourceAuditRecords(client, {
+        projectSlug: "p1",
+        limit: 10,
+        includeRunEvidenceTasks: true,
+      }),
+    ).resolves.toMatchObject([
+      {
+        identifier: "P1-1",
+        state: "Human Review",
+        latestRunId: "run-1",
+      },
+    ]);
+
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "or ($3::boolean and tasks.state = any($4::text[]) and latest_run.id is not null)",
+      ),
+      [
+        ["Todo", "Development", "Code Review", "In Merge", "Release Version", "Deployment"],
+        10,
+        true,
+        ["Human Review", "Merged", "Released", "Deployed"],
+        "p1",
+      ],
+    );
   });
 });
 

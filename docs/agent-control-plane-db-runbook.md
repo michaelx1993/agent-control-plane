@@ -261,7 +261,7 @@ pnpm worker
 - adapter 执行期间，worker 会每隔 `WORKER_LEASE_RENEWAL_INTERVAL_MS` 写 heartbeat，并把 `runs.lease_expires_at` 刷新到 `now + WORKER_LEASE_TTL_MS`。
 - 收到 `SIGINT` / `SIGTERM` 后不再进入下一轮；当前 `runOnce` 收口后退出。
 
-如果 `TOK-1` 已被前序验证推进到人工状态，可先重置演示任务：
+`TOK-1` 是本地 seed/demo fixture，默认不作为生产自动派发任务。仅在本地 smoke 数据库中，如果 `TOK-1` 已被前序验证推进到人工状态，可先重置演示任务：
 
 ```bash
 docker exec agent-control-plane-postgres psql \
@@ -437,7 +437,7 @@ Operator run 查询：
 curl -sS "http://127.0.0.1:3112/api/runs?status=stalled&limit=20"
 ```
 
-Prompt release smoke：
+Prompt release smoke（仅限本地 smoke 数据库，生产库不要用该命令重置 seed demo 到自动状态）：
 
 ```bash
 docker exec agent-control-plane-postgres psql \

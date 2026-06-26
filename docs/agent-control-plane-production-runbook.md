@@ -289,6 +289,7 @@ ACP_CUTOVER_REPORT_FILE="reports/cutover-$(date -u +%Y%m%dT%H%M%SZ).json" \
 ACP_CUTOVER_RUN_PRODUCTION_SMOKE=true \
 ACP_CUTOVER_RUN_PLANE_WRITEBACK_SMOKE=true \
 ACP_CUTOVER_RUN_TASK_SOURCE_SMOKE=true \
+TASK_SOURCE_SMOKE_PROJECT_SLUG="<real-plane-project-slug>" \
 ACP_CUTOVER_RUN_WORKER_CRASH_SMOKE=true \
 ACP_CUTOVER_RUN_WORKER_BUDGET_SMOKE=true \
 ACP_CUTOVER_RUN_WORKER_WORKFLOW_SMOKE=true \
@@ -944,7 +945,7 @@ pnpm cutover:check
 - 设置 `ACP_CUTOVER_RUN_OPENHANDS_ADAPTER_SMOKE=true` 后，cutover gate 会执行 `scripts/smoke-openhands-adapter.sh`，验证 worker OpenHands adapter 能拿到成功 terminal status、conversation ref、event summary 和 role next state；该项仅属于 legacy external profile。
 - 设置 `ACP_CUTOVER_RUN_OPENHANDS_DB_SMOKE=true` 后，cutover gate 会执行 `scripts/smoke-openhands-db.sh`，验证数据库驱动 worker run 能写入 prompt release、conversation ref、workspace event、OpenHands status event 和 next state，并把 `prompt_release_id`、正数 `trace_refs` 和首个 `trace_ui_url` 写入 cutover report；`LANGFUSE_ENABLED=true` 时还会要求 run detail 写入 `trace_refs(provider=langfuse)`。该项仅属于 legacy external profile；生产切换建议把 `OPENHANDS_DB_SMOKE_PROJECT_SLUG` 指向专用 smoke project，避免混入真实待处理任务。
 - 设置 `ACP_CUTOVER_RUN_LANGFUSE_SMOKE=true` 后，cutover gate 会执行 `pnpm langfuse:smoke`，要求 `LANGFUSE_ENABLED=true` 且 credentials 存在，并拒绝 `LANGFUSE_SMOKE_DRY_RUN=true`；该项仅属于 legacy external profile 或未来可选观测增强。
-- 设置 `ACP_CUTOVER_RUN_TASK_SOURCE_SMOKE=true` 后，cutover gate 会执行 `scripts/smoke-task-source.sh`，审计非终态自动派发任务的 URL 来源、repo routing 和 run evidence。默认 `codex-cli` profile 应以 Control Plane run、Codex run events、Progress / Workpad、prompt release 和 workspace 证明执行，conversation/trace evidence 只属于 legacy external profile。
+- 设置 `ACP_CUTOVER_RUN_TASK_SOURCE_SMOKE=true` 后，cutover gate 会执行 `scripts/smoke-task-source.sh`，审计非终态自动派发任务的 URL 来源、repo routing 和 run evidence；已推进到 Human Review 但仍有 latest run evidence 的真实 Plane task 也可作为样本。真实 cutover 应设置 `TASK_SOURCE_SMOKE_PROJECT_SLUG=<real-plane-project-slug>` 限定到真实 Plane project，避免本地 seed/demo fixture 干扰生产任务来源审计。默认 `codex-cli` profile 应以 Control Plane run、Codex run events、Progress / Workpad、prompt release 和 workspace 证明执行，conversation/trace evidence 只属于 legacy external profile。
 - 设置 `ACP_CUTOVER_RUN_WORKER_CRASH_SMOKE=true` 后，cutover gate 会执行 `scripts/smoke-worker-crash.sh`，创建临时数据库并验证过期 `running` run 会先标记 `stalled`，再以 `attempt=2` 重新认领同一任务推进到 `Code Review`。该 smoke 是本地恢复机制门禁，不替代真实 Codex 长任务崩溃、真实 workspace 残留清理和真实外部 writeback 验收。
 - 设置 `ACP_CUTOVER_RUN_WORKER_BUDGET_SMOKE=true` 后，cutover gate 会执行 `scripts/smoke-worker-budget.sh`，创建临时数据库并验证预算超限 `Development` task 不会被 claim，而是自动进入 `Blocked` 并写入 Progress / Workpad。该 smoke 是本地预算门禁，不替代真实成本估算调优。
 - 设置 `ACP_CUTOVER_RUN_WORKER_WORKFLOW_SMOKE=true` 后，cutover gate 会执行 `scripts/smoke-worker-workflow.sh`，创建临时数据库并验证完整状态机从 `Development` 跑到 `Done`，自动节点由 worker 执行，人工 gate 由本地 transition API 模拟。该 smoke 是本地 workflow 门禁，不替代真实 Plane 人工回写或真实 Codex 执行验收。
