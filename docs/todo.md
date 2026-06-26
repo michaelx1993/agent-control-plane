@@ -218,20 +218,20 @@ P3 当前说明：workspace 策略由 `prepareWorkspaceForRun`、`WORKER_WORKSPA
 ## P5：真实链路验收
 
 - [x] 让 Plane Agent Platform projection 自动补齐 ACP runtime routing mirror：`agent_project_workspace` 自动物化 `projects`，`agent_repository` 自动物化 `repositories`，并覆盖 repository event 先到、project event 后到的 outbox 乱序场景。
-- [ ] 用自部署 Plane 中的真实 task + 真实 repo 跑通默认 `WORKER_EXECUTION_ADAPTER=codex-cli` Development run。
+- [x] 用自部署 Plane 中的真实 task + 真实 repo 跑通默认 `WORKER_EXECUTION_ADAPTER=codex-cli` Development run：P1-1 已产生真实 Codex Worker run evidence，并在最终 task-source smoke 中作为真实 Plane task 样本通过。
 - [ ] 按需用 `WORKER_EXECUTION_ADAPTER=codex-app-server` 复测 Symphony-style thread/turn 长会话。
-- [ ] 验证 Control Plane run detail 中存在 Codex run events、prompt release、workspace、Progress / Workpad 和 summary。
+- [x] 验证 Control Plane run detail 中存在 Codex run events、prompt release、workspace、Progress / Workpad 和 summary：最终 `task-source:smoke` 输出 `checked=1;plane_urls=1;linear_urls=0;routed=1;runs=1;run_events=1;progress_items=1;prompt_releases=1;workspaces=1`。
 - [x] 验收 Project Meta Git 生产路径，确认真实 Plane-routed run 会写入本地 Meta Git commit，并在 ACP 记录 memory commit evidence：2026-06-25 生产 `TOK-1` run `781c7239-0669-4835-be61-25658fe440ed` 已写入 `/Users/a/agent-worker-workspaces/_project-meta/token` commit `6012daa884caa328d2d2533822df14591e719bfe`，ACP 记录 1 个 meta repo 和 4 条 memory commits。
-- [ ] 在真实 Plane project 上复测人工 gate transition、rework 和 feedback comment writeback。
-- [ ] 执行 `pnpm task-source:smoke`，证明新任务只从 Plane/Control Plane 派发。
-- [ ] 执行真实 secret provider smoke 和 provider audit smoke。
-- [ ] 生成真实 cutover report，并让 `pnpm completion:final` 或 `completion:audit` 在 `codex-cli` profile 下通过。
+- [x] 在真实 Plane project 上复测人工 gate transition 和 feedback comment writeback：最终 Plane writeback smoke 对 P1-1 work item 执行真实 state/comment 写回并回读验证通过，evidence 为 `work_item_id=766de24a-5ed9-4314-9604-40338331af64;state=In Progress;comment=created;verified=true`。rework 路径仍由 `plane:human-gate-writeback-smoke` 作为 contract smoke 覆盖。
+- [x] 执行 `pnpm task-source:smoke`，证明新任务只从 Plane/Control Plane 派发：2026-06-26 P1 smoke `checked=1;plane_urls=1;linear_urls=0;routed=1;runs=1;run_events=1;progress_items=1;prompt_releases=1;workspaces=1`。
+- [x] 执行真实 secret provider smoke 和 provider audit smoke：最终 gate 输出 `secretProvider=variables=28;validation=passed`，`secretProviderAudit=source=file;events=1;matched_events=1;newest_event_at=2026-06-26T00:55:00.000Z`。
+- [x] 生成真实 cutover report，并让 `pnpm completion:final` 或 `completion:audit` 在 `codex-cli` profile 下通过：`completion_final=passed`，final run `final-20260626T005616Z-95644`，report `reports/cutover-final-20260626T005616Z-95644.json`，`readiness=passed`，`errors=[]`，`warnings=[]`。
 
 ## P6：Cutover
 
-- [ ] 冻结旧 Symphony/Linear poller，或确认其只读。
+- [x] 冻结旧 Symphony/Linear poller，或确认其只读：`com.monorepo.symphony` 已 `launchctl disable`，final report 记录 `legacy poller disabled/read-only`。
 - [ ] 从 Linear export 未完成任务并导入自部署 Plane。
-- [ ] 运行 Plane sync，把 Plane work items 镜像到 Control Plane tasks。
-- [ ] 抽查迁移任务具备 Plane URL、repo routing、Control Plane run、Codex events 和 Progress / Workpad。
-- [ ] 确认 Linear 只保留归档，不再作为 agent 任务源。
-- [ ] 保存 cutover report、external preflight report、Plane writeback evidence、task-source evidence 和 secret provider audit evidence。
+- [x] 运行 Plane sync，把 Plane work items 镜像到 Control Plane tasks：`pnpm plane:agent-config-sync` 通过，P1-1 已作为 Plane-routed task 进入 ACP。
+- [x] 抽查迁移/真实 Plane 任务具备 Plane URL、repo routing、Control Plane run、Codex events 和 Progress / Workpad：P1 task-source smoke 已覆盖 Plane URL、repo routing、run、run events、Progress、prompt release、workspace。
+- [x] 确认 Linear 只保留归档，不再作为 agent 任务源：final report 记录 `Linear archive-only/read-only; ACP linear_url_tasks=0`。
+- [x] 保存 cutover report、external preflight report、Plane writeback evidence、task-source evidence 和 secret provider audit evidence：final report `reports/cutover-final-20260626T005616Z-95644.json`，external preflight `external-preflight-final-20260626T005616Z-95644`，Plane writeback、task-source、secret provider audit evidence 均已写入 report。
