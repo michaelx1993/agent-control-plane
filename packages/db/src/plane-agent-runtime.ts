@@ -575,6 +575,7 @@ async function upsertProjectProjection(
       optionalStringFrom(payload, ["sourceUpdatedAt", "updated_at"]),
     ],
   );
+  await materializeLegacyProjectFromProjection(client, input.entityId);
 }
 
 async function upsertUserAgentProjection(
@@ -911,6 +912,271 @@ async function upsertRepositoryProjection(
       projectionStatus(input, payload),
       input.projectionVersion,
     ],
+  );
+  await materializeLegacyRepositoryFromProjection(client, input.entityId);
+}
+
+async function materializeLegacyProjectFromProjection(
+  client: DatabaseClient,
+  planeProjectWorkspaceId: string,
+): Promise<void> {
+  await client.query(
+    `
+      with projection as (
+        select
+          plane_workspace_id,
+          plane_project_id,
+          slug,
+          status
+        from acp_project_projections
+        where plane_project_workspace_id = $1
+        limit 1
+      ),
+      existing as (
+        update projects
+        set
+          slug = projection.slug,
+          name = projection.slug,
+          status = projection.status,
+          updated_at = now()
+        from projection
+        where projects.external_project_id = projection.plane_project_id
+        returning projects.id
+      ),
+      plane_team as (
+        insert into teams (
+          id,
+          external_provider,
+          external_team_id,
+          key,
+          name,
+          description,
+          created_at,
+          updated_at
+        )
+        select
+          gen_random_uuid(),
+          'plane',
+          projection.plane_workspace_id,
+          'plane:' || projection.plane_workspace_id,
+          projection.plane_workspace_id,
+          'Auto-created from Plane agent project workspace projection.',
+          now(),
+          now()
+        from projection
+        where not exists (select 1 from existing)
+        on conflict (external_provider, external_team_id) do update set
+          name = excluded.name,
+          updated_at = now()
+        returning teams.id
+      )
+      insert into projects (
+        id,
+        team_id,
+        external_project_id,
+        slug,
+        name,
+        description,
+        status,
+        created_at,
+        updated_at
+      )
+      select
+        gen_random_uuid(),
+        plane_team.id,
+        projection.plane_project_id,
+        projection.slug,
+        projection.slug,
+        'Auto-created from Plane agent project workspace projection.',
+        projection.status,
+        now(),
+        now()
+      from projection
+      cross join plane_team
+      where not exists (select 1 from existing)
+      on conflict (team_id, slug) do update set
+        external_project_id = excluded.external_project_id,
+        name = excluded.name,
+        description = excluded.description,
+        status = excluded.status,
+        updated_at = now()
+    `,
+    [planeProjectWorkspaceId],
+  );
+  await materializeLegacyRepositoriesForProjectProjection(client, planeProjectWorkspaceId);
+}
+
+async function materializeLegacyRepositoryFromProjection(
+  client: DatabaseClient,
+  planeRepositoryId: string,
+): Promise<void> {
+  await client.query(
+    `
+      with repository_projection as (
+        select
+          plane_project_id,
+          key,
+          name,
+          url,
+          default_branch,
+          local_path,
+          status
+        from acp_repository_projections
+        where plane_repository_id = $1
+        limit 1
+      ),
+      project_row as (
+        select projects.id
+        from projects
+        join repository_projection
+          on projects.external_project_id = repository_projection.plane_project_id
+          or projects.slug = repository_projection.plane_project_id
+        order by
+          case when projects.external_project_id = repository_projection.plane_project_id then 0 else 1 end,
+          projects.updated_at desc
+        limit 1
+      ),
+      existing as (
+        update repositories
+        set
+          project_id = project_row.id,
+          slug = repository_projection.key,
+          default_branch = repository_projection.default_branch,
+          local_path = repository_projection.local_path,
+          status = repository_projection.status,
+          description = repository_projection.name,
+          updated_at = now()
+        from repository_projection, project_row
+        where repositories.git_url = repository_projection.url
+        returning repositories.id
+      )
+      insert into repositories (
+        id,
+        project_id,
+        slug,
+        git_url,
+        default_branch,
+        local_path,
+        status,
+        description,
+        created_at,
+        updated_at
+      )
+      select
+        gen_random_uuid(),
+        project_row.id,
+        repository_projection.key,
+        repository_projection.url,
+        repository_projection.default_branch,
+        repository_projection.local_path,
+        repository_projection.status,
+        repository_projection.name,
+        now(),
+        now()
+      from repository_projection
+      cross join project_row
+      where not exists (select 1 from existing)
+      on conflict (project_id, slug) do update set
+        git_url = excluded.git_url,
+        default_branch = excluded.default_branch,
+        local_path = excluded.local_path,
+        status = excluded.status,
+        description = excluded.description,
+        updated_at = now()
+    `,
+    [planeRepositoryId],
+  );
+}
+
+async function materializeLegacyRepositoriesForProjectProjection(
+  client: DatabaseClient,
+  planeProjectWorkspaceId: string,
+): Promise<void> {
+  await client.query(
+    `
+      with project_projection as (
+        select plane_project_id
+        from acp_project_projections
+        where plane_project_workspace_id = $1
+        limit 1
+      ),
+      repository_projection as (
+        select
+          repositories.plane_project_id,
+          repositories.key,
+          repositories.name,
+          repositories.url,
+          repositories.default_branch,
+          repositories.local_path,
+          repositories.status
+        from acp_repository_projections repositories
+        join project_projection
+          on project_projection.plane_project_id = repositories.plane_project_id
+      ),
+      project_row as (
+        select projects.id
+        from projects
+        join project_projection
+          on projects.external_project_id = project_projection.plane_project_id
+          or projects.slug = project_projection.plane_project_id
+        order by
+          case when projects.external_project_id = project_projection.plane_project_id then 0 else 1 end,
+          projects.updated_at desc
+        limit 1
+      ),
+      updated as (
+        update repositories
+        set
+          project_id = project_row.id,
+          slug = repository_projection.key,
+          default_branch = repository_projection.default_branch,
+          local_path = repository_projection.local_path,
+          status = repository_projection.status,
+          description = repository_projection.name,
+          updated_at = now()
+        from repository_projection, project_row
+        where repositories.git_url = repository_projection.url
+        returning repositories.id, repositories.git_url
+      )
+      insert into repositories (
+        id,
+        project_id,
+        slug,
+        git_url,
+        default_branch,
+        local_path,
+        status,
+        description,
+        created_at,
+        updated_at
+      )
+      select
+        gen_random_uuid(),
+        project_row.id,
+        repository_projection.key,
+        repository_projection.url,
+        repository_projection.default_branch,
+        repository_projection.local_path,
+        repository_projection.status,
+        repository_projection.name,
+        now(),
+        now()
+      from repository_projection
+      cross join project_row
+      where not exists (
+        select 1
+        from updated
+        where updated.git_url = repository_projection.url
+      )
+      on conflict (project_id, slug) do update set
+        git_url = excluded.git_url,
+        default_branch = excluded.default_branch,
+        local_path = excluded.local_path,
+        status = excluded.status,
+        description = excluded.description,
+        updated_at = now()
+    `,
+    [planeProjectWorkspaceId],
   );
 }
 

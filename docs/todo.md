@@ -217,6 +217,7 @@ P3 当前说明：workspace 策略由 `prepareWorkspaceForRun`、`WORKER_WORKSPA
 
 ## P5：真实链路验收
 
+- [x] 让 Plane Agent Platform projection 自动补齐 ACP runtime routing mirror：`agent_project_workspace` 自动物化 `projects`，`agent_repository` 自动物化 `repositories`，并覆盖 repository event 先到、project event 后到的 outbox 乱序场景。
 - [ ] 用自部署 Plane 中的真实 task + 真实 repo 跑通默认 `WORKER_EXECUTION_ADAPTER=codex-cli` Development run。
 - [ ] 按需用 `WORKER_EXECUTION_ADAPTER=codex-app-server` 复测 Symphony-style thread/turn 长会话。
 - [ ] 验证 Control Plane run detail 中存在 Codex run events、prompt release、workspace、Progress / Workpad 和 summary。
