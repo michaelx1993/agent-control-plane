@@ -203,6 +203,21 @@ describe("applyPlaneProjectionEvent", () => {
       expect.stringContaining("status = excluded.status"),
       expect.any(Array),
     );
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("insert into projects"),
+      ["project-workspace-1"],
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("Auto-created from Plane agent project workspace projection"),
+      expect.any(Array),
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("from acp_repository_projections repositories"),
+      ["project-workspace-1"],
+    );
   });
 
   it("upserts role projections from Plane serializer payloads", async () => {
@@ -281,6 +296,16 @@ describe("applyPlaneProjectionEvent", () => {
       2,
       expect.stringContaining("insert into acp_repository_projections"),
       expect.arrayContaining(["repo-1", "workspace-1", "project-1", "plane", "github"]),
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("insert into repositories"),
+      ["repo-1"],
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("where repositories.git_url = repository_projection.url"),
+      expect.any(Array),
     );
   });
 

@@ -806,6 +806,14 @@ ACP 记录 Project Meta Git 的位置和最新状态；文件内容仍在 git re
 | `workspaces`        | 保留                                | 明确 per-run git worktree、base/target/work branch 和 cleanup TTL                |
 | `run_events`        | 保留                                | 增加 gate mode change、manual move、prerequisite blocked、meta git commit events |
 
+当前兼容策略：
+
+- `projects` / `repositories` 仍是 runtime routing mirror，`tasks`、`runs`、prompt release 和 worker claim 的既有 SQL 暂时继续读取这两张表。
+- `agent_project_workspace` projection 写入后，ACP 同事务从 `acp_project_projections` 物化或更新 legacy `projects`。若 legacy project 已按 Plane `external_project_id` 存在，则更新该行，避免新建重复 project。
+- `agent_repository` projection 写入后，ACP 从 `acp_repository_projections` 物化或更新 legacy `repositories`，优先按 `git_url` 更新，找不到时按 `(project_id, slug)` upsert。
+- 为避免 Plane outbox 乱序，project projection 完成物化后会补偿物化同一 Plane project 下已有的 repository projections；因此 repository event 先到不会永久丢失 runtime routing mirror。
+- 这层物化只承接运行时路由兼容，不把 Plane editable config 的所有字段塞回旧表；完整配置仍以 `acp_*_projections` 和 run snapshot 为准。
+
 ## 同步设计
 
 ### Phase 1: Polling first
