@@ -130,7 +130,7 @@ POST /api/worker/v1/runs/:runId/fail
 
 ## 当前实现快照
 
-截至 2026-06-19，当前仓库已经落地的是设计文档、monorepo 基础骨架、数据库首版迁移、Web/Worker 最小闭环、prompt release 最小闭环、Prompt Binding 审批/RBAC、workspace manager 本机目录版、OpenHands Cloud adapter 骨架、第一阶段 `codex-cli` adapter、adapter event 摘要同步、conversation ref 关联、trace ref 关联、Langfuse run-level instrumentation 骨架、Task Queue lease/retry 可视化、operator API token 保护、DB-backed operator user、operator signed session 最小登录态、基础运行监控 dashboard、基础告警、阈值 UI/API 动态配置、generic/slack/email webhook 告警通知、告警失败重放队列、secret validate gate、secret env file/rotation/expiry warning、secret rotation audit log、外部 secret command、12h/24h/7d run 趋势、Linear export -> Plane 迁移脚本、external preflight、completion gap report、cutover gate、completion audit，以及 P8 发布/部署/回滚/备份恢复最小脚本。下一步执行层目标是用真实 Plane task 验证 `codex-cli` adapter，并让默认完成证据落到 Codex run events、Progress/Workpad、Plane writeback、task-source、secret provider 和 provider audit：
+截至 2026-06-26，当前仓库已经落地的是设计文档、monorepo 基础骨架、数据库迁移、Web/Worker 最小闭环、prompt release 最小闭环、Prompt Binding 审批/RBAC、workspace manager 本机目录版、OpenHands Cloud adapter 骨架、第一阶段 `codex-cli` adapter、adapter event 摘要同步、conversation ref 关联、trace ref 关联、Langfuse run-level instrumentation 骨架、Task Queue lease/retry 可视化、operator API token 保护、DB-backed operator user、operator signed session 最小登录态、基础运行监控 dashboard、基础告警、阈值 UI/API 动态配置、generic/slack/email webhook 告警通知、告警失败重放队列、secret validate gate、secret env file/rotation/expiry warning、secret rotation audit log、外部 secret command、12h/24h/7d run 趋势、Linear export -> Plane 迁移脚本、external preflight、completion gap report、cutover gate、completion audit，以及 P8 发布/部署/回滚/备份恢复最小脚本。默认 `codex-cli` profile 已通过真实 Plane task、Codex run events、Progress/Workpad、Plane writeback、task-source、secret provider、provider audit 和 final cutover report 审计：
 
 - `docs/agent-control-plane-prd.md`
 - `docs/agent-control-plane-erd.md`
@@ -250,18 +250,18 @@ POST /api/worker/v1/runs/:runId/fail
 
 当前仍未验收或尚未产品化的模块：
 
-- 真实 `codex-cli` / `codex-app-server` Codex Worker run 已在本机临时 DB / git-worktree smoke 中跑通；尚未在真实 Plane task 上完成端到端验收。
+- 真实 `codex-cli` Codex Worker run 已在本机临时 DB / git-worktree smoke 和 self-host 真实 Plane task 上跑通；`codex-app-server` 长会话在本机 smoke 中已验证，真实 Plane 派发路径下的长会话复用仍作为后续增强。
 - Codex run events 到 `run_events` / Progress / Workpad / Run Detail 的生产级映射仍需用真实输出校准。
-- 正式生产数据库迁移部署。
+- 正式生产数据库迁移部署已完成到当前 cutover 所需版本；后续迁移继续走 release/deploy runbook。
 - Plane polling 已完成本地 cursor 级增量 upsert、全局 API retry、comment polling 部分失败降级、Plane sync warning/failure webhook 和可选服务端 `updated_after` 查询；真实 Plane 版本的 `updated_after` 能力仍待验证。
 - Workspace manager 本机目录版已落地；adapter event stream 摘要同步已落地；OpenHands Cloud conversation payload 事件摘要提取、同源 event log URL 拉取和可配置 event API path fallback 已落地；真实 OpenHands 细粒度 event API payload 属于 optional/legacy profile 校准项。
-- Worker 长运行 loop、lease 自动续租和 lease 过期后重新派发已落地；本地 `pnpm worker:lease-smoke` 已验证延迟 mock adapter 执行期间会多次 heartbeat/续租，`pnpm worker:crash-smoke` 已验证过期 running run 会先标记 stalled，再以 attempt=2 重新认领；真实 Codex 长任务、workspace 残留恢复和 Plane writeback 仍需验收。
+- Worker 长运行 loop、lease 自动续租和 lease 过期后重新派发已落地；本地 `pnpm worker:lease-smoke` 已验证延迟 mock adapter 执行期间会多次 heartbeat/续租，`pnpm worker:crash-smoke` 已验证过期 running run 会先标记 stalled，再以 attempt=2 重新认领；Plane writeback 已在最终 gate 真实验收，真实超长 Codex 任务和 workspace 残留恢复仍可继续压测。
 - P7 agent pool、repo/role/agent 并发门禁、单 run 估算成本门禁、预算超限自动 Blocked、持久化 dispatch budget policy、可配置 queue priority policy、priority aging、repo fair queue 和 weighted priority 已落地；真实多 worker/多 repo 长时间公平性调优仍需生产数据。
 - OpenHands/Langfuse 真实端到端 smoke 仅作为 optional/legacy profile 验收项，不阻断第一版 Codex-first 完成。
 - OpenHands 内部逐 LLM call prompt/output 与 Langfuse trace 的深度关联只在未来启用对应可选集成时校准；当前默认以 Control Plane run-level rendered prompt、最终结果 output、Codex/OpenHands adapter 事件摘要和本地 trace refs 记录为准。
 - 如果 OpenHands conversation payload 已返回 `trace_refs` / `traceRefs` / `traces`，或在 event/message payload 中返回 `trace_id` / `traceId` / `langfuse_trace_id` / `langfuseTraceId`，adapter 会把这些外部 trace 引用写入本地 `trace_refs`，并尽量保留 generation/model/token/cost/latency/UI URL；但这仍不代表已经能采集 OpenHands 内部每次 LLM call 的完整 prompt/output。
-- Docker Compose / CI release gate / 镜像发布 / Compose 部署 / 应用镜像回滚 / 数据库备份恢复 / 基础运行监控 dashboard / 基础告警 / 阈值 UI/API 动态配置 / generic/slack/email webhook 告警通知 / 告警失败重放队列 / secret validate gate / secret env file/rotation/expiry warning 最小链路 / secret rotation audit log / 外部 secret command 接入 / secret provider smoke / production smoke harness / 可选外部依赖只读探针 / Linear export -> Plane 迁移脚本 / 12h/24h/7d run 趋势已完成；真实端到端外部 smoke 未完成。
-- provider-side audit file/command smoke 已完成；真实供应商账号/API 下拉取审计事件并跑通 smoke 仍未验收。
+- Docker Compose / CI release gate / 镜像发布 / Compose 部署 / 应用镜像回滚 / 数据库备份恢复 / 基础运行监控 dashboard / 基础告警 / 阈值 UI/API 动态配置 / generic/slack/email webhook 告警通知 / 告警失败重放队列 / secret validate gate / secret env file/rotation/expiry warning 最小链路 / secret rotation audit log / 外部 secret command 接入 / secret provider smoke / production smoke harness / 可选外部依赖只读探针 / Linear export -> Plane 迁移脚本 / 12h/24h/7d run 趋势已完成；真实端到端外部 smoke 已在默认 `codex-cli` profile final gate 中通过。
+- provider-side audit file/command smoke 已完成；默认 cutover 使用 provider audit file evidence 通过，未来可按需接真实供应商账号/API command。
 
 Plane P0.5 当前状态：
 
@@ -720,7 +720,7 @@ Trace 策略：
 - `pnpm deploy:compose` 已提供固定 `ACP_IMAGE` 的 Compose 部署脚本。
 - `pnpm rollback:compose` 已提供 Web/Worker 应用镜像回滚脚本；数据库回滚必须走备份恢复。
 - `pnpm db:backup` 和 `pnpm db:restore` 已提供 PostgreSQL 备份/恢复脚本，恢复需要显式 `CONFIRM_RESTORE`。
-- 基础运行监控 dashboard、基础告警、阈值 UI/API 动态配置、generic/slack/email webhook 告警通知、告警失败重放队列、secret validate gate、secret env file/rotation/expiry warning 最小链路、secret rotation audit log、外部 secret command 接入、secret provider smoke、provider-side audit file/command smoke、production smoke harness、可选外部依赖只读探针、cutover gate、本地 cutover rehearsal harness 和 12h/24h/7d run 趋势已完成；真实端到端外部 smoke、真实 task-source cutover 样本、真实 secret provider command、真实供应商账号/API 审计 smoke 和真实完整 cutover rehearsal 仍未完成。
+- 基础运行监控 dashboard、基础告警、阈值 UI/API 动态配置、generic/slack/email webhook 告警通知、告警失败重放队列、secret validate gate、secret env file/rotation/expiry warning 最小链路、secret rotation audit log、外部 secret command 接入、secret provider smoke、provider-side audit file/command smoke、production smoke harness、可选外部依赖只读探针、cutover gate、本地 cutover rehearsal harness 和 12h/24h/7d run 趋势已完成；真实端到端外部 smoke、真实 task-source cutover 样本、真实 secret provider command 和 provider audit file evidence 已在 2026-06-26 final cutover gate 中通过。真实供应商 API audit command 和历史 Linear 任务导入可作为后续增强单独执行。
 
 第二阶段：
 
