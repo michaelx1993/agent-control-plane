@@ -1,4 +1,9 @@
-import { automaticStates, isWorkflowState, type WorkflowState } from "@agent-control-plane/core";
+import {
+  automaticStates,
+  isWorkflowState,
+  manualGateStates,
+  type WorkflowState,
+} from "@agent-control-plane/core";
 import type { DatabaseClient } from "./client.js";
 
 export interface TaskSourceAuditOptions {
@@ -16,6 +21,7 @@ export interface TaskSourceAuditOptions {
   requireWorkspaceEvidence?: boolean;
   requireConversationEvidence?: boolean;
   requireTraceEvidence?: boolean;
+  includeRunEvidenceTasks?: boolean;
 }
 
 export type TaskSourceAuditProfile =
@@ -241,10 +247,12 @@ export async function fetchTaskSourceAuditRecords(
   options: TaskSourceAuditOptions = {},
 ): Promise<TaskSourceAuditRecord[]> {
   const states = automaticStates.map((state) => state);
+  const runEvidenceStates = manualGateStates.map((state) => state);
   const limit = clampLimit(options.limit ?? DEFAULT_LIMIT);
-  const params: unknown[] = [states, limit];
+  const includeRunEvidenceTasks = options.includeRunEvidenceTasks ?? true;
+  const params: unknown[] = [states, limit, includeRunEvidenceTasks, runEvidenceStates];
   const projectFilter = options.projectSlug?.trim();
-  const projectClause = projectFilter ? "and projects.slug = $3" : "";
+  const projectClause = projectFilter ? "and projects.slug = $5" : "";
   if (projectFilter) {
     params.push(projectFilter);
   }
@@ -315,7 +323,10 @@ export async function fetchTaskSourceAuditRecords(
         order by created_at desc
         limit 1
       ) trace_refs on true
-      where tasks.state = any($1::text[])
+      where (
+          tasks.state = any($1::text[])
+          or ($3::boolean and tasks.state = any($4::text[]) and latest_run.id is not null)
+        )
         ${projectClause}
       order by tasks.updated_at desc
       limit $2

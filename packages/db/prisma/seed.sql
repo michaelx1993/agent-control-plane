@@ -389,7 +389,7 @@ values (
   'demo-task-1',
   'TOK-1',
   'Demo: repo-aware agent run',
-  'Development',
+  'Human Review',
   1,
   '["repo:crs-src", "symphony"]'::jsonb,
   null,
@@ -402,7 +402,10 @@ values (
 on conflict (project_id, identifier) do update set
   repository_id = excluded.repository_id,
   title = excluded.title,
-  state = excluded.state,
+  state = case
+    when tasks.external_task_id = 'demo-task-1' and nullif(tasks.url, '') is null then excluded.state
+    else tasks.state
+  end,
   priority = excluded.priority,
   labels = excluded.labels,
   last_synced_at = now(),

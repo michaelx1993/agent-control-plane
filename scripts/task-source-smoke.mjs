@@ -41,6 +41,7 @@ const result = await withDatabasePool((client) =>
       false,
     ),
     requireTraceEvidence: readBoolean("TASK_SOURCE_SMOKE_REQUIRE_TRACE_EVIDENCE", false),
+    includeRunEvidenceTasks: readBoolean("TASK_SOURCE_SMOKE_INCLUDE_RUN_EVIDENCE_TASKS", true),
   }),
 );
 
